@@ -9,6 +9,7 @@
 - Stage the signed local `0.1.1` artifact without creating `current`, installing entrypoints, changing command resolution, or touching the legacy port.
 - Replace the fixed 24-hour M2 sampling gate with focused repeated checks while retaining the health, classification, continuity, and no-production-write exit conditions.
 - Complete repeated legacy-to-shadow classification checks while preserving the exact local Codex PID set, legacy port state, gateway/import processes, and production auth metadata.
+- Install and verify the distinct shadow health unit files while keeping both service and timer disabled until the scoped client credential is active.
 
 ## 0.1.1 - 2026-07-14
 

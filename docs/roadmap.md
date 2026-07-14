@@ -12,6 +12,7 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 - The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation.
 - Signed `0.1.1` artifacts were built from commit `2fc4c0a8ecc9a60e3858d721d070a36fffa04ed6` and published to immutable `release-artifacts/v0.1.1` plus signed `release/stable`. Nothing is staged or activated in production.
 - A restricted `cloudx` identity, versioned shadow environment, shadow auth directory, and read-only account-state timer are installed. The scoped client credential and health publisher remain pending.
+- The distinct shadow health service and timer files are installed and verified but remain disabled and inactive until the scoped credential is usable.
 
 ## Release Train
 
@@ -119,6 +120,8 @@ Shadow importer replay evidence: `docs/archive/2026-07-14-shadow-importer-replay
 Local staging evidence: `docs/archive/2026-07-14-local-shadow-stage-0.1.1.md`.
 
 Focused classification and continuity evidence: `docs/archive/2026-07-14-focused-shadow-validation.md`.
+
+Staged shadow health unit evidence: `docs/archive/2026-07-14-shadow-health-units-staged.md`.
 
 ### M2 Exit Gate
 
