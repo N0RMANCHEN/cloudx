@@ -12,7 +12,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 MAX_BUNDLE_BYTES = 64 * 1024 * 1024
@@ -204,36 +204,81 @@ def _atomic_link(link: pathlib.Path, target: pathlib.Path) -> None:
     os.replace(str(temporary), str(link))
 
 
+def _release_link_version(root: pathlib.Path, name: str) -> Optional[str]:
+    link = root / name
+    if not link.is_symlink():
+        if link.exists():
+            raise RuntimeError("cloud release %s is not a symlink" % name)
+        return None
+    target = link.resolve()
+    releases = (root / "releases").resolve()
+    if target.parent != releases:
+        raise RuntimeError("cloud release %s points outside the release root" % name)
+    version = target.name
+    _version_tuple(version)
+    if not (target / "cloudx-cloud.pyz").is_file():
+        raise RuntimeError("cloud release %s target is incomplete" % name)
+    return version
+
+
+def status() -> Dict[str, Any]:
+    root = release_root()
+    current = _release_link_version(root, "current")
+    previous = _release_link_version(root, "previous")
+    artifact = root / "releases" / current / "cloudx-cloud.pyz" if current else None
+    return {
+        "schema": "cloudx.release-status.v1",
+        "status": "active" if current else "inactive",
+        "currentVersion": current,
+        "previousVersion": previous,
+        "currentArtifactSha256": digest(artifact) if artifact else None,
+    }
+
+
 def activate(version: str, confirmation: str) -> Dict[str, Any]:
     if confirmation != version:
         raise RuntimeError("release activation confirmation does not match the version")
     root = release_root()
     current = root / "current"
-    if current.is_symlink() and _version_tuple(version) < _version_tuple(current.resolve().name):
+    current_version = _release_link_version(root, "current")
+    if current_version and _version_tuple(version) < _version_tuple(current_version):
         raise RuntimeError("release activation would be a downgrade; use rollback")
     destination = root / "releases" / version
     if not (destination / "cloudx-cloud.pyz").is_file():
         raise RuntimeError("cloud release is not staged")
     previous = root / "previous"
-    old_target = current.resolve() if current.is_symlink() else None
+    old_target = root / "releases" / current_version if current_version else None
     _atomic_link(current, destination)
     if old_target and old_target != destination:
         _atomic_link(previous, old_target)
-    return {"schema": "cloudx.release-activate.v1", "version": version, "status": "active"}
+    observed = status()
+    return {
+        "schema": "cloudx.release-activate.v1",
+        "version": version,
+        "status": "active",
+        "previousVersion": observed["previousVersion"],
+    }
 
 
 def rollback(confirmation: str) -> Dict[str, Any]:
     root = release_root()
     current = root / "current"
     previous = root / "previous"
-    if not previous.is_symlink():
+    version = _release_link_version(root, "previous")
+    if not version:
         raise RuntimeError("no previous cloud release is available")
-    target = previous.resolve()
-    version = target.name
     if confirmation != version:
         raise RuntimeError("rollback confirmation does not match the previous version")
-    old_current = current.resolve() if current.is_symlink() else None
+    current_version = _release_link_version(root, "current")
+    old_current = root / "releases" / current_version if current_version else None
+    target = root / "releases" / version
     _atomic_link(current, target)
     if old_current and old_current != target:
         _atomic_link(previous, old_current)
-    return {"schema": "cloudx.release-rollback.v1", "version": version, "status": "active"}
+    observed = status()
+    return {
+        "schema": "cloudx.release-rollback.v1",
+        "version": version,
+        "status": "active",
+        "previousVersion": observed["previousVersion"],
+    }

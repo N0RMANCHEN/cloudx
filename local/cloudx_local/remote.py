@@ -152,10 +152,23 @@ class RemoteClient:
         completed = self._helper(["release-stage"], input_bytes=bundle, timeout=120.0)
         return self._document(completed, "remote release stage")
 
+    def release_status(self) -> Dict[str, Any]:
+        completed = self._helper(["release-status"])
+        document = self._document(completed, "remote release status")
+        if document.get("schema") != "cloudx.release-status.v1":
+            raise RuntimeError("remote release status schema is unsupported")
+        return document
+
     def activate_release(self, version: str) -> Dict[str, Any]:
         completed = self._helper(["release-activate", "--version", version, "--confirm", version], timeout=30.0)
-        return self._document(completed, "remote release activation")
+        document = self._document(completed, "remote release activation")
+        if document.get("schema") != "cloudx.release-activate.v1":
+            raise RuntimeError("remote release activation schema is unsupported")
+        return document
 
     def rollback_release(self, version: str) -> Dict[str, Any]:
         completed = self._helper(["release-rollback", "--confirm", version], timeout=30.0)
-        return self._document(completed, "remote release rollback")
+        document = self._document(completed, "remote release rollback")
+        if document.get("schema") != "cloudx.release-rollback.v1":
+            raise RuntimeError("remote release rollback schema is unsupported")
+        return document

@@ -23,4 +23,6 @@ The signing private key remains outside Git and release directories with mode 06
 
 An operator stages and activates a release. The compatible cloud endpoint is activated before the local endpoint. A failed canary restores both previous symlinks. Production hosts never run `git pull` to update deployed code.
 
+Activation and rollback commands target exactly one endpoint. The remote helper exposes a secret-free `cloudx.release-status.v1` document so the operator can verify the selected `current` and `previous` versions plus the current artifact hash before moving to the next endpoint.
+
 Phi has its own repository, release key, updater, and release lifecycle. Protocol compatibility, not shared deployment code, coordinates the products.

@@ -53,6 +53,23 @@ Activation is explicit and ordered:
 
 Ordinary Cloudx activation must not restart CLIProxyAPI. A gateway or network boundary change is a separate maintenance procedure and confirmation.
 
+The updater rejects a combined endpoint change. Activate each endpoint with its own exact version confirmation and inspect the cloud symlink state independently:
+
+```bash
+cloudx-update apply <version> --confirm <version> --cloud-only
+cloudx-remote release-status
+cloudx-update apply <version> --confirm <version> --local-only
+```
+
+Shell-hook installation and native-profile seeding remain local-only options and are rejected on a cloud-only activation.
+
 ## Rollback
 
 Rollback restores the previous endpoint symlink, cloud first only when local compatibility requires it, and otherwise local first. It never restores an old credential or session directory. Cached N-1 artifacts and an offline bundle make rollback independent of GitHub and the model API.
+
+Rollback also changes only one endpoint per confirmed command:
+
+```bash
+cloudx-update rollback --confirm <previous-version> --local-only
+cloudx-update rollback --confirm <previous-version> --cloud-only
+```

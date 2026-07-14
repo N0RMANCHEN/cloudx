@@ -12,6 +12,7 @@ from .health import build_health, publish
 from .importer import ImportRejected, ImportResult, import_records, read_limited, request_identity
 from .release import activate as activate_release
 from .release import read_bundle, rollback as rollback_release, stage as stage_release
+from .release import status as release_status
 from .version import IMPORT_CONTRACT_VERSION, PROTOCOL_MAX, PROTOCOL_MIN, VERSION
 
 
@@ -79,6 +80,7 @@ def parser() -> argparse.ArgumentParser:
     import_parser.add_argument("--dry-run", action="store_true")
     import_parser.add_argument("--force", action="store_true")
     sub.add_parser("release-stage")
+    sub.add_parser("release-status")
     activate_parser = sub.add_parser("release-activate")
     activate_parser.add_argument("--version", required=True)
     activate_parser.add_argument("--confirm", required=True)
@@ -138,6 +140,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             emit(stage_release(read_bundle(sys.stdin.buffer)))
         except (OSError, ValueError, RuntimeError) as exc:
             print("release-stage: %s" % exc, file=sys.stderr)
+            return 1
+        return 0
+    if args.command == "release-status":
+        try:
+            emit(release_status())
+        except (OSError, RuntimeError) as exc:
+            print("release-status: %s" % exc, file=sys.stderr)
             return 1
         return 0
     if args.command == "release-activate":

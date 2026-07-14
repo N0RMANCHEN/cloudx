@@ -112,6 +112,39 @@ class ReleaseFlowTests(unittest.TestCase):
         self.assertTrue((self.config.home / ".local/bin/codexx").is_symlink())
         self.assertFalse((self.config.home / ".local/bin/codex").exists())
 
+    def test_cloud_only_activation_does_not_touch_local_release(self) -> None:
+        remote = mock.Mock()
+        remote.activate_release.return_value = {
+            "schema": "cloudx.release-activate.v1",
+            "version": CURRENT_VERSION,
+            "status": "active",
+            "previousVersion": None,
+        }
+        remote.release_status.return_value = {
+            "schema": "cloudx.release-status.v1",
+            "status": "active",
+            "currentVersion": CURRENT_VERSION,
+            "previousVersion": None,
+            "currentArtifactSha256": "0" * 64,
+        }
+        with mock.patch("cloudx_local.updater.RemoteClient", return_value=remote):
+            activated = updater.apply(
+                self.config,
+                CURRENT_VERSION,
+                CURRENT_VERSION,
+                False,
+                False,
+                None,
+                cloud_only=True,
+            )
+        self.assertEqual(activated["endpoint"], "cloud")
+        self.assertFalse((self.config.home / ".local/lib/cloudx/current").exists())
+        remote.activate_release.assert_called_once_with(CURRENT_VERSION)
+
+    def test_activation_requires_exactly_one_endpoint(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "exactly one"):
+            updater.apply(self.config, CURRENT_VERSION, CURRENT_VERSION, False, False, None)
+
     def test_cloud_stage_never_activates_and_tampering_is_rejected(self) -> None:
         cloud_root = self.root / "cloud-root"
         with mock.patch.dict(os.environ, {"CLOUDX_RELEASE_ROOT": str(cloud_root)}), mock.patch(
@@ -120,8 +153,12 @@ class ReleaseFlowTests(unittest.TestCase):
             result = cloud_release.stage(self._bundle())
             self.assertEqual(result["status"], "staged")
             self.assertFalse((cloud_root / "current").exists())
+            self.assertEqual(cloud_release.status()["status"], "inactive")
             cloud_release.activate(CURRENT_VERSION, CURRENT_VERSION)
             self.assertEqual((cloud_root / "current").resolve().name, CURRENT_VERSION)
+            status = cloud_release.status()
+            self.assertEqual(status["currentVersion"], CURRENT_VERSION)
+            self.assertEqual(status["currentArtifactSha256"], self._record(cloud_root / "current/cloudx-cloud.pyz", "cloud")["sha256"])
 
         cloud_artifact = next(self.release_dir.glob("cloudx-cloud-*.pyz"))
         cloud_artifact.write_bytes(cloud_artifact.read_bytes() + b"tamper")

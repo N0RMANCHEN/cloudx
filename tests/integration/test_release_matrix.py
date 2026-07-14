@@ -140,6 +140,7 @@ class ReleaseVerificationMatrixTests(unittest.TestCase):
             cloud_release.stage(self._bundle_bytes(bundle_two))
             updater.apply(self.config, "0.2.0", "0.2.0", True, False, None)
             cloud_release.activate("0.2.0", "0.2.0")
+            self.assertEqual(cloud_release.status()["previousVersion"], "0.1.0")
 
             with self.assertRaisesRegex(RuntimeError, "downgrade"):
                 updater.stage(self.config, bundle_one, local_only=True)
@@ -150,6 +151,7 @@ class ReleaseVerificationMatrixTests(unittest.TestCase):
             cloud_release.rollback("0.1.0")
             self.assertEqual((self.config.home / ".local/lib/cloudx/current").resolve().name, "0.1.0")
             self.assertEqual((cloud_root / "current").resolve().name, "0.1.0")
+            self.assertEqual(cloud_release.status()["previousVersion"], "0.2.0")
 
     def test_tampering_is_rejected_on_both_endpoints(self) -> None:
         release_dir, unused_bundle = self._release("0.1.0")

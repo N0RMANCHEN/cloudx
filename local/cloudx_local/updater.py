@@ -357,55 +357,72 @@ def apply(
     local_only: bool,
     shell_hook: bool,
     seed_account: Optional[str],
+    cloud_only: bool = False,
 ) -> Dict[str, Any]:
     if confirmation != version:
         raise RuntimeError("release activation confirmation does not match the version")
+    if local_only == cloud_only:
+        raise RuntimeError("select exactly one activation endpoint")
+    if cloud_only:
+        if shell_hook or seed_account:
+            raise RuntimeError("shell hook and profile seeding are local-only activation options")
+        remote = RemoteClient(config)
+        activated = remote.activate_release(version)
+        observed = remote.release_status()
+        if observed.get("currentVersion") != version:
+            previous = activated.get("previousVersion")
+            if isinstance(previous, str) and previous:
+                try:
+                    remote.rollback_release(previous)
+                except RuntimeError:
+                    pass
+            raise RuntimeError("cloud release status did not report the activated version")
+        return {
+            "schema": "cloudx.release-activate.v1",
+            "endpoint": "cloud",
+            "version": version,
+            "status": "active",
+            "previousCloud": activated.get("previousVersion"),
+        }
     current = _local_root(config) / "current"
     if current.is_symlink() and _version_tuple(version) < _version_tuple(current.resolve().name):
         raise RuntimeError("release activation would be a downgrade; use rollback")
     destination = _local_root(config) / "releases" / version
     if not (destination / "cloudx-local.pyz").is_file():
         raise RuntimeError("local release is not staged")
-    remote_previous: Optional[str] = None
-    remote = RemoteClient(config)
-    if not local_only:
-        try:
-            remote_previous = str(remote.handshake().get("productVersion") or "")
-        except RuntimeError:
-            remote_previous = None
-        remote.activate_release(version)
-        new_handshake = remote.handshake()
-        if new_handshake.get("productVersion") != version:
-            if remote_previous and remote_previous != "legacy":
-                remote.rollback_release(remote_previous)
-            raise RuntimeError("new cloud release did not report the activated version")
-    try:
-        local_previous = _activate_local(config, version)
-        hook_path = str(install_shell_hook(config)) if shell_hook else None
-        backup_path = str(seed_native_profile(config, seed_account)) if seed_account else None
-    except Exception:
-        if not local_only and remote_previous and remote_previous != "legacy":
-            try:
-                remote.rollback_release(remote_previous)
-            except RuntimeError:
-                pass
-        raise
+    local_previous = _activate_local(config, version)
+    hook_path = str(install_shell_hook(config)) if shell_hook else None
+    backup_path = str(seed_native_profile(config, seed_account)) if seed_account else None
     return {
         "schema": "cloudx.release-activate.v1",
+        "endpoint": "local",
         "version": version,
         "status": "active",
         "previousLocal": local_previous,
-        "previousCloud": remote_previous,
         "shellHook": hook_path,
         "nativeProfileBackup": backup_path,
     }
 
 
-def rollback(config: LocalConfig, version: str, local_only: bool) -> Dict[str, Any]:
-    _rollback_local(config, version)
-    if not local_only:
-        RemoteClient(config).rollback_release(version)
-    return {"schema": "cloudx.release-rollback.v1", "version": version, "status": "active"}
+def rollback(config: LocalConfig, version: str, local_only: bool, cloud_only: bool = False) -> Dict[str, Any]:
+    if local_only == cloud_only:
+        raise RuntimeError("select exactly one rollback endpoint")
+    if cloud_only:
+        remote = RemoteClient(config)
+        remote.rollback_release(version)
+        observed = remote.release_status()
+        if observed.get("currentVersion") != version:
+            raise RuntimeError("cloud release status did not report the rollback version")
+        endpoint = "cloud"
+    else:
+        _rollback_local(config, version)
+        endpoint = "local"
+    return {
+        "schema": "cloudx.release-rollback.v1",
+        "endpoint": endpoint,
+        "version": version,
+        "status": "active",
+    }
 
 
 def _fetch_stable(repository: str, cache: pathlib.Path) -> None:
@@ -524,12 +541,16 @@ def parser() -> argparse.ArgumentParser:
     apply_parser = sub.add_parser("apply")
     apply_parser.add_argument("version")
     apply_parser.add_argument("--confirm", required=True)
-    apply_parser.add_argument("--local-only", action="store_true")
+    apply_endpoint = apply_parser.add_mutually_exclusive_group(required=True)
+    apply_endpoint.add_argument("--local-only", action="store_true")
+    apply_endpoint.add_argument("--cloud-only", action="store_true")
     apply_parser.add_argument("--install-shell-hook", action="store_true")
     apply_parser.add_argument("--seed-native-from")
     rollback_parser = sub.add_parser("rollback")
     rollback_parser.add_argument("--confirm", required=True)
-    rollback_parser.add_argument("--local-only", action="store_true")
+    rollback_endpoint = rollback_parser.add_mutually_exclusive_group(required=True)
+    rollback_endpoint.add_argument("--local-only", action="store_true")
+    rollback_endpoint.add_argument("--cloud-only", action="store_true")
     return root
 
 
@@ -552,11 +573,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             args.local_only,
             args.install_shell_hook,
             args.seed_native_from,
+            args.cloud_only,
         )
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     if args.command == "rollback":
-        print(json.dumps(rollback(config, args.confirm, args.local_only), indent=2, sort_keys=True))
+        print(json.dumps(rollback(config, args.confirm, args.local_only, args.cloud_only), indent=2, sort_keys=True))
         return 0
     return 2
 

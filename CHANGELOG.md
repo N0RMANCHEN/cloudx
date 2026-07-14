@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Advance source to `0.1.2`, expose a read-only validated cloud release status, and require activation or rollback to target exactly one endpoint per confirmed command.
 - Stage the signed cloud `0.1.1` artifact side-by-side without creating `current`, restarting gateway/import services, or changing production auth metadata.
 - Run shadow service templates from an explicitly configured versioned artifact instead of requiring the inactive `/opt/cloudx/current` symlink.
 - Install the restricted shadow identity and versioned environment, and run the read-only aggregate account-state adapter beside the unchanged gateway and importer.
