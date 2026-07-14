@@ -25,6 +25,7 @@ FAKE_SSH = """#!/usr/bin/env python3
 import signal
 import socket
 import sys
+import threading
 
 forward = sys.argv[sys.argv.index('-L') + 1]
 port = int(forward.split(':', 3)[1])
@@ -32,21 +33,44 @@ listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 listener.bind(('127.0.0.1', port))
 listener.listen(16)
-listener.settimeout(0.5)
+listener.settimeout(0.1)
 running = True
+connections = []
 
 def stop(signum, frame):
     global running
     running = False
 
+def handle(connection):
+    connection.settimeout(0.1)
+    connections.append(connection)
+    try:
+        while running:
+            try:
+                data = connection.recv(65536)
+            except socket.timeout:
+                continue
+            if not data:
+                break
+            connection.sendall(data)
+    except OSError:
+        pass
+    finally:
+        connection.close()
+
 signal.signal(signal.SIGTERM, stop)
 while running:
     try:
         connection, _ = listener.accept()
-        connection.close()
+        threading.Thread(target=handle, args=(connection,), daemon=True).start()
     except socket.timeout:
         pass
 listener.close()
+for connection in connections:
+    try:
+        connection.close()
+    except OSError:
+        pass
 """
 
 
@@ -115,6 +139,8 @@ class BrokerTests(unittest.TestCase):
             after = self.client.status()
             self.assertEqual(after["sshPid"], before["sshPid"])
             self.assertEqual(after["generation"], before["generation"])
+            self.assertEqual(after["publicPort"], before["publicPort"])
+            self.assertEqual(after["lastReconnectMilliseconds"], before["lastReconnectMilliseconds"])
         finally:
             lease.release()
 
@@ -140,7 +166,67 @@ class BrokerTests(unittest.TestCase):
             self.assertGreater(after["generation"], before["generation"])
             self.assertNotEqual(after["sshPid"], before["sshPid"])
             self.assertEqual(lease.port, after["publicPort"])
+            self.assertIsInstance(after["lastReconnectMilliseconds"], int)
         finally:
+            lease.release()
+
+    def test_child_exit_with_concurrent_streams_records_reconnect_timing(self) -> None:
+        lease = self.client.acquire("cloud", "gateway", 8317)
+        active = []
+        try:
+            before = self.client.status()
+            self.assertNotEqual(lease.port, 18317)
+            for index in range(4):
+                stream = socket.create_connection(("127.0.0.1", lease.port), timeout=2.0)
+                stream.settimeout(3.0)
+                payload = ("active-%d" % index).encode("ascii")
+                stream.sendall(payload)
+                self.assertEqual(stream.recv(len(payload)), payload)
+                active.append(stream)
+
+            os.kill(int(before["sshPid"]), signal.SIGTERM)
+            down_deadline = time.monotonic() + 3.0
+            down_observed = False
+            while time.monotonic() < down_deadline:
+                if self.client.status().get("sshPid") is None:
+                    down_observed = True
+                    break
+                time.sleep(0.05)
+            self.assertTrue(down_observed)
+
+            results = {}
+            durations = {}
+
+            def exchange(index: int) -> None:
+                payload = ("waiting-%d" % index).encode("ascii")
+                started = time.monotonic()
+                try:
+                    with socket.create_connection(("127.0.0.1", lease.port), timeout=2.0) as stream:
+                        stream.settimeout(10.0)
+                        stream.sendall(payload)
+                        results[index] = stream.recv(len(payload))
+                finally:
+                    durations[index] = time.monotonic() - started
+
+            waiting = [threading.Thread(target=exchange, args=(index,)) for index in range(4)]
+            for thread in waiting:
+                thread.start()
+            for thread in waiting:
+                thread.join(timeout=12.0)
+                self.assertFalse(thread.is_alive())
+
+            after = self.client.status()
+            self.assertEqual(results, {index: ("waiting-%d" % index).encode("ascii") for index in range(4)})
+            self.assertEqual(len(durations), 4)
+            self.assertLess(max(durations.values()), 8.0)
+            self.assertGreater(after["generation"], before["generation"])
+            self.assertNotEqual(after["sshPid"], before["sshPid"])
+            self.assertEqual(after["publicPort"], lease.port)
+            self.assertGreater(after["lastReconnectMilliseconds"], 0)
+            self.assertLess(after["lastReconnectMilliseconds"], 8000)
+        finally:
+            for stream in active:
+                stream.close()
             lease.release()
 
 

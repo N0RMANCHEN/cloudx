@@ -165,6 +165,8 @@ class BrokerServer:
         self.stop_requested = False
         self.next_restart_at = 0.0
         self.restart_delay = 1.0
+        self.backend_unavailable_since: Optional[float] = None
+        self.last_reconnect_milliseconds: Optional[int] = None
 
     def _acquire_singleton(self) -> None:
         ensure_private_directory(self.directory)
@@ -234,6 +236,10 @@ class BrokerServer:
                     self.ssh_process = process
                     self.relay.set_backend(backend_port)
                     self.generation += 1
+                    if self.backend_unavailable_since is not None:
+                        elapsed = time.monotonic() - self.backend_unavailable_since
+                        self.last_reconnect_milliseconds = max(0, int(elapsed * 1000))
+                        self.backend_unavailable_since = None
                     self.restart_delay = 1.0
                     self.next_restart_at = 0.0
                     self._write_state()
@@ -278,6 +284,7 @@ class BrokerServer:
                 "publicPort": self.relay.public_port if self.relay else None,
                 "sshPid": self.ssh_process.pid if self.ssh_process and self.ssh_process.poll() is None else None,
                 "generation": self.generation,
+                "lastReconnectMilliseconds": self.last_reconnect_milliseconds,
                 "leases": len(self.leases),
                 "sshHost": self.spec.ssh_host if self.spec else None,
                 "forwardHost": self.spec.forward_host if self.spec else None,
@@ -299,7 +306,10 @@ class BrokerServer:
             self.ssh_process = None
             if self.relay is not None:
                 self.relay.set_backend(None)
-            self.next_restart_at = time.monotonic() + self.restart_delay
+            now = time.monotonic()
+            if self.backend_unavailable_since is None:
+                self.backend_unavailable_since = now
+            self.next_restart_at = now + self.restart_delay
             self.restart_delay = min(20.0, self.restart_delay * 2.0)
             self._write_state()
         if self.leases and self.ssh_process is None and time.monotonic() >= self.next_restart_at:
@@ -321,6 +331,7 @@ class BrokerServer:
                 "publicPort": self.relay.public_port if self.relay else None,
                 "sshPid": self.ssh_process.pid if self.ssh_process and self.ssh_process.poll() is None else None,
                 "generation": self.generation,
+                "lastReconnectMilliseconds": self.last_reconnect_milliseconds,
                 "leases": len(self.leases),
             }
         if command == "acquire":

@@ -86,6 +86,7 @@ This milestone stages committed artifacts only. It must not change the active lo
 - [x] Preserve unobserved legacy failures without guessing that they are unavailable, and derive freshness from the original observation time.
 - [x] Add distinct `cloudx-shadow-account-state` service and timer templates with no access to credential directories.
 - [x] Add an isolated importer fixture replay that compares normalized files, verifies idempotence, and proves raw input cleanup across eight accepted envelope formats.
+- [x] Add concurrent fake-stream recovery coverage and expose the measured SSH backend reconnect time without changing the stable relay port.
 
 ### Required Work
 

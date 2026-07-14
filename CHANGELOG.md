@@ -16,3 +16,4 @@
 - Add a read-only legacy quota adapter that publishes only aggregate account state, preserves unobserved failures, and cannot make stale observations appear fresh.
 - Add isolated `cloudx-shadow-account-state` systemd templates for the M2 shadow deployment.
 - Add an M2 importer fixture replay tool with exact shadow-root confirmation, deterministic normalized-output comparison, idempotence checks, and automatic cleanup.
+- Record SSH backend reconnect duration in broker state and cover child termination while concurrent streams occupy the stable relay.
