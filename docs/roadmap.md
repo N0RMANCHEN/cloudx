@@ -6,10 +6,10 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 
 ## Current State
 
-- The new repository contains independently built local and cloud zipapps at version `0.1.0`.
+- The new repository contains independently built local and cloud zipapps at version `0.1.1`.
 - The implementation and side-by-side canary are complete, but nothing is installed or activated in production.
 - The current legacy `codexx cloud` path, local port `18317`, CLIProxyAPI, importer, monitors, Phi services, and shell hook remain unchanged.
-- The signed `0.1.0` artifacts built during development are evidence only. A release must be rebuilt from the committed Git SHA before staging.
+- The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation. Version `0.1.1` carries the recovered public trust root and must be rebuilt from its committed Git SHA before staging.
 
 ## Release Train
 
@@ -89,11 +89,12 @@ This milestone stages committed artifacts only. It must not change the active lo
 - [x] Add concurrent fake-stream recovery coverage and expose the measured SSH backend reconnect time without changing the stable relay port.
 - [x] Add a dual-endpoint release matrix for offline bundle staging, tamper and downgrade rejection, embedded-version attestation, and N-1 rollback.
 - [x] Harden tag-triggered signed publication with tag/SHA preflight, stable-index verification, inherited ephemeral checkout authentication, immutable artifact refs, and replaceable stable refs.
+- [x] Recover from the unpublished `v0.1.0` signing failure by generating a repository-external replacement key, committing only its public trust root, and advancing the candidate to `0.1.1`.
 
 ### Required Work
 
-- [ ] Build and sign `0.1.0` from the committed Git SHA and publish the GitHub release refs.
-- [ ] Stage the cloud artifact under `/opt/cloudx/releases/0.1.0` without changing `/opt/cloudx/current`.
+- [ ] Build and sign `0.1.1` from the committed Git SHA and publish the GitHub release refs.
+- [ ] Stage the cloud artifact under `/opt/cloudx/releases/0.1.1` without changing `/opt/cloudx/current`.
 - [ ] Install a scoped client credential owned by a restricted Cloudx service identity.
 - [ ] Configure a versioned shadow environment under `/etc/cloudx` and `/var/lib/cloudx/shadow-auth`.
 - [ ] Run the shadow health publisher under a distinct `cloudx-shadow-*` unit name.

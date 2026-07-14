@@ -19,3 +19,4 @@
 - Record SSH backend reconnect duration in broker state and cover child termination while concurrent streams occupy the stable relay.
 - Require local and cloud artifact self-check versions to match the signed manifest and add a dual-endpoint offline stage, tamper, downgrade, and rollback matrix.
 - Harden the GitHub release workflow with tag and source-SHA verification, built-artifact stable-index checks, and safe propagation of ephemeral checkout authentication to release-ref pushes.
+- Recover the release trust root after the unpublished `v0.1.0` signing failure and advance the release candidate to `0.1.1` without moving the failed tag.

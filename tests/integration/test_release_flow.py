@@ -16,6 +16,7 @@ from unittest import mock
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+CURRENT_VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "local"))
 sys.path.insert(0, str(ROOT / "cloud"))
@@ -38,13 +39,13 @@ class ReleaseFlowTests(unittest.TestCase):
         )
         public = self.key.with_suffix(".pub").read_text(encoding="utf-8").split()
         self.signers = ("cloudx-release %s %s\n" % (public[0], public[1])).encode("utf-8")
-        self.release_dir = self.root / "release/0.1.0"
+        self.release_dir = self.root / "release" / CURRENT_VERSION
         self.release_dir.mkdir(parents=True)
         local_artifact, cloud_artifact = build_all(self.release_dir)
         manifest = {
             "schema": "cloudx.release-manifest.v1",
             "product": "cloudx",
-            "version": "0.1.0",
+            "version": CURRENT_VERSION,
             "sourceCommit": "testcommit",
             "protocol": {"min": 1, "max": 1},
             "contracts": {"health": 1, "handshake": 1, "import": 1},
@@ -96,7 +97,7 @@ class ReleaseFlowTests(unittest.TestCase):
     def _bundle(self) -> bytes:
         output = io.BytesIO()
         with tarfile.open(fileobj=output, mode="w:gz") as archive:
-            archive.add(self.release_dir, arcname="cloudx-0.1.0")
+            archive.add(self.release_dir, arcname="cloudx-%s" % CURRENT_VERSION)
         return output.getvalue()
 
     def test_local_stage_never_activates_and_apply_is_explicit(self) -> None:
@@ -105,9 +106,9 @@ class ReleaseFlowTests(unittest.TestCase):
             local_root = self.config.home / ".local/lib/cloudx"
             self.assertEqual(result["activated"], False)
             self.assertFalse((local_root / "current").exists())
-            activated = updater.apply(self.config, "0.1.0", "0.1.0", True, False, None)
+            activated = updater.apply(self.config, CURRENT_VERSION, CURRENT_VERSION, True, False, None)
         self.assertEqual(activated["status"], "active")
-        self.assertEqual((local_root / "current").resolve().name, "0.1.0")
+        self.assertEqual((local_root / "current").resolve().name, CURRENT_VERSION)
         self.assertTrue((self.config.home / ".local/bin/codexx").is_symlink())
         self.assertFalse((self.config.home / ".local/bin/codex").exists())
 
@@ -119,8 +120,8 @@ class ReleaseFlowTests(unittest.TestCase):
             result = cloud_release.stage(self._bundle())
             self.assertEqual(result["status"], "staged")
             self.assertFalse((cloud_root / "current").exists())
-            cloud_release.activate("0.1.0", "0.1.0")
-            self.assertEqual((cloud_root / "current").resolve().name, "0.1.0")
+            cloud_release.activate(CURRENT_VERSION, CURRENT_VERSION)
+            self.assertEqual((cloud_root / "current").resolve().name, CURRENT_VERSION)
 
         cloud_artifact = next(self.release_dir.glob("cloudx-cloud-*.pyz"))
         cloud_artifact.write_bytes(cloud_artifact.read_bytes() + b"tamper")
