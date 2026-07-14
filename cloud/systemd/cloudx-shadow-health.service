@@ -1,7 +1,7 @@
 [Unit]
 Description=Cloudx shadow health publisher
-After=network-online.target
-Wants=network-online.target
+After=network-online.target cloudx-shadow-account-state.service
+Wants=network-online.target cloudx-shadow-account-state.service
 
 [Service]
 Type=oneshot

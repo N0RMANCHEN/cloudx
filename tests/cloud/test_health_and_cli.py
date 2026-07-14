@@ -30,6 +30,7 @@ class CloudHealthTests(unittest.TestCase):
             import_lock_path=self.root / "run/import.lock",
             health_path=self.root / "run/health.json",
             account_state_path=self.root / "run/accounts.json",
+            account_state_source_path=self.root / "legacy/state.json",
             gateway_url="http://127.0.0.1:1",
             gateway_version="7.2.71",
             gateway_forward_host="127.0.0.1",

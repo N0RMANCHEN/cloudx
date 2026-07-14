@@ -1,0 +1,18 @@
+[Unit]
+Description=Adapt legacy quota summary for Cloudx shadow health
+After=codex-quota-monitor.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/cloudx/cloudx-shadow.env
+ExecStart=/opt/cloudx/current/cloudx-cloud.pyz adapt-account-state --json
+User=root
+Group=root
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/var/lib/codex-quota-monitor/state.json
+ReadWritePaths=/run/cloudx-shadow
+InaccessiblePaths=/var/lib/codex-gateway/cliproxy-auth /var/lib/codex-gateway/cliproxy-auth-archive /etc/cliproxy
+LockPersonality=true

@@ -5,6 +5,7 @@ import json
 import sys
 from typing import Any, Dict, Optional, Sequence
 
+from .account_state import AccountStateRejected, adapt_file
 from .config import Config
 from .gateway import probe_gateway, read_credential
 from .health import build_health, publish
@@ -25,7 +26,13 @@ def handshake(config: Config) -> Dict[str, Any]:
         "productVersion": VERSION,
         "buildCommit": config.build_commit,
         "protocol": {"min": PROTOCOL_MIN, "max": PROTOCOL_MAX},
-        "capabilities": ["client-config.v1", "health.v1", "import.v1", "legacy-gateway.v1"],
+        "capabilities": [
+            "account-state-adapter.v1",
+            "client-config.v1",
+            "health.v1",
+            "import.v1",
+            "legacy-gateway.v1",
+        ],
         "deploymentId": config.deployment_id,
         "gateway": {"version": config.gateway_version, "status": gateway.status},
         "importerContractVersion": IMPORT_CONTRACT_VERSION,
@@ -64,6 +71,8 @@ def parser() -> argparse.ArgumentParser:
     health_parser.add_argument("--json", action="store_true")
     publish_parser = sub.add_parser("publish-health")
     publish_parser.add_argument("--json", action="store_true")
+    account_state_parser = sub.add_parser("adapt-account-state")
+    account_state_parser.add_argument("--json", action="store_true")
     config_parser = sub.add_parser("client-config")
     config_parser.add_argument("--json", action="store_true")
     import_parser = sub.add_parser("import")
@@ -97,6 +106,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if args.command == "publish-health":
             publish(config.health_path, document)
         emit(document)
+        return 0
+    if args.command == "adapt-account-state":
+        try:
+            emit(adapt_file(config.account_state_source_path, config.account_state_path))
+        except (AccountStateRejected, OSError) as exc:
+            print("adapt-account-state: %s" % exc, file=sys.stderr)
+            return 1
         return 0
     if args.command == "import":
         raw = b""

@@ -17,17 +17,42 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _observed_age(value: Any) -> int:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("account state observation time is missing")
+    text = value.strip()
+    observed = datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)
+    if observed.tzinfo is None:
+        raise ValueError("account state observation time has no timezone")
+    return max(0, int(datetime.now(timezone.utc).timestamp() - observed.timestamp()))
+
+
 def _account_counts(config: Config) -> Tuple[Dict[str, int], str, int]:
     counts = {"total": 0, "available": 0, "limited": 0, "unavailable": 0}
     if config.account_state_path.is_file():
         try:
             data = json.loads(config.account_state_path.read_text(encoding="utf-8"))
-            raw_counts = data.get("accountCounts", data) if isinstance(data, dict) else {}
+            if not isinstance(data, dict):
+                raise ValueError("account state must be an object")
+            raw_counts = data.get("accountCounts", data)
             for key in counts:
                 value = raw_counts.get(key) if isinstance(raw_counts, dict) else None
-                if isinstance(value, int) and value >= 0:
-                    counts[key] = value
-            age = max(0, int(datetime.now(timezone.utc).timestamp() - config.account_state_path.stat().st_mtime))
+                if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                    raise ValueError("account state contains invalid counts")
+                counts[key] = value
+            if data.get("schema") == "cloudx.account-state.v1":
+                unobserved = data.get("unobservedAccounts")
+                if not isinstance(unobserved, int) or isinstance(unobserved, bool) or unobserved < 0:
+                    raise ValueError("account state contains an invalid unobserved count")
+                classified = counts["available"] + counts["limited"] + counts["unavailable"]
+                if counts["total"] != classified + unobserved:
+                    raise ValueError("account state counts do not add up")
+                age = _observed_age(data.get("observedAt"))
+            else:
+                age = max(
+                    0,
+                    int(datetime.now(timezone.utc).timestamp() - config.account_state_path.stat().st_mtime),
+                )
             return counts, "fresh" if age <= 900 else "stale", age
         except (OSError, ValueError, TypeError):
             pass

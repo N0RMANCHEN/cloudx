@@ -15,6 +15,7 @@ class Config:
     import_lock_path: pathlib.Path
     health_path: pathlib.Path
     account_state_path: pathlib.Path
+    account_state_source_path: pathlib.Path
     gateway_url: str
     gateway_version: str
     gateway_forward_host: str
@@ -31,6 +32,9 @@ class Config:
             import_lock_path=_path("CLOUDX_IMPORT_LOCK", "/run/cloudx-shadow/import.lock"),
             health_path=_path("CLOUDX_HEALTH_PATH", "/run/cloudx-shadow/health.json"),
             account_state_path=_path("CLOUDX_ACCOUNT_STATE_PATH", "/run/cloudx-shadow/accounts.json"),
+            account_state_source_path=_path(
+                "CLOUDX_ACCOUNT_STATE_SOURCE", "/var/lib/codex-quota-monitor/state.json"
+            ),
             gateway_url=os.environ.get("CLOUDX_GATEWAY_URL", "http://127.0.0.1:8317").rstrip("/"),
             gateway_version=os.environ.get("CLOUDX_GATEWAY_VERSION", "external"),
             gateway_forward_host=os.environ.get("CLOUDX_GATEWAY_FORWARD_HOST", "127.0.0.1"),

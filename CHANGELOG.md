@@ -13,3 +13,5 @@
 - Preserve `payload.accounts` and `result.accounts` importer compatibility in the canonical cloud parser.
 - Add signed GitHub release refs, manual dual-endpoint staging, explicit activation, and downgrade rejection.
 - Complete a side-by-side shadow importer, tunnel recovery, and full model canary without production activation.
+- Add a read-only legacy quota adapter that publishes only aggregate account state, preserves unobserved failures, and cannot make stale observations appear fresh.
+- Add isolated `cloudx-shadow-account-state` systemd templates for the M2 shadow deployment.

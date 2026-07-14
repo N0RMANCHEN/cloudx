@@ -80,6 +80,12 @@ Earliest window: 2026-07-15. Status: pending.
 
 This milestone stages committed artifacts only. It must not change the active local command symlinks, shell hook, production auth directory, gateway unit, or legacy tunnel.
 
+### Repository Preparation
+
+- [x] Add a versioned read-only adapter from the legacy quota summary to secret-free aggregate account state.
+- [x] Preserve unobserved legacy failures without guessing that they are unavailable, and derive freshness from the original observation time.
+- [x] Add distinct `cloudx-shadow-account-state` service and timer templates with no access to credential directories.
+
 ### Required Work
 
 - [ ] Build and sign `0.1.0` from the committed Git SHA and publish the GitHub release refs.
