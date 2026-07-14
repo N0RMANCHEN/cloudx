@@ -6,11 +6,12 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 
 ## Current State
 
-- Signed local and cloud zipapps at version `0.1.1` remain staged side-by-side; repository source has advanced to the `0.1.2` activation-control candidate.
+- Signed local and cloud zipapps at version `0.1.1` remain staged side-by-side; signed `0.1.2` activation-control artifacts are published and await side-by-side staging.
 - The signed cloud and local artifacts are staged side-by-side under their versioned release directories; no Cloudx release is activated in production.
 - The current legacy `codexx cloud` path, local port `18317`, CLIProxyAPI, importer, monitors, Phi services, and shell hook remain unchanged.
 - The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation.
 - Signed `0.1.1` artifacts were built from commit `2fc4c0a8ecc9a60e3858d721d070a36fffa04ed6` and published to immutable `release-artifacts/v0.1.1` plus signed `release/stable`. Nothing is staged or activated in production.
+- Signed `0.1.2` artifacts were built from commit `3b3e03f77aa6e0cb0355de8e1b21c3a0564a314e` and published to immutable `release-artifacts/v0.1.2`; the signed stable ref now selects `0.1.2`.
 - A restricted `cloudx` identity, versioned shadow environment, shadow auth directory, and read-only account-state timer are installed. The scoped client credential and health publisher remain pending.
 - The distinct shadow health service and timer files are installed and verified but remain disabled and inactive until the scoped credential is usable.
 
@@ -141,7 +142,9 @@ Window: only after M2 review. Status: pending.
 
 - [x] Expose a read-only cloud release status that validates `current` and `previous` targets and reports the active artifact hash.
 - [x] Require every updater activation and rollback command to select exactly one endpoint; combined cloud-and-local mutation is rejected.
-- [ ] Build, sign, publish, and stage `0.1.2` on both endpoints without activation.
+- [x] Build, sign, and publish `0.1.2` from the exact committed source SHA.
+- [ ] Stage cloud `0.1.2` without changing `/opt/cloudx/current`.
+- [ ] Stage local `0.1.2` without installing entrypoints or changing the local `current` link.
 
 Activation is split into separate operator-confirmed steps.
 
