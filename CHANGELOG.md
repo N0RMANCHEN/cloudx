@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Stage signed cloud `0.1.2` beside `0.1.1` while leaving `current`, the shadow artifact selection, gateway/import services, and production auth metadata unchanged.
+
 ## 0.1.2 - 2026-07-14
 
 - Advance source to `0.1.2`, expose a read-only validated cloud release status, and require activation or rollback to target exactly one endpoint per confirmed command.

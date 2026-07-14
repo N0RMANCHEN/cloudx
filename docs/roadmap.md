@@ -6,7 +6,7 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 
 ## Current State
 
-- Signed local and cloud zipapps at version `0.1.1` remain staged side-by-side; signed `0.1.2` activation-control artifacts are published and await side-by-side staging.
+- Signed `0.1.1` artifacts remain staged side-by-side; signed cloud `0.1.2` is also staged while local `0.1.2` still awaits side-by-side staging.
 - The signed cloud and local artifacts are staged side-by-side under their versioned release directories; no Cloudx release is activated in production.
 - The current legacy `codexx cloud` path, local port `18317`, CLIProxyAPI, importer, monitors, Phi services, and shell hook remain unchanged.
 - The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation.
@@ -143,8 +143,10 @@ Window: only after M2 review. Status: pending.
 - [x] Expose a read-only cloud release status that validates `current` and `previous` targets and reports the active artifact hash.
 - [x] Require every updater activation and rollback command to select exactly one endpoint; combined cloud-and-local mutation is rejected.
 - [x] Build, sign, and publish `0.1.2` from the exact committed source SHA.
-- [ ] Stage cloud `0.1.2` without changing `/opt/cloudx/current`.
+- [x] Stage cloud `0.1.2` without changing `/opt/cloudx/current`.
 - [ ] Stage local `0.1.2` without installing entrypoints or changing the local `current` link.
+
+Cloud `0.1.2` staging evidence: `docs/archive/2026-07-14-cloud-shadow-stage-0.1.2.md`.
 
 Activation is split into separate operator-confirmed steps.
 
