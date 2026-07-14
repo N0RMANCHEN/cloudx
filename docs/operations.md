@@ -23,6 +23,16 @@ For an M2 host, pass a shadow root and repeat its resolved path with `--confirm-
 
 Tunnel broker status includes `lastReconnectMilliseconds` after an SSH child exit. M2 evidence should record this field together with the stable `publicPort` and incremented `generation`; HTTP probe failures must leave all three unchanged.
 
+Installing the dedicated gateway key is an explicit maintenance action because it restarts the external `cliproxy.service`. A read-only invocation prints the required confirmation:
+
+```bash
+python3 scripts/install_scoped_gateway_key.py \
+  --build-commit <signed-release-commit> \
+  --gateway-version <observed-version>
+```
+
+The `--apply` path requires the exact printed confirmation. It preserves the existing YAML text, writes a mode-0600 backup, installs the restricted credential and shadow environment atomically, restarts only the declared gateway unit, verifies a real model-list request and both config/auth inotify watches, and restores all files plus the old service configuration if any check fails.
+
 ## Stage
 
 Local releases live under `~/.local/lib/cloudx/releases/<version>` and cloud releases under `/opt/cloudx/releases/<version>`. State, configuration, credentials, sessions, and logs live elsewhere.

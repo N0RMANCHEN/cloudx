@@ -10,6 +10,7 @@
 - Replace the fixed 24-hour M2 sampling gate with focused repeated checks while retaining the health, classification, continuity, and no-production-write exit conditions.
 - Complete repeated legacy-to-shadow classification checks while preserving the exact local Codex PID set, legacy port state, gateway/import processes, and production auth metadata.
 - Install and verify the distinct shadow health unit files while keeping both service and timer disabled until the scoped client credential is active.
+- Add an explicit-confirmation gateway key installer that restarts only the external gateway, validates the scoped key and restored watches, and rolls back files and service state on failure.
 
 ## 0.1.1 - 2026-07-14
 

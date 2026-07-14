@@ -94,6 +94,7 @@ This milestone stages committed artifacts only. It must not change the active lo
 - [x] Harden tag-triggered signed publication with tag/SHA preflight, stable-index verification, inherited ephemeral checkout authentication, immutable artifact refs, and replaceable stable refs.
 - [x] Recover from the unpublished `v0.1.0` signing failure by generating a repository-external replacement key, committing only its public trust root, and advancing the candidate to `0.1.1`.
 - [x] Make shadow units execute an explicitly configured staged artifact without creating or reading `/opt/cloudx/current`.
+- [x] Add an operator-confirmed scoped-key restart playbook with config, credential, environment, service, probe, and watcher rollback.
 
 ### Required Work
 
