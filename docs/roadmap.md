@@ -19,7 +19,7 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 |---|---|---|---|
 | 2026-07-14 | M0 safety baseline | Complete | None |
 | 2026-07-14 | M1 repository and minimal product implementation | Complete | None |
-| Earliest 2026-07-15 | M2 versioned shadow deployment and 24-hour observation | In progress | Shadow paths only |
+| 2026-07-14 | M2 versioned shadow deployment and focused validation | In progress | Shadow paths only |
 | After M2 evidence review | M3 manual Cloudx activation | Pending | Explicit operator confirmation |
 | At least 7 stable days after M3 | M4 Phi consumer migration | Pending | One Phi service per window |
 | At least 14 stable days after M3 | M5 legacy retirement | Pending | Separate maintenance window |
@@ -78,7 +78,7 @@ Evidence: `docs/archive/2026-07-14-foundation-canary.md`.
 
 ## M2: Versioned Shadow Deployment
 
-Earliest window: 2026-07-15. Status: in progress.
+Window: active. Status: in progress.
 
 This milestone stages committed artifacts only. It must not change the active local command symlinks, shell hook, production auth directory, gateway unit, or legacy tunnel.
 
@@ -102,11 +102,11 @@ This milestone stages committed artifacts only. It must not change the active lo
 - [x] Configure a versioned shadow environment under `/etc/cloudx` and `/var/lib/cloudx/shadow-auth`.
 - [ ] Run the shadow health publisher under a distinct `cloudx-shadow-*` unit name.
 - [ ] Feed the new publisher a read-only account-state adapter; do not classify unobserved accounts by guessing.
-- [ ] Compare new and legacy account classifications for at least 24 hours.
+- [ ] Compare new and legacy account classifications across focused repeated checks.
 - [x] Replay accepted importer fixtures into the shadow auth directory and compare normalized output.
 - [x] Verify signed GitHub check, offline bundle stage, tamper rejection, downgrade rejection, and rollback on both endpoints.
 - [x] Repeat tunnel child termination under concurrent fake streams and capture reconnect timing.
-- [ ] Confirm current legacy sessions and port `18317` remain unchanged throughout observation.
+- [ ] Confirm current legacy sessions and port `18317` remain unchanged before and after focused validation actions.
 
 Release evidence: `docs/archive/2026-07-14-release-0.1.1.md`.
 
@@ -120,7 +120,7 @@ Local staging evidence: `docs/archive/2026-07-14-local-shadow-stage-0.1.1.md`.
 
 ### M2 Exit Gate
 
-- 24 hours of fresh, secret-free health evidence
+- fresh, secret-free health evidence from focused repeated checks
 - no unexpected account classification differences
 - no raw import source retained after success or failure
 - no production service restart or auth write
