@@ -85,6 +85,7 @@ This milestone stages committed artifacts only. It must not change the active lo
 - [x] Add a versioned read-only adapter from the legacy quota summary to secret-free aggregate account state.
 - [x] Preserve unobserved legacy failures without guessing that they are unavailable, and derive freshness from the original observation time.
 - [x] Add distinct `cloudx-shadow-account-state` service and timer templates with no access to credential directories.
+- [x] Add an isolated importer fixture replay that compares normalized files, verifies idempotence, and proves raw input cleanup across eight accepted envelope formats.
 
 ### Required Work
 

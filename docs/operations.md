@@ -13,6 +13,14 @@ Never use a build, test, or update command against the active legacy local port 
 
 Artifacts are written to `dist/`. Building has no install or activation side effects.
 
+Replay the accepted fake importer matrix in an automatically cleaned temporary directory with:
+
+```bash
+python3 scripts/replay_import_fixtures.py
+```
+
+For an M2 host, pass a shadow root and repeat its resolved path with `--confirm-shadow-root`. The verifier creates an isolated child directory, compares canonical normalized files, repeats every transaction for idempotence, confirms raw sources were not retained, and removes its child directory unless `--retain` is explicitly requested.
+
 ## Stage
 
 Local releases live under `~/.local/lib/cloudx/releases/<version>` and cloud releases under `/opt/cloudx/releases/<version>`. State, configuration, credentials, sessions, and logs live elsewhere.
