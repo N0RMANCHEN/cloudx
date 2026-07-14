@@ -25,7 +25,31 @@ def run(command, cwd: pathlib.Path, capture: bool = False) -> str:
     return completed.stdout.strip() if capture else ""
 
 
-def publish(source: pathlib.Path, branch: str, repository: str, message: str, force: bool) -> None:
+def copy_http_auth(source_repository: pathlib.Path, destination_repository: pathlib.Path) -> None:
+    completed = subprocess.run(
+        ["git", "config", "--local", "--get-regexp", r"^http\..*\.extraheader$"],
+        cwd=str(source_repository),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return
+    for line in completed.stdout.splitlines():
+        parts = line.split(None, 1)
+        if len(parts) == 2:
+            run(["git", "config", "--local", parts[0], parts[1]], destination_repository)
+
+
+def publish(
+    source: pathlib.Path,
+    branch: str,
+    repository: str,
+    message: str,
+    force: bool,
+    auth_source: pathlib.Path = ROOT,
+) -> None:
     with tempfile.TemporaryDirectory(prefix="cloudx-publish-") as value:
         work = pathlib.Path(value)
         run(["git", "init", "--quiet"], work)
@@ -41,11 +65,12 @@ def publish(source: pathlib.Path, branch: str, repository: str, message: str, fo
         run(["git", "commit", "--quiet", "-m", message], work)
         run(["git", "branch", "-M", branch], work)
         run(["git", "remote", "add", "origin", repository], work)
+        copy_http_auth(auth_source, work)
         command = ["git", "push"]
         if force:
             command.append("--force")
         command.extend(["origin", "HEAD:refs/heads/%s" % branch])
-        run(command, work)
+        run(command, work, capture=True)
 
 
 def main() -> int:
