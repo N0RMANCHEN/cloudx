@@ -1,0 +1,15 @@
+# Changelog
+
+## Unreleased
+
+- Split Cloudx into independently built local and cloud components.
+- Restore the official `codex` command as the local runtime entrypoint.
+- Define minimal `codexx`, `cloud codex`, and `cloud import` command surfaces.
+- Add versioned handshake, import, health, and release contracts.
+- Add side-by-side release staging, signed manifest tooling, offline bundles, and rollback policy.
+- Define the Cloudx and Phi ownership boundary and prohibit automated production repair.
+- Replace the legacy per-session shared-tunnel supervisor with a locked singleton broker, PID-backed leases, and a stable relay listener.
+- Ensure transient HTTP failures never terminate the SSH child; rebuild only after the SSH process exits.
+- Preserve `payload.accounts` and `result.accounts` importer compatibility in the canonical cloud parser.
+- Add signed GitHub release refs, manual dual-endpoint staging, explicit activation, and downgrade rejection.
+- Complete a side-by-side shadow importer, tunnel recovery, and full model canary without production activation.

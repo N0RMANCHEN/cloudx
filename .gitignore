@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.coverage
+build/
+dist/
+.pytest_cache/
+*.tmp
+*.swp
+release-work/

@@ -1,0 +1,16 @@
+[Unit]
+Description=Cloudx shadow health publisher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/cloudx/cloudx-shadow.env
+ExecStart=/opt/cloudx/current/cloudx-cloud.pyz publish-health --json
+User=cloudx
+Group=cloudx
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/cloudx-shadow

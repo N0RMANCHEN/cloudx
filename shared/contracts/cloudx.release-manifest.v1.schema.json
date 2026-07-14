@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.release-manifest.v1.schema.json",
+  "title": "Cloudx signed release manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "product", "version", "sourceCommit", "protocol", "contracts", "artifacts", "activation"],
+  "properties": {
+    "schema": {"const": "cloudx.release-manifest.v1"},
+    "product": {"const": "cloudx"},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "sourceCommit": {"type": "string", "minLength": 7},
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max"],
+      "properties": {
+        "min": {"type": "integer", "minimum": 1},
+        "max": {"type": "integer", "minimum": 1}
+      }
+    },
+    "contracts": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 1}
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "component", "sha256", "size"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "component": {"enum": ["local", "cloud"]},
+          "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "size": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "activation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["automatic", "serviceRestartRequired"],
+      "properties": {
+        "automatic": {"const": false},
+        "serviceRestartRequired": {"type": "boolean"}
+      }
+    }
+  }
+}

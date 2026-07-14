@@ -1,0 +1,49 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: ./verify.sh
+      - name: Load signing key
+        env:
+          RELEASE_KEY: ${{ secrets.CLOUDX_RELEASE_SIGNING_KEY }}
+        run: |
+          install -m 0700 -d "$RUNNER_TEMP/cloudx-signing"
+          printf '%s\n' "$RELEASE_KEY" > "$RUNNER_TEMP/cloudx-signing/key"
+          chmod 0600 "$RUNNER_TEMP/cloudx-signing/key"
+      - name: Build signed release
+        run: |
+          python3 scripts/create_release.py \
+            --output dist/release \
+            --signing-key "$RUNNER_TEMP/cloudx-signing/key" \
+            --allowed-signers release/allowed_signers
+          version="$(cat VERSION)"
+          python3 scripts/create_stable_index.py \
+            "dist/release/$version" \
+            --signing-key "$RUNNER_TEMP/cloudx-signing/key" \
+            --output dist/stable
+      - name: Publish signed Git refs
+        run: |
+          version="$(cat VERSION)"
+          python3 scripts/publish_release_refs.py "dist/release/$version" dist/stable
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/release/*/*
+            dist/release/*-offline.tar.gz

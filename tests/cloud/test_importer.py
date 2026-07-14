@@ -1,0 +1,125 @@
+from __future__ import annotations
+
+import io
+import json
+import os
+import pathlib
+import stat
+import sys
+import tempfile
+import unittest
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "cloud"))
+
+from cloudx_cloud.importer import ImportRejected, import_records, normalize, read_limited  # noqa: E402
+
+
+def record(suffix: str = "one") -> dict:
+    return {
+        "type": "codex",
+        "email": "%s@example.test" % suffix,
+        "access_token": "access.%s.value" % suffix,
+        "refresh_token": "refresh.%s.value" % suffix,
+        "id_token": "id.%s.value" % suffix,
+        "account_id": "account-%s" % suffix,
+    }
+
+
+class ImportNormalizationTests(unittest.TestCase):
+    def test_flat_record(self) -> None:
+        values = normalize(json.dumps(record()).encode())
+        self.assertEqual(values[0]["type"], "codex")
+        self.assertEqual(values[0]["account_id"], "account-one")
+
+    def test_accounts_and_result_accounts(self) -> None:
+        for source in (
+            {"accounts": [record()]},
+            {"result": {"accounts": [record()]}},
+            {"payload": {"accounts": [record()]}},
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(len(normalize(json.dumps(source).encode())), 1)
+
+    def test_sub2api_credentials_and_bundle(self) -> None:
+        sub2api = {"name": "named@example.test", "credentials": record()}
+        bundle = {"type": "codexx-cliproxy-auth-bundle", "files": [{"data": record()}]}
+        self.assertEqual(normalize(json.dumps(sub2api).encode())[0]["email"], "one@example.test")
+        self.assertEqual(len(normalize(json.dumps(bundle).encode())), 1)
+
+    def test_directory_envelope_and_deduplication(self) -> None:
+        content = json.dumps(record())
+        envelope = {
+            "schema": "cloudx.import-source.v1",
+            "files": [{"name": "a.json", "content": content}, {"name": "b.json", "content": content}],
+        }
+        self.assertEqual(len(normalize(json.dumps(envelope).encode())), 1)
+
+    def test_missing_token_error_never_contains_source_value(self) -> None:
+        secret = "never-print-this"
+        with self.assertRaises(ImportRejected) as captured:
+            normalize(json.dumps({"email": secret}).encode())
+        self.assertNotIn(secret, str(captured.exception))
+
+    def test_raw_card_header_remains_supported(self) -> None:
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return None
+
+            def read(self):
+                return json.dumps(
+                    {"access_token": "access.card.value", "refresh_token": "rt.new.value", "id_token": "id.card.value"}
+                ).encode()
+
+        text = "卡密导出\ncard@example.test--------app_client----rt.old.value\n"
+        values = normalize(text.encode("utf-8"), opener=lambda *args, **kwargs: Response())
+        self.assertEqual(values[0]["email"], "card@example.test")
+
+    def test_size_limit(self) -> None:
+        with self.assertRaises(ImportRejected) as captured:
+            read_limited(io.BytesIO(b"x" * 9), limit=8)
+        self.assertEqual(captured.exception.code, "source_too_large")
+
+
+class ImportTransactionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = pathlib.Path(self.temp.name)
+        self.auth = self.root / "auth"
+        self.lock = self.root / "run/import.lock"
+        self.raw = json.dumps(record()).encode()
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def test_dry_run_has_no_write(self) -> None:
+        result = import_records(self.raw, self.auth, self.lock, dry_run=True, force=False)
+        self.assertEqual(result.written, 1)
+        self.assertEqual(list(self.auth.glob("*.json")), [])
+
+    def test_write_is_private_and_idempotent(self) -> None:
+        result = import_records(self.raw, self.auth, self.lock, dry_run=False, force=False)
+        self.assertEqual(result.written, 1)
+        target = next(self.auth.glob("*.json"))
+        self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o600)
+        repeated = import_records(self.raw, self.auth, self.lock, dry_run=False, force=False)
+        self.assertEqual(repeated.written, 0)
+        self.assertEqual(repeated.skipped, 1)
+
+    def test_unsafe_target_is_rejected(self) -> None:
+        first = import_records(self.raw, self.auth, self.lock, dry_run=False, force=False)
+        self.assertEqual(first.written, 1)
+        target = next(self.auth.glob("*.json"))
+        target.unlink()
+        os.symlink(self.root / "elsewhere", target)
+        with self.assertRaises(ImportRejected) as captured:
+            import_records(self.raw, self.auth, self.lock, dry_run=False, force=True)
+        self.assertEqual(captured.exception.code, "unsafe_target")
+
+
+if __name__ == "__main__":
+    unittest.main()

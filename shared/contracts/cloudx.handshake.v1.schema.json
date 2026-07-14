@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.handshake.v1.schema.json",
+  "title": "Cloudx remote handshake",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "productVersion",
+    "buildCommit",
+    "protocol",
+    "capabilities",
+    "deploymentId",
+    "gateway",
+    "importerContractVersion"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.handshake.v1"},
+    "productVersion": {"type": "string", "minLength": 1},
+    "buildCommit": {"type": "string", "minLength": 1},
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max"],
+      "properties": {
+        "min": {"type": "integer", "minimum": 1},
+        "max": {"type": "integer", "minimum": 1}
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "deploymentId": {"type": "string", "minLength": 1},
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "status"],
+      "properties": {
+        "version": {"type": "string"},
+        "status": {"enum": ["healthy", "degraded", "unavailable", "unknown"]}
+      }
+    },
+    "importerContractVersion": {"type": "integer", "minimum": 1}
+  }
+}

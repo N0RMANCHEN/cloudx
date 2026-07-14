@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "max_watched_lines": 800,
+  "watched_suffixes": [".py", ".sh"],
+  "watched_roots": ["local", "cloud", "scripts", "tests"],
+  "required_paths": [
+    "AGENTS.md",
+    "VERSION",
+    "local/__main__.py",
+    "cloud/__main__.py",
+    "shared/contracts/cloudx.health.v1.schema.json",
+    "shared/contracts/cloudx.handshake.v1.schema.json",
+    "shared/contracts/cloudx.import.v1.schema.json",
+    "docs/operations.md",
+    "docs/phi-boundary.md",
+    "prompts/README.md"
+  ],
+  "forbidden_runtime_fragments": [
+    "systemctl restart cliproxy",
+    "git pull",
+    "--deploy --merge",
+    "127.0.0.1:18317"
+  ],
+  "frozen_files": {}
+}

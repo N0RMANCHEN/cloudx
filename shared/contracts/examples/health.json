@@ -1,0 +1,15 @@
+{
+  "schema": "cloudx.health.v1",
+  "cloudxVersion": "0.1.0",
+  "protocolVersion": 1,
+  "gatewayStatus": "healthy",
+  "importStatus": "ready",
+  "accountCounts": {
+    "total": 65,
+    "available": 40,
+    "limited": 0,
+    "unavailable": 25
+  },
+  "checkedAt": "2026-07-14T09:00:00Z",
+  "freshness": {"state": "fresh", "ageSeconds": 0}
+}

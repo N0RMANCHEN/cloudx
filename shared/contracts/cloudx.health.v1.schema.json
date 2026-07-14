@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.health.v1.schema.json",
+  "title": "Cloudx secret-free health signal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "cloudxVersion",
+    "protocolVersion",
+    "gatewayStatus",
+    "importStatus",
+    "accountCounts",
+    "checkedAt",
+    "freshness"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.health.v1"},
+    "cloudxVersion": {"type": "string", "minLength": 1},
+    "protocolVersion": {"type": "integer", "minimum": 1},
+    "gatewayStatus": {"enum": ["healthy", "degraded", "unavailable", "unknown"]},
+    "importStatus": {"enum": ["ready", "busy", "degraded", "unavailable", "unknown"]},
+    "accountCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "available", "limited", "unavailable"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "available": {"type": "integer", "minimum": 0},
+        "limited": {"type": "integer", "minimum": 0},
+        "unavailable": {"type": "integer", "minimum": 0}
+      }
+    },
+    "checkedAt": {"type": "string", "format": "date-time"},
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "ageSeconds"],
+      "properties": {
+        "state": {"enum": ["fresh", "stale", "unknown"]},
+        "ageSeconds": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}
