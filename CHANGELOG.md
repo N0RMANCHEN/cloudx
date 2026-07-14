@@ -6,6 +6,7 @@
 - Run shadow service templates from an explicitly configured versioned artifact instead of requiring the inactive `/opt/cloudx/current` symlink.
 - Install the restricted shadow identity and versioned environment, and run the read-only aggregate account-state adapter beside the unchanged gateway and importer.
 - Replay all eight accepted importer envelope formats as the restricted shadow identity, verify normalized output and idempotence, and clean the shadow auth root afterward.
+- Stage the signed local `0.1.1` artifact without creating `current`, installing entrypoints, changing command resolution, or touching the legacy port.
 
 ## 0.1.1 - 2026-07-14
 
