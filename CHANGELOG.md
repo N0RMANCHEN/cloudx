@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.1 - 2026-07-14
+
 - Split Cloudx into independently built local and cloud components.
 - Restore the official `codex` command as the local runtime entrypoint.
 - Define minimal `codexx`, `cloud codex`, and `cloud import` command surfaces.

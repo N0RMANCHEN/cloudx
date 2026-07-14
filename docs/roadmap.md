@@ -9,7 +9,8 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 - The new repository contains independently built local and cloud zipapps at version `0.1.1`.
 - The implementation and side-by-side canary are complete, but nothing is installed or activated in production.
 - The current legacy `codexx cloud` path, local port `18317`, CLIProxyAPI, importer, monitors, Phi services, and shell hook remain unchanged.
-- The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation. Version `0.1.1` carries the recovered public trust root and must be rebuilt from its committed Git SHA before staging.
+- The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation.
+- Signed `0.1.1` artifacts were built from commit `2fc4c0a8ecc9a60e3858d721d070a36fffa04ed6` and published to immutable `release-artifacts/v0.1.1` plus signed `release/stable`. Nothing is staged or activated in production.
 
 ## Release Train
 
@@ -93,7 +94,7 @@ This milestone stages committed artifacts only. It must not change the active lo
 
 ### Required Work
 
-- [ ] Build and sign `0.1.1` from the committed Git SHA and publish the GitHub release refs.
+- [x] Build and sign `0.1.1` from the committed Git SHA and publish the GitHub release refs.
 - [ ] Stage the cloud artifact under `/opt/cloudx/releases/0.1.1` without changing `/opt/cloudx/current`.
 - [ ] Install a scoped client credential owned by a restricted Cloudx service identity.
 - [ ] Configure a versioned shadow environment under `/etc/cloudx` and `/var/lib/cloudx/shadow-auth`.
@@ -104,6 +105,8 @@ This milestone stages committed artifacts only. It must not change the active lo
 - [ ] Verify signed GitHub check, offline bundle stage, tamper rejection, downgrade rejection, and rollback on both endpoints.
 - [ ] Repeat tunnel child termination under concurrent fake streams and capture reconnect timing.
 - [ ] Confirm current legacy sessions and port `18317` remain unchanged throughout observation.
+
+Release evidence: `docs/archive/2026-07-14-release-0.1.1.md`.
 
 ### M2 Exit Gate
 
