@@ -103,7 +103,7 @@ This milestone stages committed artifacts only. It must not change the active lo
 - [ ] Run the shadow health publisher under a distinct `cloudx-shadow-*` unit name.
 - [ ] Feed the new publisher a read-only account-state adapter; do not classify unobserved accounts by guessing.
 - [ ] Compare new and legacy account classifications for at least 24 hours.
-- [ ] Replay accepted importer fixtures into the shadow auth directory and compare normalized output.
+- [x] Replay accepted importer fixtures into the shadow auth directory and compare normalized output.
 - [ ] Verify signed GitHub check, offline bundle stage, tamper rejection, downgrade rejection, and rollback on both endpoints.
 - [ ] Repeat tunnel child termination under concurrent fake streams and capture reconnect timing.
 - [ ] Confirm current legacy sessions and port `18317` remain unchanged throughout observation.
@@ -113,6 +113,8 @@ Release evidence: `docs/archive/2026-07-14-release-0.1.1.md`.
 Cloud staging evidence: `docs/archive/2026-07-14-cloud-shadow-stage-0.1.1.md`.
 
 Shadow identity and account-state evidence: `docs/archive/2026-07-14-shadow-account-state.md`.
+
+Shadow importer replay evidence: `docs/archive/2026-07-14-shadow-importer-replay.md`.
 
 ### M2 Exit Gate
 
