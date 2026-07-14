@@ -155,7 +155,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return 1
         return 0
     if args.command == "self-check":
-        emit({"schema": "cloudx.self-check.v1", "version": VERSION, "protocol": PROTOCOL_MAX, "status": "ok"})
+        emit({
+            "schema": "cloudx.self-check.v1",
+            "component": "cloud",
+            "version": VERSION,
+            "protocol": {"min": PROTOCOL_MIN, "max": PROTOCOL_MAX},
+            "status": "ok",
+        })
         return 0
     return 2
 

@@ -136,6 +136,30 @@ def _release_files(extracted: pathlib.Path) -> Tuple[pathlib.Path, pathlib.Path,
     return manifest_path, signature_path, artifact, manifest
 
 
+def _verify_artifact_self_check(artifact: pathlib.Path, version: str, protocol: Any) -> None:
+    completed = subprocess.run(
+        [sys.executable, str(artifact), "self-check"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=20.0,
+        check=False,
+    )
+    try:
+        document = json.loads(completed.stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("staged cloud artifact returned an invalid self-check") from exc
+    if completed.returncode != 0 or not isinstance(document, dict):
+        raise RuntimeError("staged cloud artifact failed its self-check")
+    if document.get("schema") != "cloudx.self-check.v1" or document.get("component") != "cloud":
+        raise RuntimeError("staged cloud artifact returned the wrong self-check contract")
+    if document.get("version") != version:
+        raise RuntimeError("staged cloud artifact failed version self-check")
+    if document.get("protocol") != protocol:
+        raise RuntimeError("staged cloud artifact failed protocol self-check")
+    if document.get("status") != "ok":
+        raise RuntimeError("staged cloud artifact self-check is not healthy")
+
+
 def stage(raw: bytes) -> Dict[str, Any]:
     root = release_root()
     with tempfile.TemporaryDirectory(prefix="cloudx-release-stage-") as value:
@@ -164,15 +188,7 @@ def stage(raw: bytes) -> Dict[str, Any]:
             shutil.copy2(manifest_path, temporary / "manifest.json")
             shutil.copy2(signature_path, temporary / "manifest.json.sig")
             (temporary / "allowed_signers").write_bytes(_allowed_signers())
-            completed = subprocess.run(
-                [sys.executable, str(target), "self-check"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=20.0,
-                check=False,
-            )
-            if completed.returncode != 0:
-                raise RuntimeError("staged cloud artifact failed its self-check")
+            _verify_artifact_self_check(target, version, manifest.get("protocol"))
             os.replace(str(temporary), str(destination))
         except Exception:
             shutil.rmtree(temporary, ignore_errors=True)

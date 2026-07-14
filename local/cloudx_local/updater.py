@@ -159,6 +159,30 @@ def _local_root(config: LocalConfig) -> pathlib.Path:
     return config.home / ".local/lib/cloudx"
 
 
+def _verify_artifact_self_check(artifact: pathlib.Path, version: str, protocol: Any) -> None:
+    completed = subprocess.run(
+        [sys.executable, str(artifact), "self-check"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=20.0,
+        check=False,
+    )
+    try:
+        document = json.loads(completed.stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("staged local artifact returned an invalid self-check") from exc
+    if completed.returncode != 0 or not isinstance(document, dict):
+        raise RuntimeError("staged local artifact failed its self-check")
+    if document.get("schema") != "cloudx.self-check.v1" or document.get("component") != "local":
+        raise RuntimeError("staged local artifact returned the wrong self-check contract")
+    if document.get("version") != version:
+        raise RuntimeError("staged local artifact failed version self-check")
+    if document.get("protocol") != protocol:
+        raise RuntimeError("staged local artifact failed protocol self-check")
+    if document.get("status") != "ok":
+        raise RuntimeError("staged local artifact self-check is not healthy")
+
+
 def _bundle_bytes(release_directory: pathlib.Path, version: str) -> bytes:
     output = io.BytesIO()
     with tarfile.open(fileobj=output, mode="w:gz") as archive:
@@ -195,15 +219,7 @@ def stage(config: LocalConfig, source: pathlib.Path, local_only: bool) -> Dict[s
                 shutil.copy2(manifest_path, temporary / "manifest.json")
                 shutil.copy2(signature_path, temporary / "manifest.json.sig")
                 (temporary / "allowed_signers").write_bytes(_trusted_signers())
-                completed = subprocess.run(
-                    [sys.executable, str(temporary / "cloudx-local.pyz"), "cloud", "--help"],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=20.0,
-                    check=False,
-                )
-                if completed.returncode != 0:
-                    raise RuntimeError("staged local artifact failed its self-check")
+                _verify_artifact_self_check(temporary / "cloudx-local.pyz", version, manifest.get("protocol"))
                 os.replace(str(temporary), str(destination))
             except Exception:
                 shutil.rmtree(temporary, ignore_errors=True)
