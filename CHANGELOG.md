@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Stage the signed cloud `0.1.1` artifact side-by-side without creating `current`, restarting gateway/import services, or changing production auth metadata.
+
 ## 0.1.1 - 2026-07-14
 
 - Split Cloudx into independently built local and cloud components.
