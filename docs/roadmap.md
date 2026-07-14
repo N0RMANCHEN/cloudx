@@ -102,11 +102,11 @@ This milestone stages committed artifacts only. It must not change the active lo
 - [x] Configure a versioned shadow environment under `/etc/cloudx` and `/var/lib/cloudx/shadow-auth`.
 - [ ] Run the shadow health publisher under a distinct `cloudx-shadow-*` unit name.
 - [ ] Feed the new publisher a read-only account-state adapter; do not classify unobserved accounts by guessing.
-- [ ] Compare new and legacy account classifications across focused repeated checks.
+- [x] Compare new and legacy account classifications across focused repeated checks.
 - [x] Replay accepted importer fixtures into the shadow auth directory and compare normalized output.
 - [x] Verify signed GitHub check, offline bundle stage, tamper rejection, downgrade rejection, and rollback on both endpoints.
 - [x] Repeat tunnel child termination under concurrent fake streams and capture reconnect timing.
-- [ ] Confirm current legacy sessions and port `18317` remain unchanged before and after focused validation actions.
+- [x] Confirm current legacy sessions and port `18317` remain unchanged before and after focused validation actions.
 
 Release evidence: `docs/archive/2026-07-14-release-0.1.1.md`.
 
@@ -117,6 +117,8 @@ Shadow identity and account-state evidence: `docs/archive/2026-07-14-shadow-acco
 Shadow importer replay evidence: `docs/archive/2026-07-14-shadow-importer-replay.md`.
 
 Local staging evidence: `docs/archive/2026-07-14-local-shadow-stage-0.1.1.md`.
+
+Focused classification and continuity evidence: `docs/archive/2026-07-14-focused-shadow-validation.md`.
 
 ### M2 Exit Gate
 
