@@ -91,6 +91,7 @@ This milestone stages committed artifacts only. It must not change the active lo
 - [x] Add a dual-endpoint release matrix for offline bundle staging, tamper and downgrade rejection, embedded-version attestation, and N-1 rollback.
 - [x] Harden tag-triggered signed publication with tag/SHA preflight, stable-index verification, inherited ephemeral checkout authentication, immutable artifact refs, and replaceable stable refs.
 - [x] Recover from the unpublished `v0.1.0` signing failure by generating a repository-external replacement key, committing only its public trust root, and advancing the candidate to `0.1.1`.
+- [x] Make shadow units execute an explicitly configured staged artifact without creating or reading `/opt/cloudx/current`.
 
 ### Required Work
 

@@ -5,12 +5,13 @@ Wants=network-online.target cloudx-shadow-account-state.service
 
 [Service]
 Type=oneshot
-EnvironmentFile=-/etc/cloudx/cloudx-shadow.env
-ExecStart=/opt/cloudx/current/cloudx-cloud.pyz publish-health --json
+EnvironmentFile=/etc/cloudx/cloudx-shadow.env
+ExecStart=/usr/bin/python3 ${CLOUDX_CLOUD_ARTIFACT} publish-health --json
 User=cloudx
 Group=cloudx
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
+ReadOnlyPaths=/opt/cloudx/releases /etc/cloudx
 ReadWritePaths=/run/cloudx-shadow

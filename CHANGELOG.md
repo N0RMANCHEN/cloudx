@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Stage the signed cloud `0.1.1` artifact side-by-side without creating `current`, restarting gateway/import services, or changing production auth metadata.
+- Run shadow service templates from an explicitly configured versioned artifact instead of requiring the inactive `/opt/cloudx/current` symlink.
 
 ## 0.1.1 - 2026-07-14
 
