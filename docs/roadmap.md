@@ -10,7 +10,7 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 - The signed cloud and local artifacts are staged side-by-side under their versioned release directories; no Cloudx release is activated in production.
 - The current legacy `codexx cloud` path, local port `18317`, CLIProxyAPI, importer, monitors, Phi services, and shell hook remain unchanged.
 - The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation.
-- Signed `0.1.1` artifacts were built from commit `2fc4c0a8ecc9a60e3858d721d070a36fffa04ed6` and published to immutable `release-artifacts/v0.1.1` plus signed `release/stable`. Nothing is staged or activated in production.
+- Signed `0.1.1` artifacts were built from commit `2fc4c0a8ecc9a60e3858d721d070a36fffa04ed6`, published to immutable `release-artifacts/v0.1.1`, and remain staged beside `0.1.2`; neither version is activated.
 - Signed `0.1.2` artifacts were built from commit `3b3e03f77aa6e0cb0355de8e1b21c3a0564a314e` and published to immutable `release-artifacts/v0.1.2`; the signed stable ref now selects `0.1.2`.
 - A restricted `cloudx` identity, versioned shadow environment, shadow auth directory, and read-only account-state timer are installed. The scoped client credential and health publisher remain pending.
 - The distinct shadow health service and timer files are installed and verified but remain disabled and inactive until the scoped credential is usable.
@@ -130,7 +130,7 @@ Staged shadow health unit evidence: `docs/archive/2026-07-14-shadow-health-units
 - fresh, secret-free health evidence from focused repeated checks
 - no unexpected account classification differences
 - no raw import source retained after success or failure
-- no production service restart or auth write
+- the only production service restart or gateway-config credential write is the separately confirmed scoped-key transaction, with rollback evidence; the production auth directory remains unchanged
 - local and cloud staged artifact SHA values match the signed manifest
 - offline rescue and N-1 rollback reverified
 
@@ -150,11 +150,13 @@ Cloud `0.1.2` staging evidence: `docs/archive/2026-07-14-cloud-shadow-stage-0.1.
 
 Local `0.1.2` staging evidence: `docs/archive/2026-07-14-local-shadow-stage-0.1.2.md`.
 
+Signed `0.1.2` release evidence: `docs/archive/2026-07-14-release-0.1.2.md`.
+
 Activation is split into separate operator-confirmed steps.
 
 1. Activate the compatible cloud helper symlink.
 2. Verify handshake, health, client credential scope, and importer dry-run.
-3. Stage the local artifact and verify it against the same manifest.
+3. Reverify the already staged local artifact against the same manifest.
 4. Seed the native local Codex profile from `soul0`, preserving a timestamped backup.
 5. Install the minimal shell hook so `codex` resolves directly to official Codex and `codexx <name>` changes only `CODEX_HOME`.
 6. Activate local `codexx`, `cloud`, and `cloudx-update` symlinks for new invocations.

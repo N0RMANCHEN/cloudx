@@ -4,6 +4,7 @@
 
 - Stage signed cloud `0.1.2` beside `0.1.1` while leaving `current`, the shadow artifact selection, gateway/import services, and production auth metadata unchanged.
 - Stage signed local `0.1.2` beside `0.1.1` while preserving the legacy `codexx` file, official `codex` resolution, shell configuration, current sessions, and inactive release link.
+- Align M2/M3 acceptance text with the separately confirmed scoped-key restart and the already completed local side-by-side staging.
 
 ## 0.1.2 - 2026-07-14
 
