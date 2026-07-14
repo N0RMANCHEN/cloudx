@@ -11,6 +11,7 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 - The current legacy `codexx cloud` path, local port `18317`, CLIProxyAPI, importer, monitors, Phi services, and shell hook remain unchanged.
 - The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation.
 - Signed `0.1.1` artifacts were built from commit `2fc4c0a8ecc9a60e3858d721d070a36fffa04ed6` and published to immutable `release-artifacts/v0.1.1` plus signed `release/stable`. Nothing is staged or activated in production.
+- A restricted `cloudx` identity, versioned shadow environment, shadow auth directory, and read-only account-state timer are installed. The scoped client credential and health publisher remain pending.
 
 ## Release Train
 
@@ -98,7 +99,7 @@ This milestone stages committed artifacts only. It must not change the active lo
 - [x] Build and sign `0.1.1` from the committed Git SHA and publish the GitHub release refs.
 - [x] Stage the cloud artifact under `/opt/cloudx/releases/0.1.1` without changing `/opt/cloudx/current`.
 - [ ] Install a scoped client credential owned by a restricted Cloudx service identity.
-- [ ] Configure a versioned shadow environment under `/etc/cloudx` and `/var/lib/cloudx/shadow-auth`.
+- [x] Configure a versioned shadow environment under `/etc/cloudx` and `/var/lib/cloudx/shadow-auth`.
 - [ ] Run the shadow health publisher under a distinct `cloudx-shadow-*` unit name.
 - [ ] Feed the new publisher a read-only account-state adapter; do not classify unobserved accounts by guessing.
 - [ ] Compare new and legacy account classifications for at least 24 hours.
@@ -110,6 +111,8 @@ This milestone stages committed artifacts only. It must not change the active lo
 Release evidence: `docs/archive/2026-07-14-release-0.1.1.md`.
 
 Cloud staging evidence: `docs/archive/2026-07-14-cloud-shadow-stage-0.1.1.md`.
+
+Shadow identity and account-state evidence: `docs/archive/2026-07-14-shadow-account-state.md`.
 
 ### M2 Exit Gate
 
