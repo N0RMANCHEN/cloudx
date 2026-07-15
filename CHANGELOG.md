@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserve the true local N-1 selector on repeated same-version activation when the configured home or release root is reached through a filesystem symlink.
+- Complete an isolated exact-signed `0.1.13 -> 0.1.12 -> 0.1.13` activation rehearsal and document the one-time same-version local apply that lets the newly current `0.1.13` updater canonicalize hook whitespace after cutover from `0.1.12`.
+
 ## 0.1.13 - 2026-07-15
 
 - Make shell-hook installation whitespace-idempotent so repeated activation and rollback do not accumulate blank lines in `.zshrc`.

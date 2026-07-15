@@ -11,6 +11,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import datetime, timezone
 from unittest import mock
 
@@ -134,6 +135,25 @@ class ReleaseFlowTests(unittest.TestCase):
         self.assertEqual((cloud_root / "previous").resolve().name, "0.1.1")
         self.assertEqual(first["previousLocal"], "0.1.1")
         self.assertEqual(repeated["previousLocal"], "0.1.1")
+
+    def test_repeated_activation_preserves_previous_through_home_symlink(self) -> None:
+        real_home = self.root / "real-home"
+        real_home.mkdir()
+        alias_home = self.root / "alias-home"
+        alias_home.symlink_to(real_home, target_is_directory=True)
+        config = replace(self.config, home=alias_home)
+        local_root = config.home / ".local/lib/cloudx"
+        for version in ("0.1.12", "0.1.13"):
+            release = local_root / "releases" / version
+            release.mkdir(parents=True)
+            (release / "cloudx-local.pyz").write_bytes(version.encode())
+
+        updater._activate_local(config, "0.1.12")
+        updater._activate_local(config, "0.1.13")
+        updater._activate_local(config, "0.1.13")
+
+        self.assertEqual((local_root / "current").resolve().name, "0.1.13")
+        self.assertEqual((local_root / "previous").resolve().name, "0.1.12")
 
     def test_local_activation_reads_target_shell_hook_before_switching_current(self) -> None:
         with mock.patch("cloudx_local.updater._trusted_signers", return_value=self.signers):

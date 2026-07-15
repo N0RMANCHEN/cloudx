@@ -308,8 +308,9 @@ def _activate_local(config: LocalConfig, version: str) -> Optional[str]:
     current = root / "current"
     previous = root / "previous"
     old_target = current.resolve() if current.is_symlink() else None
+    resolved_destination = destination.resolve()
     _atomic_link(current, destination)
-    if old_target and old_target != destination:
+    if old_target and old_target != resolved_destination:
         _atomic_link(previous, old_target)
     elif not previous.is_symlink():
         fallback = _latest_staged_before(root, version, "cloudx-local.pyz")
