@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Advance repository development to `0.1.7` after publishing `0.1.6`, so the immutable signed prompt-badge release is not rebuilt in place.
+- Read the target release's shell hook before moving the local `current` symlink, preventing zipimport truncation when activation is launched through the stable `cloudx-update` entrypoint.
+
 ## 0.1.6 - 2026-07-15
 
 - Restore the codex-plus-style zsh right-prompt mode badge as `[cx:api]`, `[cx:cloud]`, or `[cx:<account>]`, preserving unrelated `RPROMPT` segments across switching, hook reload, and `codexx exit`.

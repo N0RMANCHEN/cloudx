@@ -15,6 +15,7 @@ import sys
 import tarfile
 import tempfile
 import time
+import zipfile
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterator, Optional, Sequence, Tuple
 
@@ -48,6 +49,17 @@ def _shell_hook() -> bytes:
     data = pkgutil.get_data("cloudx_local", "data/cloudx.zsh")
     if not data:
         raise RuntimeError("Cloudx shell hook is missing")
+    return data
+
+
+def _shell_hook_from_artifact(artifact: pathlib.Path) -> bytes:
+    try:
+        with zipfile.ZipFile(str(artifact)) as archive:
+            data = archive.read("cloudx_local/data/cloudx.zsh")
+    except (OSError, KeyError, zipfile.BadZipFile) as exc:
+        raise RuntimeError("staged local release has no readable shell hook") from exc
+    if not data:
+        raise RuntimeError("staged local release shell hook is empty")
     return data
 
 
@@ -324,9 +336,9 @@ def _rollback_local(config: LocalConfig, version: str) -> None:
         _atomic_link(previous, old_current)
 
 
-def install_shell_hook(config: LocalConfig) -> pathlib.Path:
+def install_shell_hook(config: LocalConfig, hook_data: Optional[bytes] = None) -> pathlib.Path:
     hook = config.home / ".config/cloudx/shell.zsh"
-    atomic_write(hook, _shell_hook(), mode=0o644)
+    atomic_write(hook, hook_data if hook_data is not None else _shell_hook(), mode=0o644)
     zshrc = config.home / ".zshrc"
     original = zshrc.read_text(encoding="utf-8") if zshrc.is_file() else ""
     lines = original.splitlines()
@@ -408,10 +420,12 @@ def apply(
     if current.is_symlink() and _version_tuple(version) < _version_tuple(current.resolve().name):
         raise RuntimeError("release activation would be a downgrade; use rollback")
     destination = _local_root(config) / "releases" / version
-    if not (destination / "cloudx-local.pyz").is_file():
+    artifact = destination / "cloudx-local.pyz"
+    if not artifact.is_file():
         raise RuntimeError("local release is not staged")
+    hook_data = _shell_hook_from_artifact(artifact) if shell_hook else None
     local_previous = _activate_local(config, version)
-    hook_path = str(install_shell_hook(config)) if shell_hook else None
+    hook_path = str(install_shell_hook(config, hook_data)) if shell_hook else None
     backup_path = str(seed_native_profile(config, seed_account)) if seed_account else None
     return {
         "schema": "cloudx.release-activate.v1",

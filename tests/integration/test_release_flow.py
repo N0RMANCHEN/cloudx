@@ -135,6 +135,35 @@ class ReleaseFlowTests(unittest.TestCase):
         self.assertEqual(first["previousLocal"], "0.1.1")
         self.assertEqual(repeated["previousLocal"], "0.1.1")
 
+    def test_local_activation_reads_target_shell_hook_before_switching_current(self) -> None:
+        with mock.patch("cloudx_local.updater._trusted_signers", return_value=self.signers):
+            updater.stage(self.config, self.release_dir, local_only=True)
+        events = []
+        target_hook = b"# target release shell hook\n"
+        real_activate = updater._activate_local
+
+        def read_hook(artifact: pathlib.Path) -> bytes:
+            events.append(("read", artifact.name))
+            return target_hook
+
+        def activate(config: LocalConfig, version: str) -> str:
+            events.append(("activate", version))
+            return real_activate(config, version) or ""
+
+        with mock.patch("cloudx_local.updater._shell_hook_from_artifact", side_effect=read_hook), mock.patch(
+            "cloudx_local.updater._activate_local", side_effect=activate
+        ):
+            result = updater.apply(self.config, CURRENT_VERSION, CURRENT_VERSION, True, True, None)
+
+        self.assertEqual(events, [("read", "cloudx-local.pyz"), ("activate", CURRENT_VERSION)])
+        self.assertEqual((self.config.home / ".config/cloudx/shell.zsh").read_bytes(), target_hook)
+        self.assertEqual(result["previousLocal"], "")
+
+    def test_target_shell_hook_reader_uses_the_staged_artifact(self) -> None:
+        local_artifact = next(self.release_dir.glob("cloudx-local-*.pyz"))
+        expected = (ROOT / "local/cloudx_local/data/cloudx.zsh").read_bytes()
+        self.assertEqual(updater._shell_hook_from_artifact(local_artifact), expected)
+
     def test_cloud_only_activation_does_not_touch_local_release(self) -> None:
         remote = mock.Mock()
         remote.activate_release.return_value = {
