@@ -33,6 +33,11 @@ class ContractTests(unittest.TestCase):
         automatic = schema["properties"]["activation"]["properties"]["automatic"]
         self.assertEqual(automatic, {"const": False})
 
+    def test_release_trust_root_matches_both_endpoint_artifacts(self) -> None:
+        expected = (ROOT / "release/allowed_signers").read_bytes()
+        self.assertEqual((ROOT / "local/cloudx_local/data/allowed_signers").read_bytes(), expected)
+        self.assertEqual((ROOT / "cloud/cloudx_cloud/data/allowed_signers").read_bytes(), expected)
+
 
 if __name__ == "__main__":
     unittest.main()

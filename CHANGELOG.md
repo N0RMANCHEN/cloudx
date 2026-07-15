@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+## 0.1.10 - 2026-07-15
+
+- Mirror the recovered release trust root into both endpoint artifacts and add a regression that requires repository, local, and cloud signer data to remain byte-identical.
+- Advance to `0.1.10` without reusing the immutable `0.1.9` artifact ref after candidate cloud staging correctly rejected its stale embedded trust root.
+
 ## 0.1.9 - 2026-07-15
 
+- Publish immutable `0.1.9` release artifacts, then restore signed stable `0.1.8` after the candidate cloud artifact rejected its bundle because the cloud-packaged trust root had not been updated; no cloud release directory, endpoint activation, unit change, or service restart occurred.
 - Recover the unavailable `0.1.4` through `0.1.8` release private key with a new repository-external mode-0600 Ed25519 key and commit only its replacement public trust root; `0.1.9` must use candidate-verified out-of-band staging before ordinary signed updates resume.
 - Make local activation create the documented private `codexx-legacy` recovery entrypoint and atomically detach backed-up account Git shims from the removed `codexx git-shim` internal command, preserving already-running codex-plus API sessions through cutover.
 - Independently activate signed local `0.1.8` on the `/Users/hirohi` workstation, restore signed `0.1.7` as its N-1 rollback release, and validate local API plus isolated cloud model traffic while retaining the exact CLIProxyAPI and existing Codex process identities.
