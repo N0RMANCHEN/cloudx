@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Activate signed `0.1.7` on both endpoints, install and enable the active account-state and `cloudx.health.v1` publishers with the legacy health contract retained, and validate repeated timer publication plus a complete cloud model request without restarting legacy, gateway, importer, or Phi services.
+- Make active health unit output-path overrides part of `ExecStart` so they take precedence over the legacy environment file, preserve runtime directories across successful oneshot exits, schedule newly installed timers from activation time, and avoid a duplicate account-state run from the health unit; this removes the `0.1.7` deployment drop-in requirement in the next release.
 - Advance repository development to `0.1.8` after publishing and staging signed `0.1.7`, leaving both active endpoints and all service units on their prior selections.
 
 ## 0.1.7 - 2026-07-15

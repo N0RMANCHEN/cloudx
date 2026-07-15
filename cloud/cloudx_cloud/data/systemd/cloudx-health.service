@@ -1,20 +1,19 @@
 [Unit]
 Description=Publish the signed Cloudx health contract
 After=network-online.target cloudx-account-state.service
-Wants=network-online.target cloudx-account-state.service
+Wants=network-online.target
 ConditionPathExists=/run/cloudx-account-state/accounts.json
 
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/cloudx/cloudx-shadow.env
-Environment=CLOUDX_ACCOUNT_STATE_PATH=/run/cloudx-account-state/accounts.json
-Environment=CLOUDX_HEALTH_PATH=/run/cloudx/health.json
-ExecStart=/usr/bin/python3 /opt/cloudx/current/cloudx-cloud.pyz publish-health --json
+ExecStart=/usr/bin/env CLOUDX_ACCOUNT_STATE_PATH=/run/cloudx-account-state/accounts.json CLOUDX_HEALTH_PATH=/run/cloudx/health.json /usr/bin/python3 /opt/cloudx/current/cloudx-cloud.pyz publish-health --json
 User=cloudx
 Group=cloudx
 UMask=0022
 RuntimeDirectory=cloudx
 RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
 NoNewPrivileges=true
 PrivateDevices=true
 PrivateTmp=true

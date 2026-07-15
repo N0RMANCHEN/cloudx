@@ -5,13 +5,13 @@ After=cloudx-cpa-health.service
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/cloudx/cloudx-shadow.env
-Environment=CLOUDX_ACCOUNT_STATE_PATH=/run/cloudx-account-state/accounts.json
-ExecStart=/usr/bin/python3 /opt/cloudx/current/cloudx-cloud.pyz adapt-account-state --json
+ExecStart=/usr/bin/env CLOUDX_ACCOUNT_STATE_PATH=/run/cloudx-account-state/accounts.json /usr/bin/python3 /opt/cloudx/current/cloudx-cloud.pyz adapt-account-state --json
 User=root
 Group=root
 UMask=0022
 RuntimeDirectory=cloudx-account-state
 RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
 NoNewPrivileges=true
 PrivateDevices=true
 PrivateTmp=true

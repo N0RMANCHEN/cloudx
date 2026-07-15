@@ -62,3 +62,47 @@ After staging:
 - the old cloud importer remains PID `133756`
 
 No service was installed, enabled, started, stopped, restarted, or reloaded. Repository verification passed architecture checks, 92 tests, and deterministic `0.1.7` local/cloud builds before publication.
+
+## Operator-Confirmed Activation
+
+The operator explicitly approved activation of Cloudx `0.1.7` on both endpoints and installation of the active account-state and health units while retaining the old health contract and prohibiting restarts of CLIProxyAPI, the importer, and Phi.
+
+The cloud endpoint was activated first and reported `currentVersion` `0.1.7`, `previousVersion` `0.1.6`, and cloud artifact SHA-256 `1302b83569559125b70ba041a01693cc4624d2983887212d8b1ac6ff76daa60b`. Its handshake added `health-publisher-templates.v1`; direct health reported a healthy gateway, ready importer, and fresh aggregate state.
+
+The local endpoint was then activated without reinstalling the unchanged shell hook. It reports `current` `0.1.7` and `previous` `0.1.6`; official Codex remains `/opt/homebrew/bin/codex`, `codexx` remains a shell function, and the zsh badge remains `[cx:api]`.
+
+## Health Unit Transaction
+
+Before unit installation, the old contract, old unit files, release links, unit states, and key process identities were saved under:
+
+`/var/lib/cloudx/health-service-backups/20260715T075426Z`
+
+The first install transaction exposed two template assumptions. `/etc/cloudx/cloudx-shadow.env` overrode the base unit's output-path environment, and oneshot runtime directories needed explicit preservation. The account adapter therefore wrote only to the existing shadow path and the formal health condition was not met. The transaction automatically disabled the new timers, deleted all four new unit files, reloaded systemd, and left the old contract and all pre-existing services untouched.
+
+The accepted retry installed the exact signed `0.1.7` base units plus two root-owned mode-0644 `10-active-paths.conf` drop-ins. The drop-ins contain no credentials or mutable program content; they override only the signed artifact command's two declared output paths through `/usr/bin/env` and set `RuntimeDirectoryPreserve=yes`. Repository `0.1.8` incorporates both corrections directly into the signed templates and changes first timer scheduling to `OnActiveSec`.
+
+Accepted outputs are:
+
+- `/run/cloudx-account-state/accounts.json`: mode 0644, owner `root:root`, schema `cloudx.account-state.v1`
+- `/run/cloudx/health.json`: mode 0644, owner `cloudx:cloudx`, schema `cloudx.health.v1`, Cloudx `0.1.7`
+
+Both new timers are enabled and repeatedly enter `active (waiting)` with one-minute deadlines. Multiple scheduled runs refreshed both files successfully. Health remained `gatewayStatus: healthy`, `importStatus: ready`, and `freshness.state: fresh`.
+
+The `phi-cloudx-health` identity can read `/run/cloudx/health.json` but cannot read `/etc/cliproxy/config.yaml`, the production auth directory, or importer client keys. Its existing unit and elapsed timer were not changed or run.
+
+The old `/var/lib/cloudx/health/v1.json`, `cloudx-health-contract.service`, and `cloudx-health-contract.timer` remain present, enabled, and active as rollback. No old health file or unit was replaced.
+
+## Acceptance Canaries And Continuity
+
+`cloud codex --check` reported the Cloudx remote helper, a healthy independent broker tunnel, and HTTP 200 from the gateway. A complete official Codex request through `codexx cloud` returned exactly `CLOUDX_017_HEALTH_OK`; its broker lease was reclaimed and the final lease count was zero.
+
+The following identities remained unchanged across activation and unit installation:
+
+- legacy local tunnel PID `78601` on `127.0.0.1:18317`
+- local CPA PID `17165` on `127.0.0.1:8317`
+- cloud CLIProxyAPI PID `977036`
+- old cloud importer PID `133756`
+- `phi-roadmap-driver` PID `1036613`
+- `phi-cloudx-health.timer` last trigger `2026-07-15 00:40:05 CST`, still `active (elapsed)`
+
+No CLIProxyAPI, importer, Phi, Tailscale, SSH, mihomo, or legacy tunnel process was restarted. The only service-manager mutations were a daemon reload plus installation, enablement, starts, and one recovery restart of the two newly created Cloudx timers.

@@ -90,8 +90,9 @@ class CloudHealthTests(unittest.TestCase):
         with redirect_stdout(output):
             self.assertEqual(main(["systemd-template", "cloudx-health.service"]), 0)
         service = output.getvalue()
-        self.assertIn("/opt/cloudx/current/cloudx-cloud.pyz publish-health --json", service)
+        self.assertIn("ExecStart=/usr/bin/env CLOUDX_ACCOUNT_STATE_PATH=", service)
         self.assertIn("CLOUDX_HEALTH_PATH=/run/cloudx/health.json", service)
+        self.assertIn("RuntimeDirectoryPreserve=yes", service)
         self.assertNotIn("/home/", service)
 
 

@@ -41,25 +41,31 @@ class ShadowSystemdTemplateTests(unittest.TestCase):
     def test_active_health_templates_are_signed_artifact_data_and_secret_safe(self) -> None:
         account = (ACTIVE_SYSTEMD / "cloudx-account-state.service").read_text(encoding="utf-8")
         health = (ACTIVE_SYSTEMD / "cloudx-health.service").read_text(encoding="utf-8")
+        self.assertIn("ExecStart=/usr/bin/env CLOUDX_ACCOUNT_STATE_PATH=", account)
         self.assertIn("/opt/cloudx/current/cloudx-cloud.pyz adapt-account-state --json", account)
         self.assertIn("CLOUDX_ACCOUNT_STATE_PATH=/run/cloudx-account-state/accounts.json", account)
         self.assertIn("ReadWritePaths=/run/cloudx-account-state", account)
+        self.assertIn("RuntimeDirectoryPreserve=yes", account)
         self.assertIn("User=cloudx", health)
+        self.assertIn("ExecStart=/usr/bin/env CLOUDX_ACCOUNT_STATE_PATH=", health)
         self.assertIn("CLOUDX_HEALTH_PATH=/run/cloudx/health.json", health)
         self.assertIn("ReadWritePaths=/run/cloudx", health)
+        self.assertIn("RuntimeDirectoryPreserve=yes", health)
         self.assertIn("InaccessiblePaths=/var/lib/codex-gateway/cliproxy-auth", health)
         for service in (account, health):
+            self.assertNotIn("Environment=CLOUDX_", service)
             self.assertNotIn("/home/", service)
             self.assertNotIn("18317", service)
             self.assertNotIn("ReadWritePaths=/var/lib/codex-gateway", service)
 
     def test_active_health_timers_are_explicit_and_repeating(self) -> None:
-        for name, unit in (
-            ("cloudx-account-state.timer", "cloudx-account-state.service"),
-            ("cloudx-health.timer", "cloudx-health.service"),
+        for name, unit, initial in (
+            ("cloudx-account-state.timer", "cloudx-account-state.service", "1min"),
+            ("cloudx-health.timer", "cloudx-health.service", "2min"),
         ):
             timer = (ACTIVE_SYSTEMD / name).read_text(encoding="utf-8")
             with self.subTest(name=name):
+                self.assertIn("OnActiveSec=%s" % initial, timer)
                 self.assertIn("OnUnitActiveSec=1min", timer)
                 self.assertIn("Unit=%s" % unit, timer)
                 self.assertIn("Persistent=true", timer)
