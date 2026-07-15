@@ -10,7 +10,8 @@
 - Make shell-hook installation whitespace-idempotent so repeated activation and rollback do not accumulate blank lines in `.zshrc`.
 - Detach read-only SSH helper calls from inherited stdin while retaining explicit byte pipes for import and release-stage payloads, so scripted `codexx cloud` selection cannot consume the caller's remaining commands.
 - Publish immutable signed `0.1.13`, verify its stable index and fresh remote clones, and stage both real endpoints idempotently without changing active or previous links or any protected process.
-- Advance repository development to `0.1.14` after publication and staging; activating the `0.1.13` installer and SSH hardening remains a separate operator decision.
+- Activate signed `0.1.13` cloud-first and local-second, reconcile the hook through the newly current updater, complete a dual-endpoint `0.1.13 -> 0.1.12 -> 0.1.13` rollback round trip, and validate initial plus final API/cloud model canaries without restarting protected services.
+- Advance repository development to `0.1.14` after publication, staging, activation, and rollback acceptance, leaving signed `0.1.12` as N-1 on both endpoints.
 
 ## 0.1.12 - 2026-07-15
 
