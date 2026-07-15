@@ -5,6 +5,23 @@ unset -f codex 2>/dev/null || true
 if [ -n "${CODEXX_USER_HOME:-}" ]; then
   export HOME="$CODEXX_USER_HOME"
 fi
+
+# Cloudx selection changes CODEX_HOME only; discard codex-plus account shims.
+if [ -n "${ZSH_VERSION:-}" ]; then
+  typeset -a __cloudx_kept_path
+  __cloudx_kept_path=()
+  __cloudx_accounts_root="$HOME/.codex-accounts"
+  for __cloudx_path_entry in "${path[@]}"; do
+    case "$__cloudx_path_entry" in
+      "$__cloudx_accounts_root"/*/.local/bin) ;;
+      *) __cloudx_kept_path+=("$__cloudx_path_entry") ;;
+    esac
+  done
+  path=("${__cloudx_kept_path[@]}")
+  export PATH
+  unset __cloudx_kept_path __cloudx_accounts_root __cloudx_path_entry
+fi
+
 unset OPENAI_API_KEY OPENAI_BASE_URL OPENAI_API_BASE
 
 __cloudx_account_badge() {
