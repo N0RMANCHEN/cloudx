@@ -11,10 +11,11 @@ This is the accepted local interaction model during M3. The official Codex runti
 | Preserve legacy selection syntax | `codexx use <name>` | Same as `codexx <name>` |
 | Select the local CPA profile | `codexx cpa` | Sets `CODEX_HOME` to the existing `cpa` profile |
 | Select the existing local API profile | `codexx use api` | Sets `CODEX_HOME` to the existing `api` profile |
+| Select cloud mode | `codexx cloud` | Creates a shell-owned broker lease and selects the isolated cloud profile |
 | Return to the native profile | `codexx exit` | Clears Cloudx account variables |
 | Inspect selection | `codexx current`, `codexx list` | Read-only |
 
-Account selection never changes the official `codex` executable and never changes the real user `HOME`. It changes only `CODEX_HOME` and Cloudx account markers in the current shell.
+Mode selection never changes or wraps the official `codex` executable and never changes the real user `HOME`. Cloud mode keeps its broker lease for the selecting shell, so plain `codex` remains valid for the full foreground session.
 
 ## Account Lifecycle
 
@@ -23,6 +24,8 @@ codexx add <name>
 codexx login [name]
 codexx status [name]
 codexx logout [name]
+codexx rename <old> <new>
+codexx remove <name>
 ```
 
 These commands operate on `~/.codex-accounts/<name>/.codex`. Pool selection, task control, dashboards, workspaces, agents, and automatic rotation are not part of Cloudx.
@@ -30,13 +33,13 @@ These commands operate on `~/.codex-accounts/<name>/.codex`. Pool selection, tas
 ## Cloud Gateway
 
 ```bash
-cloud codex --check
-cloud codex [official Codex arguments]
-cloud import <local-file-or-directory> --dry-run
-cloud import <local-file-or-directory>
+codexx cloud
+codex
+codexx cloud import <local-file-or-directory> --dry-run
+codexx cloud import <local-file-or-directory>
 ```
 
-`cloud codex` runs the official local Codex process through the Cloudx-owned broker and the active cloud helper. `cloud import` reads a local path and sends its bytes through SSH stdin to the cloud importer.
+`codexx cloud` acquires a broker lease owned by the current shell and configures an isolated Cloudx `CODEX_HOME`; the following `codex` remains the official local binary. `codexx cloud import` reads a local path and sends its bytes through SSH stdin to the cloud importer. `cloud codex` and `cloud import` remain compatibility entrypoints.
 
 The low-level single-file equivalent is:
 
@@ -56,6 +59,8 @@ codex
 
 codexx use api
 codex
+
+codexx import <local-file-or-directory>
 ```
 
 Cloudx does not own the local CLIProxyAPI process, binary upgrades, launchd lifecycle, credential refresh, or provider pool. During the observation period, the private recovery bundle exposes the old management surface explicitly as:
@@ -66,6 +71,18 @@ codexx-legacy api refresh --dry-run
 ```
 
 `codexx-legacy` is a rollback tool, not a supported Cloudx command. It is removed only after the local CPA dependency has a separately accepted replacement or ownership decision.
+
+During this migration stage, `codexx import` explicitly delegates local CPA normalization to that recovery runtime. The delegation is temporary and reported in product documentation; it does not grant Cloudx ownership of the local CPA service.
+
+## Installation
+
+```bash
+./install
+./install local --version <signed-version> --apply --confirm "INSTALL CLOUDX LOCAL <version>"
+sudo ./install cloud --version <signed-version> --apply --confirm "INSTALL CLOUDX CLOUD <version>"
+```
+
+The local installer stages the signed local artifact, creates a private legacy recovery bundle when needed, seeds the native profile, installs the shell source into `.zshrc`, and activates stable links. The cloud installer requires the scoped credential/environment prerequisite, stages the signed cloud artifact, and activates the helper without restarting a service.
 
 ## Signed GitHub Updates
 

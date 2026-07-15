@@ -5,7 +5,7 @@ import pathlib
 import sys
 from typing import Optional, Sequence
 
-from . import accounts, broker, cloud_cli
+from . import broker, cloud_cli, codexx_cli
 from . import updater
 from .config import LocalConfig
 from .version import PROTOCOL_MAX, PROTOCOL_MIN, VERSION
@@ -23,7 +23,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     program = pathlib.Path(sys.argv[0]).name
     if program == "codexx":
         _schedule_update_check()
-        return accounts.main(arguments)
+        return codexx_cli.main(arguments)
     if program == "cloud":
         _schedule_update_check()
         return cloud_cli.main(arguments)
@@ -47,7 +47,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     command = arguments.pop(0)
     if command == "codexx":
         _schedule_update_check()
-        return accounts.main(arguments)
+        return codexx_cli.main(arguments)
     if command == "cloud":
         _schedule_update_check()
         return cloud_cli.main(arguments)

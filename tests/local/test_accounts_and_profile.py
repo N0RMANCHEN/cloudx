@@ -14,6 +14,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "local"))
 
 from cloudx_local.accounts import current_account, list_accounts, parser, shell_exit, shell_select  # noqa: E402
+from cloudx_local.accounts import main as accounts_main  # noqa: E402
 from cloudx_local.config import LocalConfig  # noqa: E402
 from cloudx_local.profile import cloud_codex_environment, prepare_cloud_codex_home  # noqa: E402
 
@@ -55,9 +56,19 @@ class AccountAndProfileTests(unittest.TestCase):
         self.assertIsNotNone(hook)
         text = hook.decode("utf-8") if hook else ""
         self.assertIn("use)", text)
-        self.assertIn('eval "$("$bin" use "$2")"', text)
+        self.assertIn('_mode account "$2" --shell-pid "$$"', text)
+        self.assertIn('_mode cloud --shell-pid "$$"', text)
         self.assertIn("use", parser().format_help())
         self.assertIn("codexx <account>", parser().format_help())
+
+    def test_account_rename_and_reversible_remove(self) -> None:
+        self.assertEqual(accounts_main(["rename", "soul1", "work"]), 0)
+        self.assertIn("work", list_accounts(self.config))
+        self.assertNotIn("soul1", list_accounts(self.config))
+        self.assertEqual(accounts_main(["remove", "work"]), 0)
+        self.assertNotIn("work", list_accounts(self.config))
+        archived = list((self.config.state_dir / "account-archive").glob("*-work/.codex"))
+        self.assertEqual(len(archived), 1)
 
     def test_legacy_account_home_does_not_become_cloudx_user_home(self) -> None:
         with mock.patch.dict(

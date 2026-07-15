@@ -130,6 +130,13 @@ class BrokerTests(unittest.TestCase):
             first.release()
             second.release()
 
+    def test_shell_owned_lease_survives_client_return_until_explicit_release(self) -> None:
+        response = self.client.acquire_for_owner("cloud", "gateway", 8317, os.getpid())
+        lease_id = str(response["leaseId"])
+        self.assertEqual(self.client.status()["leases"], 1)
+        self.client.release(lease_id)
+        self.assertEqual(self.client.status()["leases"], 0)
+
     def test_http_failures_do_not_kill_or_replace_ssh(self) -> None:
         lease = self.client.acquire("cloud", "gateway", 8317)
         try:

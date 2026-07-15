@@ -5,7 +5,7 @@ import pathlib
 from typing import Dict
 
 from .config import LocalConfig
-from .files import atomic_json, ensure_private_directory
+from .files import atomic_json, atomic_write, ensure_private_directory
 
 
 SHARED_ENTRIES = ("sessions", "session_index.jsonl", "skills")
@@ -57,3 +57,23 @@ def cloud_codex_environment(config: LocalConfig, api_key: str, port: int) -> Dic
     for name in ("CODEXX_ACTIVE_ACCOUNT", "CODEXX_ACTIVE_HOME", "CODEXX_ACTIVE_PINNED", "CODEXX_SHARED_CODEX_ROOT"):
         environment.pop(name, None)
     return environment
+
+
+def prepare_cloud_mode(config: LocalConfig, api_key: str, port: int) -> pathlib.Path:
+    home = prepare_cloud_codex_home(config)
+    atomic_json(
+        home / "auth.json",
+        {
+            "auth_mode": "apikey",
+            "OPENAI_API_KEY": api_key,
+            "api_key": api_key,
+            "cloudx_auth_source": "scoped-gateway",
+        },
+        mode=0o600,
+    )
+    config_text = (
+        'model_provider = "openai"\n'
+        'openai_base_url = "http://127.0.0.1:%d/v1"\n' % port
+    ).encode("utf-8")
+    atomic_write(home / "config.toml", config_text, mode=0o600)
+    return home

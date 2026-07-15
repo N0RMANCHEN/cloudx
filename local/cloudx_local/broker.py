@@ -523,15 +523,22 @@ class BrokerClient:
                 time.sleep(0.1)
             raise RuntimeError("Cloudx tunnel broker did not start within 20 seconds")
 
-    def acquire(self, ssh_host: str, forward_host: str, forward_port: int) -> "TunnelLease":
+    def acquire_for_owner(
+        self,
+        ssh_host: str,
+        forward_host: str,
+        forward_port: int,
+        owner_pid: int,
+        lease_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         self.ensure_started()
-        lease_id = str(uuid.uuid4())
+        identifier = lease_id or str(uuid.uuid4())
         response = request(
             self.socket_path,
             {
                 "command": "acquire",
-                "leaseId": lease_id,
-                "ownerPid": os.getpid(),
+                "leaseId": identifier,
+                "ownerPid": owner_pid,
                 "sshHost": ssh_host,
                 "forwardHost": forward_host,
                 "forwardPort": forward_port,
@@ -541,7 +548,21 @@ class BrokerClient:
         port = int(response.get("publicPort") or 0)
         if not 1 <= port <= 65535:
             raise RuntimeError("tunnel broker returned an invalid local port")
-        return TunnelLease(self, lease_id, port, int(response.get("generation") or 0))
+        return response
+
+    def acquire(self, ssh_host: str, forward_host: str, forward_port: int) -> "TunnelLease":
+        response = self.acquire_for_owner(ssh_host, forward_host, forward_port, os.getpid())
+        return TunnelLease(
+            self,
+            str(response.get("leaseId") or ""),
+            int(response.get("publicPort") or 0),
+            int(response.get("generation") or 0),
+        )
+
+    def release(self, lease_id: str) -> None:
+        if not lease_id or not self._ping():
+            return
+        request(self.socket_path, {"command": "release", "leaseId": lease_id})
 
     def status(self) -> Dict[str, Any]:
         if not self._ping():

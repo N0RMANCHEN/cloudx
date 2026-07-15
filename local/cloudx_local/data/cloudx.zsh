@@ -8,21 +8,31 @@ codexx() {
   local bin="${CLOUDX_CODEXX_BIN:-$HOME/.local/bin/codexx}"
   local command="${1:-}"
   case "$command" in
-    add|login|status|logout|list|current|--help|-h|'') "$bin" "$@" ;;
-    exit) eval "$("$bin" exit)" ;;
+    add|login|status|logout|list|current|remove|rename|import|--help|-h|'') "$bin" "$@" ;;
+    exit) eval "$("$bin" _mode exit --shell-pid "$$")" ;;
     use)
       if [ "$#" -ne 2 ]; then
         echo 'codexx: use requires exactly one account name' >&2
         return 2
       fi
-      eval "$("$bin" use "$2")"
+      eval "$("$bin" _mode account "$2" --shell-pid "$$")"
+      ;;
+    cloud)
+      if [ "$#" -eq 1 ]; then
+        eval "$("$bin" _mode cloud --shell-pid "$$")"
+      elif [ "${2:-}" = "import" ]; then
+        "$bin" "$@"
+      else
+        echo 'codexx: cloud supports mode selection or cloud import <source>' >&2
+        return 2
+      fi
       ;;
     *)
       if [ "$#" -ne 1 ]; then
         echo 'codexx: account selection accepts exactly one account name' >&2
         return 2
       fi
-      eval "$("$bin" "$command")"
+      eval "$("$bin" _mode account "$command" --shell-pid "$$")"
       ;;
   esac
 }

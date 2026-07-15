@@ -9,6 +9,7 @@ import re
 import shlex
 import subprocess
 import sys
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Sequence
 
 from .config import LocalConfig
@@ -124,6 +125,11 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser("exit")
     use = sub.add_parser("use")
     use.add_argument("name")
+    remove = sub.add_parser("remove")
+    remove.add_argument("name")
+    rename = sub.add_parser("rename")
+    rename.add_argument("old")
+    rename.add_argument("new")
     return root
 
 
@@ -150,7 +156,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if arguments == ["resolve-codex-bin"]:
         print(config.codex_binary)
         return 0
-    if len(arguments) == 1 and arguments[0] not in {"add", "login", "status", "logout", "list", "current", "exit", "-h", "--help"}:
+    if len(arguments) == 1 and arguments[0] not in {
+        "add", "login", "status", "logout", "list", "current", "exit", "use", "remove", "rename", "-h", "--help"
+    }:
         print(shell_select(config, arguments[0]))
         return 0
     args = parser().parse_args(arguments)
@@ -181,6 +189,39 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 0
     if args.command == "exit":
         print(shell_exit(config))
+        return 0
+    if args.command == "remove":
+        if current_account(config) == args.name:
+            raise RuntimeError("exit the active account before removing it")
+        source = config.accounts_dir / args.name
+        if source.is_symlink() or (source / ".codex").is_symlink() or not (source / ".codex").is_dir():
+            raise RuntimeError("unknown account: %s" % args.name)
+        archive = config.state_dir / "account-archive"
+        ensure_private_directory(archive)
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        target = archive / ("%s-%s" % (timestamp, args.name))
+        os.replace(str(source), str(target))
+        state = read_state(config)
+        if state.get("lastSelected") == args.name:
+            atomic_json(state_path(config), {})
+        print(target)
+        return 0
+    if args.command == "rename":
+        if current_account(config) == args.old:
+            raise RuntimeError("exit the active account before renaming it")
+        old_home = account_home(config, args.old)
+        new_home = account_home(config, args.new)
+        source = old_home.parent
+        target = new_home.parent
+        if source.is_symlink() or old_home.is_symlink() or not old_home.is_dir():
+            raise RuntimeError("unknown account: %s" % args.old)
+        if target.exists():
+            raise RuntimeError("account already exists: %s" % args.new)
+        os.replace(str(source), str(target))
+        state = read_state(config)
+        if state.get("lastSelected") == args.old:
+            atomic_json(state_path(config), {"lastSelected": args.new})
+        print(args.new)
         return 0
     parser().print_help()
     return 0

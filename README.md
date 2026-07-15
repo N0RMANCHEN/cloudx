@@ -19,16 +19,27 @@ cloud import -> SSH stdin -> Cloudx importer -> configured auth directory
 codex
 
 # Select a local Codex account home in the current shell.
-eval "$(codexx soul0)"
+codexx soul0
 codex
 
-# Run local Codex through the cloud gateway.
-cloud codex
-cloud codex --check
+# Select local CPA mode, then run official Codex.
+codexx api
+codex
 
-# Import gateway credentials without exposing an HTTP import endpoint.
-cloud import credentials.json --dry-run
-cloud import credentials.json
+# Select cloud mode, then run official Codex.
+codexx cloud
+codex
+
+# Import credentials into local CPA or the cloud gateway.
+codexx import credentials.json
+codexx cloud import credentials.json --dry-run
+codexx cloud import credentials.json
+
+# Return to the native profile.
+codexx exit
+
+# Endpoint-aware signed installation; the plan prints its exact confirmation.
+./install
 ```
 
 `codexx` deliberately has only account selection and account lifecycle commands. Pool management, task governance, agents, remote clients, and the former control plane are outside this product.

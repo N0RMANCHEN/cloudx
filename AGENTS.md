@@ -5,9 +5,12 @@ Cloudx is a single-user bridge between the official local Codex runtime and a pe
 ## Product Contract
 
 - `codex` always means the installed local Codex product. Cloudx must not replace or wrap that command.
-- `codexx` only selects local Codex account homes and manages those account records.
-- `cloud codex` runs the installed local Codex process against the cloud gateway.
-- `cloud import` sends credentials to the cloud importer through SSH.
+- `codexx` selects native, local CPA, cloud, or named-account modes and manages local account records; selection changes shell state, not the official Codex executable.
+- `codexx cloud` holds a Cloudx broker lease for the current shell so the next plain `codex` invocation uses the cloud gateway without wrapping `codex`.
+- `codexx import` is a migration-period compatibility adapter for the external local CPA; Cloudx does not own that service lifecycle.
+- `codexx cloud import` sends credentials to the cloud importer through SSH.
+- `cloud codex` and `cloud import` remain compatibility entrypoints during migration.
+- `./install` performs endpoint-aware signed staging and installs the local shell source as part of local activation.
 - The local and cloud components are built independently from this repository and share only versioned contracts.
 - Cloudx is not a task system, agent control plane, hosted multi-tenant service, or replacement coding runtime.
 
