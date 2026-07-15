@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.13 - 2026-07-15
+
 - Make shell-hook installation whitespace-idempotent so repeated activation and rollback do not accumulate blank lines in `.zshrc`.
 - Detach read-only SSH helper calls from inherited stdin while retaining explicit byte pipes for import and release-stage payloads, so scripted `codexx cloud` selection cannot consume the caller's remaining commands.
 
