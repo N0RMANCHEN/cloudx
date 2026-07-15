@@ -7,6 +7,9 @@
 - Archive the already disabled legacy quota-monitor and unattended import-repair units, scripts, state, failure receipts, locks, and systemd evidence under root-only Cloudx state without removing their installed rollback paths or touching the active HTTP importer.
 - Move two resolved legacy raw import inputs out of the failure-record tree and ordinary archive into a separate root-only secret-recovery area, leaving hash-only receipts and preserving SSH importer acceptance plus external service continuity.
 - Add a signed-artifact `codex-gateway-import` compatibility adapter that preserves FILE/stdin and `--force`, adds `--dry-run`, and routes directly to `cloudx-remote import` without an HTTP token or port `8780` dependency.
+- Publish immutable signed `0.1.11`, stage it through the normal active updater, activate cloud-first and local-second, and retain signed `0.1.10` as N-1 on both endpoints without restarting the gateway, HTTP importer, local CPA, or existing Codex processes.
+- Install the signed importer compatibility adapter through an exact-confirmation atomic transaction with a root-only rollback set; an independent dry-run produced no HTTP importer journal entry and preserved its PID and zero restart count.
+- Advance repository development to `0.1.12` after publishing and activating signed `0.1.11`; stopping the old HTTP importer remains a separate operator decision.
 
 ## 0.1.10 - 2026-07-15
 
