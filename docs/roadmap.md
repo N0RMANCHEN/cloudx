@@ -171,6 +171,8 @@ Cloud helper activation, topology, formal import/model canary, and GitHub dual-s
 - [ ] Reverify and activate the local artifact, native profile, minimal shell hook, and local command links under a separate confirmation.
 - [ ] Run local rollback rehearsal and begin the M3 observation window while retaining the legacy listener and processes.
 
+Before local activation, preserve the existing `codexx use api` and local CPA recovery path under private Cloudx state. The minimal account selector retains both `api` and `cpa` profiles; Cloudx does not take ownership of the local CLIProxyAPI launchd service.
+
 Activation is split into separate operator-confirmed steps.
 
 1. Activate the compatible cloud helper symlink.

@@ -6,6 +6,7 @@ import stat
 import sys
 import tempfile
 import unittest
+import pkgutil
 from unittest import mock
 
 
@@ -48,6 +49,13 @@ class AccountAndProfileTests(unittest.TestCase):
             self.assertEqual(current_account(self.config), "soul0")
             self.assertEqual(list_accounts(self.config), ["soul0", "soul1"])
         self.assertIn("unset CODEX_HOME", shell_exit(self.config))
+
+    def test_shell_hook_preserves_codexx_use_compatibility(self) -> None:
+        hook = pkgutil.get_data("cloudx_local", "data/cloudx.zsh")
+        self.assertIsNotNone(hook)
+        text = hook.decode("utf-8") if hook else ""
+        self.assertIn("use)", text)
+        self.assertIn('eval "$("$bin" use "$2")"', text)
 
     def test_legacy_account_home_does_not_become_cloudx_user_home(self) -> None:
         with mock.patch.dict(
