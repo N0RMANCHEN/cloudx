@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Record the M5 dependency preflight without stopping legacy sessions or services; active Codex sessions, port `18317`, local CPA, old importer, quota consumers, and mutable-checkout health execution remain explicit retirement blockers.
+- Carry a signed-release `cpa-health` compatibility adapter and systemd templates that move execution off the mutable codex-plus checkout, keep `/opt/codex-gateway/codexx_app` as a declared temporary dependency, and redact account paths from journal output.
 - Remove calendar dates and fixed waiting periods from the roadmap; milestone advancement now depends on accepted evidence, rollback readiness, dependency order, and explicit operator confirmation.
 - Activate signed `0.1.7` on both endpoints, install and enable the active account-state and `cloudx.health.v1` publishers with the legacy health contract retained, and validate repeated timer publication plus a complete cloud model request without restarting legacy, gateway, importer, or Phi services.
 - Make active health unit output-path overrides part of `ExecStart` so they take precedence over the legacy environment file, preserve runtime directories across successful oneshot exits, schedule newly installed timers from activation time, and avoid a duplicate account-state run from the health unit; this removes the `0.1.7` deployment drop-in requirement in the next release.

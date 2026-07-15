@@ -95,6 +95,16 @@ class CloudHealthTests(unittest.TestCase):
         self.assertIn("RuntimeDirectoryPreserve=yes", service)
         self.assertNotIn("/home/", service)
 
+    def test_signed_artifact_emits_versioned_cpa_health_templates(self) -> None:
+        output = StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(main(["systemd-template", "cloudx-cpa-health.service"]), 0)
+        service = output.getvalue()
+        self.assertIn("/opt/cloudx/current/cloudx-cloud.pyz cpa-health", service)
+        self.assertIn("CLOUDX_LEGACY_RUNTIME_ROOT=/opt/codex-gateway", service)
+        self.assertIn("ReadOnlyPaths=/opt/cloudx/releases /opt/codex-gateway", service)
+        self.assertNotIn("/home/", service)
+
 
 if __name__ == "__main__":
     unittest.main()

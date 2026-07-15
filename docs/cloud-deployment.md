@@ -32,3 +32,11 @@ cloudx-remote systemd-template cloudx-health.timer
 The account-state adapter writes aggregate state to `/run/cloudx-account-state/accounts.json`. The health publisher runs as `cloudx`, writes the mode-0644 contract to `/run/cloudx/health.json`, reads the importer lock without creating or modifying it, and cannot access gateway configuration or credential directories. Merely building, publishing, staging, or activating a Cloudx artifact does not install, enable, start, or restart these units. Their deployment is a separate operator-confirmed Cloudx maintenance action that must finish before the Phi M4 consumer window; an M4 Phi change cannot deploy or restart Cloudx.
 
 The accepted `0.1.7` deployment keeps the signed base units and adds `10-active-paths.conf` drop-ins because systemd gives `EnvironmentFile` values precedence over the base unit's `Environment` declarations. The drop-ins set only the two declared `/run` output paths through `ExecStart` and preserve the runtime directories after successful oneshot exits. Repository `0.1.8` moves those settings into the signed templates and uses activation-relative first timer deadlines, so the next release does not require the drop-ins.
+
+## Versioned CPA Health Preparation
+
+Repository `0.1.8` also carries `cloudx-cpa-health.service` and `.timer` as signed artifact data. The service executes `cpa-health` from `/opt/cloudx/current/cloudx-cloud.pyz`, so production no longer needs to execute the monitor from a mutable Git checkout after a separately approved unit migration.
+
+This batch deliberately keeps `/opt/codex-gateway/codexx_app` as an explicit, read-only compatibility dependency. The signed Cloudx adapter owns locking, private atomic state, aggregate output redaction, and the call boundary, while the legacy runtime temporarily supplies the existing quota probe and reversible quarantine primitives. Removing that dependency is a later M5 item and must not be hidden inside this migration.
+
+The adapter's journal output contains only aggregate counts. Candidate paths and archived filenames remain only in root-readable runtime state. Building or activating a Cloudx release does not install, enable, start, or restart these units; replacing the current production unit remains a separately confirmed maintenance action with the existing unit retained as rollback.

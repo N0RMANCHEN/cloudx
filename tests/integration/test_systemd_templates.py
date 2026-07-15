@@ -70,6 +70,18 @@ class ShadowSystemdTemplateTests(unittest.TestCase):
                 self.assertIn("Unit=%s" % unit, timer)
                 self.assertIn("Persistent=true", timer)
 
+    def test_cpa_health_template_moves_execution_off_mutable_checkout(self) -> None:
+        service = (ACTIVE_SYSTEMD / "cloudx-cpa-health.service").read_text(encoding="utf-8")
+        timer = (ACTIVE_SYSTEMD / "cloudx-cpa-health.timer").read_text(encoding="utf-8")
+        self.assertIn("/opt/cloudx/current/cloudx-cloud.pyz cpa-health", service)
+        self.assertIn("ConditionPathExists=/opt/codex-gateway/codexx_app", service)
+        self.assertIn("ReadOnlyPaths=/opt/cloudx/releases /opt/codex-gateway", service)
+        self.assertIn("ReadWritePaths=/var/lib/cloudx/cpa-health", service)
+        self.assertNotIn("/home/", service)
+        self.assertNotIn("send-email", service)
+        self.assertIn("OnActiveSec=2min", timer)
+        self.assertIn("OnUnitActiveSec=5min", timer)
+
 
 if __name__ == "__main__":
     unittest.main()

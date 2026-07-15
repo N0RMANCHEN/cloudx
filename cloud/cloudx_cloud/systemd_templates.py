@@ -7,6 +7,8 @@ from typing import Tuple
 TEMPLATES: Tuple[str, ...] = (
     "cloudx-account-state.service",
     "cloudx-account-state.timer",
+    "cloudx-cpa-health.service",
+    "cloudx-cpa-health.timer",
     "cloudx-health.service",
     "cloudx-health.timer",
 )
