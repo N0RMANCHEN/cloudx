@@ -1,8 +1,6 @@
 # Roadmap
 
-Updated: 2026-07-15
-
-This roadmap is the delivery order for Cloudx. Dates below are earliest planning windows, not automatic deployment dates. Every activation, service change, credential migration, and legacy removal still requires an explicit operator decision.
+This roadmap is the dependency order for Cloudx. Every activation, service change, credential migration, and legacy removal requires accepted evidence and an explicit operator decision.
 
 ## Current State
 
@@ -19,23 +17,23 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 - Signed `0.1.1` artifacts were built from commit `2fc4c0a8ecc9a60e3858d721d070a36fffa04ed6`, published to immutable `release-artifacts/v0.1.1`, and remain staged beside `0.1.2`; neither version is activated.
 - Signed `0.1.2` artifacts were built from commit `3b3e03f77aa6e0cb0355de8e1b21c3a0564a314e` and remain available at immutable `release-artifacts/v0.1.2`; they were the active release before the simplified-mode rollout.
 - Signed `0.1.4` recovered the unavailable release key from source commit `370aa4904cf143f9ed87b3fff37e8f76155819aa` without moving `v0.1.3`; its immutable artifact ref remains available as the final rollback release.
-- Signed `0.1.5` was built from commit `db05c9004fee0def4ca73553f28a255423aea133`, published to immutable `release-artifacts/v0.1.5`, and remains the previous release on both endpoints.
+- Signed `0.1.5` was built from commit `db05c9004fee0def4ca73553f28a255423aea133`, published to immutable `release-artifacts/v0.1.5`, and remains staged as an older rollback artifact.
 - Signed `0.1.6` was built from commit `907d1746e0d76dfada579a77454d4efbc3ce69c4`, published to immutable `release-artifacts/v0.1.6`, and remains the previous release on both endpoints.
 - Signed `0.1.7` was built from commit `fb4d7e7e4094a90e0edea3e09aeca9802e980f25`, published to immutable `release-artifacts/v0.1.7`, selected by the signed stable ref, and is active on both endpoints.
 - A restricted `cloudx` identity, versioned shadow environment, scoped client credential, shadow auth directory, and read-only account-state timer are installed.
 - The distinct shadow health service and timer are enabled and publish fresh, secret-free health from the active Cloudx CPA aggregate state.
 
-## Release Train
+## Delivery Order
 
-| Window | Milestone | State | Activation |
-|---|---|---|---|
-| 2026-07-14 | M0 safety baseline | Complete | None |
-| 2026-07-14 | M1 repository and minimal product implementation | Complete | None |
-| 2026-07-14 | M2 versioned shadow deployment and focused validation | Complete | Shadow paths only |
-| 2026-07-15 | M3 manual Cloudx activation | Complete; observation active | Explicit operator confirmation completed |
-| At least 7 stable days after M3 | M4 Phi consumer migration | Pending | One Phi service per window |
-| At least 14 stable days after M3 | M5 legacy retirement | Pending | Separate maintenance window |
-| No earlier than 30 stable days after M3 | M6 optional gateway/network boundary changes | Deferred | Separate design and approval |
+| Milestone | State | Advancement gate |
+|---|---|---|
+| M0 safety baseline | Complete | Baseline accepted |
+| M1 repository and minimal product implementation | Complete | Source and tests accepted |
+| M2 versioned shadow deployment and focused validation | Complete | Shadow evidence accepted |
+| M3 manual Cloudx activation | Complete; observation active | Explicit activation completed |
+| M4 Phi consumer migration | Pending | Prerequisites accepted; one Phi service per operator-confirmed change |
+| M5 legacy retirement | Pending | Dependency audit, rollback readiness, and separate approval |
+| M6 optional gateway/network boundary changes | Deferred | Threat model, rollback rehearsal, and separate approval |
 
 ## M0: Safety Baseline
 
@@ -44,14 +42,14 @@ Status: complete.
 - [x] Record the active communication chain and forbidden actions.
 - [x] Create a repository-external local Codex rescue path.
 - [x] Verify a cloud-independent `soul0` canary and exact session resume.
-- [x] Archive local cloud hardening on `codex-plus` branch `archive/cloudx-command-20260714`.
-- [x] Archive remote importer fixes on `codex-plus` branch `archive/cloudx-import-parser-20260714`.
+- [x] Archive local cloud hardening as historical evidence.
+- [x] Archive remote importer fixes as historical evidence.
 - [x] Capture the installed Phi runtime and unit drift without changing production.
 - [x] Generate a dedicated Cloudx Ed25519 release key and commit only its public trust root.
 
 ## M1: Minimal Product Implementation
 
-Status: complete in source, not activated.
+Status: complete.
 
 ### Local Component
 
@@ -86,11 +84,11 @@ Status: complete in source, not activated.
 - [x] Add macOS and Linux CI plus a release workflow that publishes GitHub artifacts but never deploys a host.
 - [x] Pass 29 unit, contract, broker, import, and release tests on Python 3.9.
 
-Evidence: `docs/archive/2026-07-14-foundation-canary.md`.
+Evidence is retained under `docs/archive/`.
 
 ## M2: Versioned Shadow Deployment
 
-Window: complete. Status: accepted on 2026-07-15.
+Status: complete and accepted.
 
 This milestone stages committed artifacts only. It must not change the active local command symlinks, shell hook, production auth directory, gateway unit, or legacy tunnel.
 
@@ -126,23 +124,7 @@ This milestone stages committed artifacts only. It must not change the active lo
 - [x] Repeat tunnel child termination under concurrent fake streams and capture reconnect timing.
 - [x] Confirm current legacy sessions and port `18317` remain unchanged before and after focused validation actions.
 
-Release evidence: `docs/archive/2026-07-14-release-0.1.1.md`.
-
-Cloud staging evidence: `docs/archive/2026-07-14-cloud-shadow-stage-0.1.1.md`.
-
-Shadow identity and account-state evidence: `docs/archive/2026-07-14-shadow-account-state.md`.
-
-Shadow importer replay evidence: `docs/archive/2026-07-14-shadow-importer-replay.md`.
-
-Local staging evidence: `docs/archive/2026-07-14-local-shadow-stage-0.1.1.md`.
-
-Current endpoint restaging evidence: `docs/archive/2026-07-15-local-shadow-restage.md`.
-
-Focused classification and continuity evidence: `docs/archive/2026-07-14-focused-shadow-validation.md`.
-
-Staged shadow health unit evidence: `docs/archive/2026-07-14-shadow-health-units-staged.md`.
-
-Scoped-key, fresh health, real SSH import, and model-canary evidence: `docs/archive/2026-07-15-m2-scoped-key-shadow-acceptance.md`.
+Release, staging, shadow identity, importer replay, classification, health-unit, scoped-key, and canary evidence is retained under `docs/archive/`.
 
 ### M2 Exit Gate
 
@@ -155,7 +137,7 @@ Scoped-key, fresh health, real SSH import, and model-canary evidence: `docs/arch
 
 ## M3: Manual Cloudx Activation
 
-Window: complete. Status: both endpoints accepted on 2026-07-15; observation active.
+Status: both endpoints accepted; observation active.
 
 ### Repository Preparation
 
@@ -165,15 +147,7 @@ Window: complete. Status: both endpoints accepted on 2026-07-15; observation act
 - [x] Stage cloud `0.1.2` without changing `/opt/cloudx/current`.
 - [x] Stage local `0.1.2` without installing entrypoints or changing the local `current` link.
 
-Cloud `0.1.2` staging evidence: `docs/archive/2026-07-14-cloud-shadow-stage-0.1.2.md`.
-
-Local `0.1.2` staging evidence: `docs/archive/2026-07-14-local-shadow-stage-0.1.2.md`.
-
-Signed `0.1.2` release evidence: `docs/archive/2026-07-14-release-0.1.2.md`.
-
-Cloud helper activation, topology, formal import/model canary, and GitHub dual-stage evidence: `docs/archive/2026-07-15-m3-cloud-helper-activation.md`.
-
-Local activation, API/CPA recovery, command acceptance, and dual-endpoint rollback evidence: `docs/archive/2026-07-15-m3-local-activation.md`.
+Cloud/local staging, signed release, helper activation, topology, canary, recovery, command acceptance, and rollback evidence is retained under `docs/archive/`.
 
 ### Activation Progress
 
@@ -181,10 +155,10 @@ Local activation, API/CPA recovery, command acceptance, and dual-endpoint rollba
 - [x] Verify handshake, fresh health, scoped client credential access, formal SSH import dry-run, independent tunnel, and a complete model request.
 - [x] Reverify the signed GitHub release through a formal dual-endpoint `already-staged` transaction.
 - [x] Reverify and activate the local artifact, native profile, minimal shell hook, and local command links under a separate confirmation.
-- [x] Run dual-endpoint N-1 rollback rehearsal and begin the M3 observation window while retaining the legacy listener and processes.
+- [x] Run dual-endpoint N-1 rollback rehearsal and begin M3 observation while retaining the legacy listener and processes.
 - [x] Publish and roll out signed `0.1.5` so the simplified mode UX replaces the `cloud codex`-first interaction while retaining it as compatibility.
 
-Signed publication, simplified-mode canaries, installer acceptance, service continuity, and rollback evidence: `docs/archive/2026-07-15-simplified-mode-rollout.md`.
+Signed publication, simplified-mode canaries, installer acceptance, service continuity, and rollback evidence is retained under `docs/archive/`.
 
 Before local activation, preserve the existing `codexx use api` and local CPA recovery path under private Cloudx state. The minimal account selector retains both `api` and `cpa` profiles; Cloudx does not take ownership of the local CLIProxyAPI launchd service.
 
@@ -213,22 +187,22 @@ Activation is split into separate operator-confirmed steps.
 
 ## M4: Phi Consumer Migration
 
-Earliest window: seven stable days after M3. Status: pending.
+Status: pending.
 
-Phi remains a separate repository and release train. Migrations occur one service per maintenance window.
+Phi remains a separate repository and release train. Migrations occur one service per operator-confirmed change.
 
-### Pre-Window Readiness
+### Prerequisites
 
 - [x] Audit the installed Phi health consumer identity, filesystem sandbox, source contract, and timer state without running or restarting it.
 - [x] Add signed-artifact templates for an active `/run/cloudx/health.json` publisher and aggregate account-state adapter without installing or enabling them.
 - [x] Publish and stage signed `0.1.7` on both endpoints while leaving `current` and all services unchanged.
 - [x] In a separately confirmed Cloudx maintenance action, activate `0.1.7`, install the versioned health units, validate repeated `cloudx.health.v1` publication, and preserve the legacy contract as rollback.
-- [ ] Do not begin the first Phi service migration before 2026-07-22 and a fresh seven-day stability review.
+- [ ] Begin the first Phi service migration only after fresh stability evidence, rollback readiness, and explicit operator confirmation.
 
-The 2026-07-15 inventory confirms Phi `0.80.6`, aliases `phi-api`, `phi-deepseek`, and `pi`, plus active goal, Cloudx-health, provider-health, roadmap-driver, and mail services. Classification for later windows is:
+The current inventory confirms Phi `0.80.6`, aliases `phi-api`, `phi-deepseek`, and `pi`, plus active goal, Cloudx-health, provider-health, roadmap-driver, and mail services. Classification for later changes is:
 
 - `phi-cloudx-health` remains a read-only Cloudx-health consumer and must not gain deployment authority.
-- `phi-goal-watchdog`, `phi-roadmap-*`, `phi-provider-health-deepseek`, and `phi-mail-command` remain Phi-owned; each is migrated or retired only in its own Phi release window.
+- `phi-goal-watchdog`, `phi-roadmap-*`, `phi-provider-health-deepseek`, and `phi-mail-command` remain Phi-owned; each is migrated or retired only in its own operator-confirmed Phi change.
 - `codex-import`, `codex-import-phi-repair`, `codex-quota-monitor`, and direct gateway-key access are legacy integration candidates, not Cloudx runtime features.
 - `/opt/codex-gateway/codexx_app` and the old HTTP importer remain M5 retirement candidates after their consumers and rollback dependencies are gone.
 - Tailscale, SSH, mihomo, systemd, CLIProxyAPI, and firewall policy remain external infrastructure boundaries and are not deleted as part of Phi migration.
@@ -245,11 +219,11 @@ No M4 item may merge Cloudx code, deploy Cloudx artifacts, restart Cloudx servic
 
 ## M5: Legacy Retirement
 
-Earliest window: fourteen stable days after M3. Status: pending.
+Status: pending.
 
 - [ ] Confirm there are no legacy local sessions, tunnels, import transactions, or rollback dependencies.
 - [ ] Retire the old HTTP importer only after SSH import has production acceptance evidence.
-- [ ] Replace the legacy quota monitor writer only after Cloudx health and reversible quarantine have an observation window.
+- [ ] Replace the legacy quota monitor writer only after Cloudx health and reversible quarantine have accepted observation evidence.
 - [ ] Disable and archive the unattended import repair timer.
 - [ ] Remove the old codex-plus shell hook and installed package only after native `codex`, account switching, and rollback pass in a fresh shell.
 - [ ] Move `cloudx-cpa-health.service` off the mutable codex-plus checkout and into a signed Cloudx cloud release before removing that checkout.
@@ -260,9 +234,9 @@ Legacy removal must not be combined with gateway bind, Tailscale, mihomo, SSH, o
 
 ## M6: Deferred Gateway And Network Work
 
-Earliest window: thirty stable days after M3. Status: deferred and unapproved.
+Status: deferred and unapproved.
 
-Potential work includes loopback-only gateway binding, removal of direct Tailscale gateway exposure, restricted sudo policy, gateway key rotation, or CLIProxyAPI upgrades. Each item needs its own threat model, maintenance window, rollback rehearsal, and approval. None is required for Cloudx `0.1.x`.
+Potential work includes loopback-only gateway binding, removal of direct Tailscale gateway exposure, restricted sudo policy, gateway key rotation, or CLIProxyAPI upgrades. Each item needs its own threat model, separate maintenance action, rollback rehearsal, and approval. None is required for Cloudx `0.1.x`.
 
 ## Permanent Non-Goals
 
