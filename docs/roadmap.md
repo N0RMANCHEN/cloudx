@@ -1,19 +1,19 @@
 # Roadmap
 
-Updated: 2026-07-14
+Updated: 2026-07-15
 
 This roadmap is the delivery order for Cloudx. Dates below are earliest planning windows, not automatic deployment dates. Every activation, service change, credential migration, and legacy removal still requires an explicit operator decision.
 
 ## Current State
 
-- Signed `0.1.1` and `0.1.2` artifacts are staged side-by-side on both endpoints; neither endpoint has an active Cloudx `current` link.
-- The signed cloud and local artifacts are staged side-by-side under their versioned release directories; no Cloudx release is activated in production.
+- Signed `0.1.1` and `0.1.2` artifacts are staged side-by-side on both endpoints. The cloud `current` link selects signed `0.1.2`; the local endpoint remains inactive.
+- The root-owned cloud helper and restricted runtime/release dispatch boundary are active and verified. No local Cloudx entrypoint or shell hook is active.
 - The current legacy `codexx cloud` path, local port `18317`, CLIProxyAPI, importer, monitors, Phi services, and shell hook remain unchanged.
 - The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation.
 - Signed `0.1.1` artifacts were built from commit `2fc4c0a8ecc9a60e3858d721d070a36fffa04ed6`, published to immutable `release-artifacts/v0.1.1`, and remain staged beside `0.1.2`; neither version is activated.
 - Signed `0.1.2` artifacts were built from commit `3b3e03f77aa6e0cb0355de8e1b21c3a0564a314e` and published to immutable `release-artifacts/v0.1.2`; the signed stable ref now selects `0.1.2`.
-- A restricted `cloudx` identity, versioned shadow environment, shadow auth directory, and read-only account-state timer are installed. The scoped client credential and health publisher remain pending.
-- The distinct shadow health service and timer files are installed and verified but remain disabled and inactive until the scoped credential is usable.
+- A restricted `cloudx` identity, versioned shadow environment, scoped client credential, shadow auth directory, and read-only account-state timer are installed.
+- The distinct shadow health service and timer are enabled and publish fresh, secret-free health from the active Cloudx CPA aggregate state.
 
 ## Release Train
 
@@ -21,8 +21,8 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 |---|---|---|---|
 | 2026-07-14 | M0 safety baseline | Complete | None |
 | 2026-07-14 | M1 repository and minimal product implementation | Complete | None |
-| 2026-07-14 | M2 versioned shadow deployment and focused validation | In progress | Shadow paths only |
-| After M2 evidence review | M3 manual Cloudx activation | Pending | Explicit operator confirmation |
+| 2026-07-14 | M2 versioned shadow deployment and focused validation | Complete | Shadow paths only |
+| After M2 evidence review | M3 manual Cloudx activation | In progress: cloud active | Explicit operator confirmation |
 | At least 7 stable days after M3 | M4 Phi consumer migration | Pending | One Phi service per window |
 | At least 14 stable days after M3 | M5 legacy retirement | Pending | Separate maintenance window |
 | No earlier than 30 stable days after M3 | M6 optional gateway/network boundary changes | Deferred | Separate design and approval |
@@ -80,7 +80,7 @@ Evidence: `docs/archive/2026-07-14-foundation-canary.md`.
 
 ## M2: Versioned Shadow Deployment
 
-Window: active. Status: in progress.
+Window: complete. Status: accepted on 2026-07-15.
 
 This milestone stages committed artifacts only. It must not change the active local command symlinks, shell hook, production auth directory, gateway unit, or legacy tunnel.
 
@@ -96,15 +96,20 @@ This milestone stages committed artifacts only. It must not change the active lo
 - [x] Recover from the unpublished `v0.1.0` signing failure by generating a repository-external replacement key, committing only its public trust root, and advancing the candidate to `0.1.1`.
 - [x] Make shadow units execute an explicitly configured staged artifact without creating or reading `/opt/cloudx/current`.
 - [x] Add an operator-confirmed scoped-key restart playbook with config, credential, environment, service, probe, and watcher rollback.
+- [x] Bind the scoped-key transaction to an exact staged release and reject artifact/deployment version drift before any gateway mutation.
+- [x] Add local-path and directory-envelope regression coverage for the SSH-backed `cloud import` interface and document the raw SSH stdin equivalent.
+- [x] Add an explicit, version-attested, rollback-safe bootstrap for the first cloud helper activation so M3 does not depend on a command that is not installed yet.
+- [x] Point shadow freshness at the active Cloudx CPA aggregate state rather than the disabled legacy quota-monitor state.
+- [x] Split the active remote helper boundary so normal runtime/import commands execute as `cloudx` and only explicit signed release mutations can execute as root.
 
 ### Required Work
 
 - [x] Build and sign `0.1.1` from the committed Git SHA and publish the GitHub release refs.
 - [x] Stage the cloud artifact under `/opt/cloudx/releases/0.1.1` without changing `/opt/cloudx/current`.
-- [ ] Install a scoped client credential owned by a restricted Cloudx service identity.
+- [x] Install a scoped client credential owned by a restricted Cloudx service identity.
 - [x] Configure a versioned shadow environment under `/etc/cloudx` and `/var/lib/cloudx/shadow-auth`.
-- [ ] Run the shadow health publisher under a distinct `cloudx-shadow-*` unit name.
-- [ ] Feed the new publisher a read-only account-state adapter; do not classify unobserved accounts by guessing.
+- [x] Run the shadow health publisher under a distinct `cloudx-shadow-*` unit name.
+- [x] Feed the new publisher a read-only account-state adapter; do not classify unobserved accounts by guessing.
 - [x] Compare new and legacy account classifications across focused repeated checks.
 - [x] Replay accepted importer fixtures into the shadow auth directory and compare normalized output.
 - [x] Verify signed GitHub check, offline bundle stage, tamper rejection, downgrade rejection, and rollback on both endpoints.
@@ -121,9 +126,13 @@ Shadow importer replay evidence: `docs/archive/2026-07-14-shadow-importer-replay
 
 Local staging evidence: `docs/archive/2026-07-14-local-shadow-stage-0.1.1.md`.
 
+Current endpoint restaging evidence: `docs/archive/2026-07-15-local-shadow-restage.md`.
+
 Focused classification and continuity evidence: `docs/archive/2026-07-14-focused-shadow-validation.md`.
 
 Staged shadow health unit evidence: `docs/archive/2026-07-14-shadow-health-units-staged.md`.
+
+Scoped-key, fresh health, real SSH import, and model-canary evidence: `docs/archive/2026-07-15-m2-scoped-key-shadow-acceptance.md`.
 
 ### M2 Exit Gate
 
@@ -136,7 +145,7 @@ Staged shadow health unit evidence: `docs/archive/2026-07-14-shadow-health-units
 
 ## M3: Manual Cloudx Activation
 
-Window: only after M2 review. Status: pending.
+Window: active. Status: cloud endpoint accepted; local endpoint pending.
 
 ### Repository Preparation
 
@@ -151,6 +160,16 @@ Cloud `0.1.2` staging evidence: `docs/archive/2026-07-14-cloud-shadow-stage-0.1.
 Local `0.1.2` staging evidence: `docs/archive/2026-07-14-local-shadow-stage-0.1.2.md`.
 
 Signed `0.1.2` release evidence: `docs/archive/2026-07-14-release-0.1.2.md`.
+
+Cloud helper activation, topology, formal import/model canary, and GitHub dual-stage evidence: `docs/archive/2026-07-15-m3-cloud-helper-activation.md`.
+
+### Activation Progress
+
+- [x] Activate the compatible cloud helper and validated runtime/release identity boundary.
+- [x] Verify handshake, fresh health, scoped client credential access, formal SSH import dry-run, independent tunnel, and a complete model request.
+- [x] Reverify the signed GitHub release through a formal dual-endpoint `already-staged` transaction.
+- [ ] Reverify and activate the local artifact, native profile, minimal shell hook, and local command links under a separate confirmation.
+- [ ] Run local rollback rehearsal and begin the M3 observation window while retaining the legacy listener and processes.
 
 Activation is split into separate operator-confirmed steps.
 
@@ -198,6 +217,7 @@ Earliest window: fourteen stable days after M3. Status: pending.
 - [ ] Replace the legacy quota monitor writer only after Cloudx health and reversible quarantine have an observation window.
 - [ ] Disable and archive the unattended import repair timer.
 - [ ] Remove the old codex-plus shell hook and installed package only after native `codex`, account switching, and rollback pass in a fresh shell.
+- [ ] Move `cloudx-cpa-health.service` off the mutable codex-plus checkout and into a signed Cloudx cloud release before removing that checkout.
 - [ ] Remove `legacy_bridge` in its own release after N/N-1 protocol support no longer requires it.
 - [ ] Preserve recovery archives and service manifests outside release directories.
 

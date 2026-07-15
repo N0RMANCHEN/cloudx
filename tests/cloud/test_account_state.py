@@ -54,6 +54,7 @@ class AccountStateAdapterTests(unittest.TestCase):
             "limited": 1,
             "unavailable": 0,
         })
+        self.assertEqual(document["source"], "credential-health-summary")
         self.assertEqual(document["unobservedAccounts"], 1)
         self.assertNotIn("must-not-be-copied", json.dumps(document))
 

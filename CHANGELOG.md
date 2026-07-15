@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Bind scoped-key installation to an exact staged release, verify the cloud artifact version before any gateway mutation, and write a matching shadow deployment identity.
+- Cover local file, directory, missing-path, and symlink behavior for the SSH-backed `cloud import` source reader, and document why a local path cannot be passed directly to `ssh cloud import`.
+- Add a confirmation-gated first-cloud-activation bootstrap that creates the initial `current` and `cloudx-remote` links atomically and rolls both back on failed verification.
+- Restage signed local `0.1.1` and `0.1.2` artifacts on the current macOS endpoint while preserving its account-scoped legacy `codexx`, official `codex`, shell configuration, and port `18317` listener.
+- Feed shadow account health from the active Cloudx CPA aggregate state instead of the disabled legacy quota-monitor file, restoring fresh health without exposing account identities or credentials.
+- Complete M2 with the approved scoped gateway key, fresh shadow health, a real local-path SSH import canary, an idempotent shadow write, and a full scoped-key model request while preserving the legacy listener.
+- Harden the first active `cloudx-remote` entrypoint with root-owned launchers and a validated sudo policy: normal runtime/import commands execute as `cloudx`, while only signed release mutations can execute as root.
+- Activate the signed cloud `0.1.2` helper without a service restart, validate formal SSH import and full model traffic, and prove one GitHub release stages idempotently on both endpoints while the local endpoint remains inactive.
 - Stage signed cloud `0.1.2` beside `0.1.1` while leaving `current`, the shadow artifact selection, gateway/import services, and production auth metadata unchanged.
 - Stage signed local `0.1.2` beside `0.1.1` while preserving the legacy `codexx` file, official `codex` resolution, shell configuration, current sessions, and inactive release link.
 - Align M2/M3 acceptance text with the separately confirmed scoped-key restart and the already completed local side-by-side staging.

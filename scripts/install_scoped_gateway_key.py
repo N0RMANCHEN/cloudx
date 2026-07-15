@@ -8,6 +8,7 @@ import json
 import os
 import pathlib
 import pwd
+import re
 import secrets
 import socket
 import stat
@@ -23,6 +24,7 @@ CONFIRMATION = "RESTART cliproxy.service FOR CLOUDX SCOPED KEY"
 DEFAULT_CONFIG = pathlib.Path("/etc/cliproxy/config.yaml")
 DEFAULT_CREDENTIAL = pathlib.Path("/etc/cloudx/client-credential")
 DEFAULT_ENVIRONMENT = pathlib.Path("/etc/cloudx/cloudx-shadow.env")
+VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 
 
 @dataclass(frozen=True)
@@ -169,20 +171,54 @@ def inotify_watch_count(pid: int) -> int:
     return total
 
 
-def environment_document(artifact: str, commit: str, gateway_version: str, host: str, port: int) -> bytes:
+def verify_artifact(artifact: pathlib.Path, release_version: str) -> None:
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(artifact), "self-check"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=20.0,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError("staged cloud artifact self-check could not run") from exc
+    try:
+        document = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("staged cloud artifact returned an invalid self-check") from exc
+    if (
+        completed.returncode != 0
+        or not isinstance(document, dict)
+        or document.get("schema") != "cloudx.self-check.v1"
+        or document.get("component") != "cloud"
+        or document.get("version") != release_version
+        or document.get("status") != "ok"
+    ):
+        raise RuntimeError("staged cloud artifact does not match the requested release")
+
+
+def environment_document(
+    artifact: str,
+    release_version: str,
+    commit: str,
+    gateway_version: str,
+    host: str,
+    port: int,
+) -> bytes:
     return ("\n".join([
         "CLOUDX_CLOUD_ARTIFACT=%s" % artifact,
         "CLOUDX_AUTH_DIR=/var/lib/cloudx/shadow-auth",
         "CLOUDX_IMPORT_LOCK=/run/cloudx-shadow/import.lock",
         "CLOUDX_HEALTH_PATH=/run/cloudx-shadow/health.json",
         "CLOUDX_ACCOUNT_STATE_PATH=/run/cloudx-shadow/accounts.json",
-        "CLOUDX_ACCOUNT_STATE_SOURCE=/var/lib/codex-quota-monitor/state.json",
+        "CLOUDX_ACCOUNT_STATE_SOURCE=/var/lib/cloudx/cpa-health/state.json",
         "CLOUDX_GATEWAY_URL=http://%s:%d" % (host, port),
         "CLOUDX_GATEWAY_FORWARD_HOST=%s" % host,
         "CLOUDX_GATEWAY_FORWARD_PORT=%d" % port,
         "CLOUDX_GATEWAY_VERSION=%s" % gateway_version,
         "CLOUDX_CLIENT_CREDENTIAL_FILE=/etc/cloudx/client-credential",
-        "CLOUDX_DEPLOYMENT_ID=shadow-0.1.1",
+        "CLOUDX_DEPLOYMENT_ID=shadow-%s" % release_version,
         "CLOUDX_BUILD_COMMIT=%s" % commit,
         "",
     ])).encode("utf-8")
@@ -196,7 +232,8 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--unit", default="cliproxy.service")
     root.add_argument("--credential", type=pathlib.Path, default=DEFAULT_CREDENTIAL)
     root.add_argument("--environment", type=pathlib.Path, default=DEFAULT_ENVIRONMENT)
-    root.add_argument("--artifact", default="/opt/cloudx/releases/0.1.1/cloudx-cloud.pyz")
+    root.add_argument("--release-version", required=True)
+    root.add_argument("--artifact", type=pathlib.Path)
     root.add_argument("--build-commit", required=True)
     root.add_argument("--gateway-version", required=True)
     return root
@@ -204,6 +241,11 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser().parse_args(argv)
+    if not VERSION_RE.match(args.release_version):
+        raise RuntimeError("release version must be an exact semantic version")
+    artifact = args.artifact or pathlib.Path(
+        "/opt/cloudx/releases/%s/cloudx-cloud.pyz" % args.release_version
+    )
     if not args.apply:
         print(json.dumps({
             "schema": "cloudx.scoped-key-plan.v1",
@@ -211,6 +253,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "confirmation": CONFIRMATION,
             "unit": args.unit,
             "config": str(args.config),
+            "releaseVersion": args.release_version,
+            "artifact": str(artifact),
         }, sort_keys=True, separators=(",", ":")))
         return 0
     if args.confirm != CONFIRMATION:
@@ -219,6 +263,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         raise RuntimeError("installer must run as root")
     if args.config != DEFAULT_CONFIG or args.unit != "cliproxy.service":
         raise RuntimeError("installer is restricted to the declared gateway contract")
+    verify_artifact(artifact, args.release_version)
 
     cloudx = pwd.getpwnam("cloudx")
     cloudx_group = grp.getgrnam("cloudx")
@@ -248,7 +293,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         atomic_write(args.credential, (key + "\n").encode("utf-8"), 0o600, cloudx.pw_uid, cloudx_group.gr_gid)
         atomic_write(
             args.environment,
-            environment_document(args.artifact, args.build_commit, args.gateway_version, host, port),
+            environment_document(
+                str(artifact),
+                args.release_version,
+                args.build_commit,
+                args.gateway_version,
+                host,
+                port,
+            ),
             0o640,
             0,
             cloudx_group.gr_gid,
@@ -272,6 +324,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "schema": "cloudx.scoped-key-install.v1",
         "status": "installed",
         "unit": args.unit,
+        "releaseVersion": args.release_version,
         "oldPid": old_pid,
         "newPid": new_pid,
         "gatewayHttpStatus": status,

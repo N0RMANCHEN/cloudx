@@ -20,20 +20,20 @@ class AccountStateRejected(RuntimeError):
 def _count(document: Dict[str, Any], name: str) -> int:
     value = document.get(name)
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-        raise AccountStateRejected("legacy account state contains invalid counts")
+        raise AccountStateRejected("credential health state contains invalid counts")
     return value
 
 
 def _timestamp(value: Any) -> str:
     if not isinstance(value, str) or not value.strip():
-        raise AccountStateRejected("legacy account state has no observation timestamp")
+        raise AccountStateRejected("credential health state has no observation timestamp")
     text = value.strip()
     try:
         parsed = datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)
     except ValueError as exc:
-        raise AccountStateRejected("legacy account state has an invalid observation timestamp") from exc
+        raise AccountStateRejected("credential health state has an invalid observation timestamp") from exc
     if parsed.tzinfo is None:
-        raise AccountStateRejected("legacy account state observation timestamp has no timezone")
+        raise AccountStateRejected("credential health state observation timestamp has no timezone")
     return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
@@ -41,11 +41,11 @@ def read_state(path: pathlib.Path, limit: int = MAX_STATE_BYTES) -> bytes:
     try:
         metadata = path.lstat()
     except OSError as exc:
-        raise AccountStateRejected("legacy account state is unavailable") from exc
+        raise AccountStateRejected("credential health state is unavailable") from exc
     if not stat.S_ISREG(metadata.st_mode) or path.is_symlink():
-        raise AccountStateRejected("legacy account state must be a regular file")
+        raise AccountStateRejected("credential health state must be a regular file")
     if metadata.st_size > limit:
-        raise AccountStateRejected("legacy account state exceeds the size limit")
+        raise AccountStateRejected("credential health state exceeds the size limit")
     flags = os.O_RDONLY
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
@@ -54,14 +54,14 @@ def read_state(path: pathlib.Path, limit: int = MAX_STATE_BYTES) -> bytes:
         with os.fdopen(descriptor, "rb") as handle:
             opened = os.fstat(handle.fileno())
             if not stat.S_ISREG(opened.st_mode):
-                raise AccountStateRejected("legacy account state must be a regular file")
+                raise AccountStateRejected("credential health state must be a regular file")
             if opened.st_size > limit:
-                raise AccountStateRejected("legacy account state exceeds the size limit")
+                raise AccountStateRejected("credential health state exceeds the size limit")
             raw = handle.read(limit + 1)
     except OSError as exc:
-        raise AccountStateRejected("legacy account state is unavailable") from exc
+        raise AccountStateRejected("credential health state is unavailable") from exc
     if len(raw) > limit:
-        raise AccountStateRejected("legacy account state exceeds the size limit")
+        raise AccountStateRejected("credential health state exceeds the size limit")
     return raw
 
 
@@ -69,15 +69,15 @@ def adapt_legacy_quota_state(raw: bytes) -> Dict[str, Any]:
     try:
         source = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise AccountStateRejected("legacy account state is not valid JSON") from exc
+        raise AccountStateRejected("credential health state is not valid JSON") from exc
     if not isinstance(source, dict):
-        raise AccountStateRejected("legacy account state must be an object")
+        raise AccountStateRejected("credential health state must be an object")
     counts = {name: _count(source, name) for name in COUNT_KEYS}
     if counts["total"] != sum(counts[name] for name in COUNT_KEYS if name != "total"):
-        raise AccountStateRejected("legacy account state counts do not add up")
+        raise AccountStateRejected("credential health state counts do not add up")
     return {
         "schema": "cloudx.account-state.v1",
-        "source": "legacy-quota-summary",
+        "source": "credential-health-summary",
         "observedAt": _timestamp(source.get("checked_at")),
         "accountCounts": {
             "total": counts["total"],

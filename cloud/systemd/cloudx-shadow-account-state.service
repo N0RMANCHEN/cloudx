@@ -1,6 +1,6 @@
 [Unit]
-Description=Adapt legacy quota summary for Cloudx shadow health
-After=codex-quota-monitor.service
+Description=Adapt aggregate credential health for Cloudx shadow health
+After=cloudx-cpa-health.service
 
 [Service]
 Type=oneshot
@@ -12,7 +12,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadOnlyPaths=/opt/cloudx/releases /etc/cloudx /var/lib/codex-quota-monitor/state.json
+ReadOnlyPaths=/opt/cloudx/releases /etc/cloudx /var/lib/cloudx/cpa-health/state.json
 ReadWritePaths=/run/cloudx-shadow
 InaccessiblePaths=/var/lib/codex-gateway/cliproxy-auth /var/lib/codex-gateway/cliproxy-auth-archive /etc/cliproxy
 LockPersonality=true
