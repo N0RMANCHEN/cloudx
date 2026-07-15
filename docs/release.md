@@ -21,6 +21,8 @@ The tag-triggered release workflow verifies that `v<VERSION>` matches the source
 
 The signing private key remains outside Git and release directories with mode 0600. Key recovery advances the patch version and commits the replacement public trust root before any new artifact is signed; an unpublished failed tag is not reused or force-moved.
 
+If the active endpoint no longer possesses the private key for its embedded trust root, the operator may perform a one-time out-of-band trust recovery from a clean committed source: verify the replacement public root, build and sign with the repository-external replacement key, publish an immutable artifact ref, run the signed candidate's normal stage operation beside the active release, and verify the result before activation. The next release must then pass the ordinary endpoint-to-endpoint signed update path. This recovery cannot overwrite an existing version, alter a failed tag, place the private key in Git, or restart a service.
+
 An operator stages and activates a release. The compatible cloud endpoint is activated before the local endpoint. A failed canary restores both previous symlinks. Production hosts never run `git pull` to update deployed code.
 
 Activation and rollback commands target exactly one endpoint. The remote helper exposes a secret-free `cloudx.release-status.v1` document so the operator can verify the selected `current` and `previous` versions plus the current artifact hash before moving to the next endpoint.

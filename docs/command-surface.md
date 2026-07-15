@@ -10,7 +10,7 @@ This is the accepted local interaction model during M3. The official Codex runti
 | Select a named account in the current shell | `codexx <name>` | Changes `CODEX_HOME`; records last selection |
 | Preserve legacy selection syntax | `codexx use <name>` | Same as `codexx <name>` |
 | Select the local CPA profile | `codexx cpa` | Sets `CODEX_HOME` to the existing `cpa` profile |
-| Select the existing local API profile | `codexx use api` | Sets `CODEX_HOME` to the existing `api` profile |
+| Select the existing local API/CPA profile | `codexx api` | Sets `CODEX_HOME` to the existing `api` profile |
 | Select cloud mode | `codexx cloud` | Creates a shell-owned broker lease and selects the isolated cloud profile |
 | Return to the native profile | `codexx exit` | Clears Cloudx account variables |
 | Inspect selection | `codexx current`, `codexx list` | Read-only |
@@ -57,7 +57,7 @@ The existing local CLIProxyAPI remains an external launchd service on `127.0.0.1
 codexx cpa
 codex
 
-codexx use api
+codexx api
 codex
 
 codexx import <local-file-or-directory>
@@ -73,6 +73,8 @@ codexx-legacy api refresh --dry-run
 `codexx-legacy` is a rollback tool, not a supported Cloudx command. It is removed only after the local CPA dependency has a separately accepted replacement or ownership decision.
 
 During this migration stage, `codexx import` explicitly delegates local CPA normalization to that recovery runtime. The delegation is temporary and reported in product documentation; it does not grant Cloudx ownership of the local CPA service.
+
+The legacy local adapter has no Cloudx dry-run contract. A real local import therefore requires an operator-selected source and is not used as a synthetic write canary. Cloud import has the explicit `--dry-run` path shown above.
 
 ## Installation
 

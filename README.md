@@ -5,11 +5,11 @@ Cloudx keeps local Codex local while providing a minimal, recoverable connection
 ```text
 official local Codex
         |
-        | cloud codex
+        | codexx cloud; codex
         v
 singleton tunnel broker -> Cloudx remote helper -> CLIProxyAPI
 
-cloud import -> SSH stdin -> Cloudx importer -> configured auth directory
+codexx cloud import -> SSH stdin -> Cloudx importer -> configured auth directory
 ```
 
 ## Commands

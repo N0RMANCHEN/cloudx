@@ -6,14 +6,17 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 
 ## Current State
 
-- Signed `0.1.1` and `0.1.2` artifacts are staged side-by-side on both endpoints. Both `current` links select signed `0.1.2`, and both `previous` links select signed `0.1.1`.
+- Signed `0.1.1`, `0.1.2`, `0.1.4`, and `0.1.5` artifacts are staged side-by-side on both endpoints. Both `current` links select signed `0.1.5`, and both `previous` links select signed `0.1.4`.
 - The root-owned cloud helper, local entrypoints, minimal shell hook, native profile, runtime/release identity boundary, and rollback paths are active and verified.
-- Repository `0.1.5` implements the simplified mode UX (`codexx api`, `codexx cloud`, named accounts, plain `codex`), split local/cloud import routing, endpoint-aware `./install`, and truthful idempotent activation status; signed publication and rollout are the next patch-release action.
-- The current legacy `codexx cloud` path, local port `18317`, CLIProxyAPI, importer, monitors, Phi services, and shell hook remain unchanged.
+- Signed `0.1.5` activates the simplified mode UX (`codexx api`, `codexx cloud`, named accounts, plain `codex`), split local/cloud import routing, endpoint-aware `./install`, and truthful idempotent activation status.
+- Repository development has advanced to `0.1.6`; deployed endpoints remain on signed `0.1.5` and no `0.1.6` activation is implied.
+- The legacy local port `18317`, local CPA, cloud CLIProxyAPI, old importer, monitors, Phi services, and private codex-plus recovery bundle remain available; the active local shell source is now the Cloudx hook.
 - The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation.
 - The `v0.1.3` workflow attempt likewise failed before artifact publication because the current trust-root private key was unavailable; its tag remains immutable, no `0.1.3` artifact ref exists, and recovery advances to `0.1.4` with a replacement public trust root.
 - Signed `0.1.1` artifacts were built from commit `2fc4c0a8ecc9a60e3858d721d070a36fffa04ed6`, published to immutable `release-artifacts/v0.1.1`, and remain staged beside `0.1.2`; neither version is activated.
-- Signed `0.1.2` artifacts were built from commit `3b3e03f77aa6e0cb0355de8e1b21c3a0564a314e` and published to immutable `release-artifacts/v0.1.2`; the signed stable ref now selects `0.1.2`.
+- Signed `0.1.2` artifacts were built from commit `3b3e03f77aa6e0cb0355de8e1b21c3a0564a314e` and remain available at immutable `release-artifacts/v0.1.2`; they were the active release before the simplified-mode rollout.
+- Signed `0.1.4` recovered the unavailable release key from source commit `370aa4904cf143f9ed87b3fff37e8f76155819aa` without moving `v0.1.3`; its immutable artifact ref remains available as the final rollback release.
+- Signed `0.1.5` was built from commit `db05c9004fee0def4ca73553f28a255423aea133`, published to immutable `release-artifacts/v0.1.5`, and is selected by the signed stable ref.
 - A restricted `cloudx` identity, versioned shadow environment, scoped client credential, shadow auth directory, and read-only account-state timer are installed.
 - The distinct shadow health service and timer are enabled and publish fresh, secret-free health from the active Cloudx CPA aggregate state.
 
@@ -174,7 +177,9 @@ Local activation, API/CPA recovery, command acceptance, and dual-endpoint rollba
 - [x] Reverify the signed GitHub release through a formal dual-endpoint `already-staged` transaction.
 - [x] Reverify and activate the local artifact, native profile, minimal shell hook, and local command links under a separate confirmation.
 - [x] Run dual-endpoint N-1 rollback rehearsal and begin the M3 observation window while retaining the legacy listener and processes.
-- [ ] Publish and roll out signed `0.1.5` so the simplified mode UX replaces the `cloud codex`-first interaction while retaining it as compatibility.
+- [x] Publish and roll out signed `0.1.5` so the simplified mode UX replaces the `cloud codex`-first interaction while retaining it as compatibility.
+
+Signed publication, simplified-mode canaries, installer acceptance, service continuity, and rollback evidence: `docs/archive/2026-07-15-simplified-mode-rollout.md`.
 
 Before local activation, preserve the existing `codexx use api` and local CPA recovery path under private Cloudx state. The minimal account selector retains both `api` and `cpa` profiles; Cloudx does not take ownership of the local CLIProxyAPI launchd service.
 
@@ -206,6 +211,14 @@ Activation is split into separate operator-confirmed steps.
 Earliest window: seven stable days after M3. Status: pending.
 
 Phi remains a separate repository and release train. Migrations occur one service per maintenance window.
+
+The 2026-07-15 inventory confirms Phi `0.80.6`, aliases `phi-api`, `phi-deepseek`, and `pi`, plus active goal, Cloudx-health, provider-health, roadmap-driver, and mail services. Classification for later windows is:
+
+- `phi-cloudx-health` remains a read-only Cloudx-health consumer and must not gain deployment authority.
+- `phi-goal-watchdog`, `phi-roadmap-*`, `phi-provider-health-deepseek`, and `phi-mail-command` remain Phi-owned; each is migrated or retired only in its own Phi release window.
+- `codex-import`, `codex-import-phi-repair`, `codex-quota-monitor`, and direct gateway-key access are legacy integration candidates, not Cloudx runtime features.
+- `/opt/codex-gateway/codexx_app` and the old HTTP importer remain M5 retirement candidates after their consumers and rollback dependencies are gone.
+- Tailscale, SSH, mihomo, systemd, CLIProxyAPI, and firewall policy remain external infrastructure boundaries and are not deleted as part of Phi migration.
 
 1. Recover the installed `/usr/local/bin/phi` continuity changes into the Phi repository with regression coverage.
 2. Give Phi a scoped identity that can read `cloudx.health.v1` but cannot read Cloudx credentials or auth files.

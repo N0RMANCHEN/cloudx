@@ -33,22 +33,22 @@ class InstallTests(unittest.TestCase):
     def test_cloud_plan_does_not_restart_services(self) -> None:
         output = StringIO()
         with redirect_stdout(output):
-            self.assertEqual(main(["cloud", "--version", "0.1.5"]), 0)
+            self.assertEqual(main(["cloud", "--version", "0.1.6"]), 0)
         document = json.loads(output.getvalue())
         self.assertIn("no service restart", document["cloudActions"])
 
     @mock.patch("install.install_local", return_value={"status": "installed"})
     def test_apply_requires_exact_confirmation(self, install_local: mock.Mock) -> None:
         with self.assertRaisesRegex(RuntimeError, "confirmation"):
-            main(["local", "--version", "0.1.5", "--apply", "--confirm", "wrong"])
+            main(["local", "--version", "0.1.6", "--apply", "--confirm", "wrong"])
         self.assertEqual(
             main([
                 "local",
                 "--version",
-                "0.1.5",
+                "0.1.6",
                 "--apply",
                 "--confirm",
-                "INSTALL CLOUDX LOCAL 0.1.5",
+                "INSTALL CLOUDX LOCAL 0.1.6",
             ]),
             0,
         )

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Advance repository development to `0.1.6` after publishing `0.1.5`, preventing later source changes from producing another artifact under the signed version.
+- Prepare a credential-free `cloudx.repair-request` v1 handoff, exact base revision, and isolated Phi repair workspace without push, PR, merge, deploy, replay, or production writes.
+- Record the verified Phi and legacy-service inventory as M4/M5 migration input without disabling or deleting any unit.
+
+## 0.1.5 - 2026-07-15
+
+- Publish and activate signed `0.1.5` on both endpoints, verify normal signed staging after trust-root recovery, complete dual-endpoint `0.1.5 -> 0.1.4 -> 0.1.5` rollback round trips, and preserve the legacy listener and service PIDs.
 - Simplify the interactive model to `codexx api`, `codexx cloud`, `codexx <account>`, then plain official `codex`; cloud mode now holds a broker lease owned by the selecting shell and releases it on mode change, exit, or shell death.
 - Route `codexx import` to the explicitly labeled local CPA compatibility adapter and `codexx cloud import` to the SSH cloud importer while keeping the former legacy dependency visible.
 - Add reversible account rename/remove operations and an endpoint-aware `./install` that includes local shell-source installation instead of relying on a remembered manual `.zshrc` step.
