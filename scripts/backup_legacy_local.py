@@ -19,6 +19,8 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 CONFIRMATION = "BACK UP LOCAL CODEX-PLUS API AND CPA"
 MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_TOTAL_BYTES = 128 * 1024 * 1024
+LEGACY_GIT_SHIM_MARKER = b"exec codexx git-shim"
+DIRECT_GIT_SHIM = b"#!/usr/bin/env bash\nset -euo pipefail\nexec /usr/bin/git \"$@\"\n"
 
 
 def user_home() -> pathlib.Path:
@@ -36,6 +38,20 @@ def runtime_paths(home: pathlib.Path) -> List[pathlib.Path]:
     ]
 
 
+def account_git_shims(home: pathlib.Path) -> List[pathlib.Path]:
+    accounts = home / ".codex-accounts"
+    if not accounts.is_dir() or accounts.is_symlink():
+        return []
+    result = []
+    for account in sorted(accounts.iterdir(), key=lambda path: path.name):
+        if not account.is_dir() or account.is_symlink():
+            continue
+        shim = account / ".local/bin/git"
+        if shim.is_file() or shim.is_symlink():
+            result.append(shim)
+    return result
+
+
 def candidate_paths(home: pathlib.Path) -> List[pathlib.Path]:
     relative = [
         ".zshrc",
@@ -47,7 +63,6 @@ def candidate_paths(home: pathlib.Path) -> List[pathlib.Path]:
         ".codex-accounts/api/.codex/auth.json",
         ".codex-accounts/api/.codex/config.toml",
         ".codex-accounts/api/.local/bin/codexx",
-        ".codex-accounts/api/.local/bin/git",
         ".codex-accounts/cpa/.codex/auth.json",
         ".codex-accounts/cpa/.codex/config.toml",
     ]
@@ -55,6 +70,7 @@ def candidate_paths(home: pathlib.Path) -> List[pathlib.Path]:
     cpa = home / ".cli-proxy-api"
     if cpa.is_dir() and not cpa.is_symlink():
         paths.extend(path for path in sorted(cpa.iterdir()) if path.is_file() or path.is_symlink())
+    paths.extend(account_git_shims(home))
     paths.extend(runtime_paths(home))
     unique = {str(path): path for path in paths}
     return [unique[name] for name in sorted(unique)]
@@ -161,6 +177,39 @@ def create_backup(home: pathlib.Path, destination: pathlib.Path) -> Dict[str, An
         "manifest": str(manifest),
         "fileCount": len(records),
         "totalBytes": total,
+    }
+
+
+def activate_recovery_paths(home: pathlib.Path, destination: pathlib.Path) -> Dict[str, Any]:
+    launcher = destination / "home/.local/bin/codexx"
+    if not launcher.is_file() or launcher.is_symlink():
+        raise RuntimeError("legacy recovery launcher is unavailable")
+
+    entrypoint = home / ".local/bin/codexx-legacy"
+    entrypoint.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if entrypoint.exists() or entrypoint.is_symlink():
+        if not entrypoint.is_symlink() or entrypoint.resolve() != launcher.resolve():
+            raise RuntimeError("legacy recovery entrypoint already exists with a different target")
+    else:
+        temporary = entrypoint.parent / (".%s.%d" % (entrypoint.name, os.getpid()))
+        temporary.unlink(missing_ok=True)
+        temporary.symlink_to(launcher)
+        os.replace(str(temporary), str(entrypoint))
+
+    detached = []
+    for shim in account_git_shims(home):
+        metadata = shim.lstat()
+        if shim.is_symlink() or not stat.S_ISREG(metadata.st_mode):
+            raise RuntimeError("legacy git shim must be a regular file: %s" % shim)
+        if LEGACY_GIT_SHIM_MARKER not in read_regular(shim, metadata):
+            continue
+        atomic_write(shim, DIRECT_GIT_SHIM, mode=0o755)
+        detached.append(str(shim))
+
+    return {
+        "schema": "cloudx.legacy-local-recovery.v1",
+        "entrypoint": str(entrypoint),
+        "detachedGitShims": detached,
     }
 
 

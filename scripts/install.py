@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT / "local"))
 sys.path.insert(0, str(ROOT / "cloud"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from backup_legacy_local import create_backup  # noqa: E402
+from backup_legacy_local import activate_recovery_paths, create_backup  # noqa: E402
 from bootstrap_cloud_helper import confirmation_for as bootstrap_confirmation  # noqa: E402
 from bootstrap_cloud_helper import main as bootstrap_cloud  # noqa: E402
 from cloudx_cloud import release as cloud_release  # noqa: E402
@@ -80,6 +80,7 @@ def maybe_backup_legacy(config: LocalConfig) -> Optional[str]:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     destination = config.state_dir / "legacy-backups" / timestamp
     create_backup(config.home, destination)
+    activate_recovery_paths(config.home, destination)
     return str(destination)
 
 

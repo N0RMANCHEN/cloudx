@@ -11,7 +11,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from backup_legacy_local import augment_runtime, candidate_paths, create_backup  # noqa: E402
+from backup_legacy_local import activate_recovery_paths, augment_runtime, candidate_paths, create_backup  # noqa: E402
 
 
 class LegacyLocalBackupTests(unittest.TestCase):
@@ -82,6 +82,32 @@ class LegacyLocalBackupTests(unittest.TestCase):
         result = augment_runtime(self.home, destination)
         self.assertGreaterEqual(result["addedFiles"], 1)
         self.assertEqual((destination / "home/.codex-accounts/api/.local/bin/git").read_bytes(), b"shim")
+
+    def test_recovery_entrypoint_detaches_only_legacy_account_git_shims(self) -> None:
+        launcher = self.write(".local/bin/codexx", b"#!/bin/sh\nexit 0\n", 0o755)
+        self.write(".local/bin/codexx.py", b"runtime")
+        legacy = b"#!/bin/sh\nexec codexx git-shim \"$@\"\n"
+        api_shim = self.write(".codex-accounts/api/.local/bin/git", legacy, 0o755)
+        soul_shim = self.write(".codex-accounts/soul0/.local/bin/git", legacy, 0o755)
+        custom = self.write(".codex-accounts/custom/.local/bin/git", b"#!/bin/sh\nexec /custom/git \"$@\"\n", 0o755)
+        destination = self.home / "backup"
+        create_backup(self.home, destination)
+
+        result = activate_recovery_paths(self.home, destination)
+
+        entrypoint = pathlib.Path(result["entrypoint"])
+        self.assertTrue(entrypoint.is_symlink())
+        self.assertEqual(entrypoint.resolve(), (destination / "home/.local/bin/codexx").resolve())
+        self.assertEqual((destination / "home/.local/bin/codexx").read_bytes(), launcher.read_bytes())
+        self.assertIn(str(api_shim), result["detachedGitShims"])
+        self.assertIn(str(soul_shim), result["detachedGitShims"])
+        self.assertNotIn(b"codexx git-shim", api_shim.read_bytes())
+        self.assertEqual(api_shim.read_bytes(), soul_shim.read_bytes())
+        self.assertEqual(custom.read_bytes(), b"#!/bin/sh\nexec /custom/git \"$@\"\n")
+        self.assertEqual(
+            (destination / "home/.codex-accounts/soul0/.local/bin/git").read_bytes(),
+            legacy,
+        )
 
 
 if __name__ == "__main__":

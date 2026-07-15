@@ -4,16 +4,18 @@ import json
 import pathlib
 import os
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
+from types import SimpleNamespace
 from unittest import mock
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from install import confirmation, main  # noqa: E402
+from install import confirmation, main, maybe_backup_legacy  # noqa: E402
 
 
 class InstallTests(unittest.TestCase):
@@ -53,6 +55,28 @@ class InstallTests(unittest.TestCase):
             0,
         )
         install_local.assert_called_once()
+
+    @mock.patch("install.activate_recovery_paths")
+    @mock.patch("install.create_backup")
+    def test_legacy_backup_activates_recovery_paths(
+        self,
+        create_backup: mock.Mock,
+        activate_recovery_paths: mock.Mock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            home = pathlib.Path(value) / "home"
+            state = home / ".local/state/cloudx"
+            entrypoint = home / ".local/bin/codexx"
+            entrypoint.parent.mkdir(parents=True)
+            entrypoint.write_text("legacy", encoding="utf-8")
+            config = SimpleNamespace(home=home, state_dir=state)
+
+            backup = maybe_backup_legacy(config)
+
+        self.assertIsNotNone(backup)
+        destination = pathlib.Path(str(backup))
+        create_backup.assert_called_once_with(home, destination)
+        activate_recovery_paths.assert_called_once_with(home, destination)
 
 
 if __name__ == "__main__":

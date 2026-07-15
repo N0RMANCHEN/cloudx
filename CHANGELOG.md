@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make local activation create the documented private `codexx-legacy` recovery entrypoint and atomically detach backed-up account Git shims from the removed `codexx git-shim` internal command, preserving already-running codex-plus API sessions through cutover.
+- Independently activate signed local `0.1.8` on the `/Users/hirohi` workstation, restore signed `0.1.7` as its N-1 rollback release, and validate local API plus isolated cloud model traffic while retaining the exact CLIProxyAPI and existing Codex process identities.
 - Replace the signed CPA-health adapter's `/opt/codex-gateway/codexx_app` imports with standard-library Cloudx auth scanning and quota probing, size and symlink guards, atomic private refresh state, and same-filesystem reversible quarantine with transactional rollback.
 - Add an exact-confirmation native quarantine restore command, sanitized production-shape fixtures, and regression coverage for direct, nested, and sub2api credentials, HTTP quota classification, secret-free failure records, and failed-manifest rollback.
 - Validate the unsigned `0.1.9` cloud candidate against the active `0.1.8` adapter in read-only `--check` mode: both classified 15 logical accounts identically while auth and archive inventories remained unchanged; no release, activation, unit install, or restart was performed.
