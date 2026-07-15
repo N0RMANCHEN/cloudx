@@ -4,8 +4,11 @@
 
 ## 0.1.10 - 2026-07-15
 
+- Publish immutable signed `0.1.10`, activate cloud-first and local-second, complete endpoint-only `0.1.10 -> 0.1.8 -> 0.1.10` rollback rehearsals, and validate complete local API plus isolated cloud model requests without changing legacy process identities.
+- Replace only the production CPA-health service/timer with the signed native templates, preserve a root-only rollback set, and accept two distinct natural timer invocations with unchanged auth/archive inventories, aggregate-only healthy output, and no gateway or importer restart.
 - Mirror the recovered release trust root into both endpoint artifacts and add a regression that requires repository, local, and cloud signer data to remain byte-identical.
 - Advance to `0.1.10` without reusing the immutable `0.1.9` artifact ref after candidate cloud staging correctly rejected its stale embedded trust root.
+- Advance repository development to `0.1.11` after publishing and activating signed `0.1.10`, leaving signed `0.1.8` as N-1 rollback on both endpoints.
 
 ## 0.1.9 - 2026-07-15
 
