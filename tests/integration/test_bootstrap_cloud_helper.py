@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import pathlib
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
@@ -12,7 +13,7 @@ from unittest import mock
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from bootstrap_cloud_helper import confirmation_for, launcher_documents, main, verify_artifact  # noqa: E402
+from bootstrap_cloud_helper import confirmation_for, launcher_documents, main, previous_release, verify_artifact  # noqa: E402
 
 
 class CloudHelperBootstrapTests(unittest.TestCase):
@@ -61,6 +62,15 @@ class CloudHelperBootstrapTests(unittest.TestCase):
             ["/usr/local/bin/cloudx-remote", "self-check"],
             "cloud artifact self-check",
         )
+
+    def test_previous_release_selects_highest_staged_n_minus_one(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            for version in ("0.1.0", "0.1.1", "0.1.2"):
+                release = root / "releases" / version
+                release.mkdir(parents=True)
+                (release / "cloudx-cloud.pyz").write_bytes(b"fixture")
+            self.assertEqual(previous_release(root, "0.1.2").name, "0.1.1")
 
 
 if __name__ == "__main__":

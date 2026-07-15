@@ -112,6 +112,26 @@ class ReleaseFlowTests(unittest.TestCase):
         self.assertTrue((self.config.home / ".local/bin/codexx").is_symlink())
         self.assertFalse((self.config.home / ".local/bin/codex").exists())
 
+    def test_first_activation_registers_highest_staged_n_minus_one(self) -> None:
+        local_root = self.config.home / ".local/lib/cloudx"
+        local_old = local_root / "releases/0.1.1"
+        local_old.mkdir(parents=True)
+        (local_old / "cloudx-local.pyz").write_bytes(b"old")
+        cloud_root = self.root / "cloud-first-root"
+        cloud_old = cloud_root / "releases/0.1.1"
+        cloud_old.mkdir(parents=True)
+        (cloud_old / "cloudx-cloud.pyz").write_bytes(b"old")
+        with mock.patch("cloudx_local.updater._trusted_signers", return_value=self.signers):
+            updater.stage(self.config, self.release_dir, local_only=True)
+            updater.apply(self.config, CURRENT_VERSION, CURRENT_VERSION, True, False, None)
+        with mock.patch.dict(os.environ, {"CLOUDX_RELEASE_ROOT": str(cloud_root)}):
+            current = cloud_root / "releases" / CURRENT_VERSION
+            current.mkdir()
+            (current / "cloudx-cloud.pyz").write_bytes(b"current")
+            cloud_release.activate(CURRENT_VERSION, CURRENT_VERSION)
+        self.assertEqual((local_root / "previous").resolve().name, "0.1.1")
+        self.assertEqual((cloud_root / "previous").resolve().name, "0.1.1")
+
     def test_cloud_only_activation_does_not_touch_local_release(self) -> None:
         remote = mock.Mock()
         remote.activate_release.return_value = {

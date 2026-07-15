@@ -108,7 +108,11 @@ def run_codex_account_command(config: LocalConfig, name: str, args: Sequence[str
 
 
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(prog="codexx")
+    root = argparse.ArgumentParser(
+        prog="codexx",
+        description="Select and manage independent local Codex account homes.",
+        epilog="Interactive selection also supports: codexx <account> and codexx use <account>.",
+    )
     sub = root.add_subparsers(dest="command")
     add = sub.add_parser("add")
     add.add_argument("name")
@@ -118,6 +122,8 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser("list")
     sub.add_parser("current")
     sub.add_parser("exit")
+    use = sub.add_parser("use")
+    use.add_argument("name")
     return root
 
 

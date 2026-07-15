@@ -13,7 +13,7 @@ from unittest import mock
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "local"))
 
-from cloudx_local.accounts import current_account, list_accounts, shell_exit, shell_select  # noqa: E402
+from cloudx_local.accounts import current_account, list_accounts, parser, shell_exit, shell_select  # noqa: E402
 from cloudx_local.config import LocalConfig  # noqa: E402
 from cloudx_local.profile import cloud_codex_environment, prepare_cloud_codex_home  # noqa: E402
 
@@ -56,6 +56,8 @@ class AccountAndProfileTests(unittest.TestCase):
         text = hook.decode("utf-8") if hook else ""
         self.assertIn("use)", text)
         self.assertIn('eval "$("$bin" use "$2")"', text)
+        self.assertIn("use", parser().format_help())
+        self.assertIn("codexx <account>", parser().format_help())
 
     def test_legacy_account_home_does_not_become_cloudx_user_home(self) -> None:
         with mock.patch.dict(

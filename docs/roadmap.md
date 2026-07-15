@@ -6,8 +6,8 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 
 ## Current State
 
-- Signed `0.1.1` and `0.1.2` artifacts are staged side-by-side on both endpoints. The cloud `current` link selects signed `0.1.2`; the local endpoint remains inactive.
-- The root-owned cloud helper and restricted runtime/release dispatch boundary are active and verified. No local Cloudx entrypoint or shell hook is active.
+- Signed `0.1.1` and `0.1.2` artifacts are staged side-by-side on both endpoints. Both `current` links select signed `0.1.2`, and both `previous` links select signed `0.1.1`.
+- The root-owned cloud helper, local entrypoints, minimal shell hook, native profile, runtime/release identity boundary, and rollback paths are active and verified.
 - The current legacy `codexx cloud` path, local port `18317`, CLIProxyAPI, importer, monitors, Phi services, and shell hook remain unchanged.
 - The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation.
 - Signed `0.1.1` artifacts were built from commit `2fc4c0a8ecc9a60e3858d721d070a36fffa04ed6`, published to immutable `release-artifacts/v0.1.1`, and remain staged beside `0.1.2`; neither version is activated.
@@ -22,7 +22,7 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 | 2026-07-14 | M0 safety baseline | Complete | None |
 | 2026-07-14 | M1 repository and minimal product implementation | Complete | None |
 | 2026-07-14 | M2 versioned shadow deployment and focused validation | Complete | Shadow paths only |
-| After M2 evidence review | M3 manual Cloudx activation | In progress: cloud active | Explicit operator confirmation |
+| 2026-07-15 | M3 manual Cloudx activation | Complete; observation active | Explicit operator confirmation completed |
 | At least 7 stable days after M3 | M4 Phi consumer migration | Pending | One Phi service per window |
 | At least 14 stable days after M3 | M5 legacy retirement | Pending | Separate maintenance window |
 | No earlier than 30 stable days after M3 | M6 optional gateway/network boundary changes | Deferred | Separate design and approval |
@@ -145,7 +145,7 @@ Scoped-key, fresh health, real SSH import, and model-canary evidence: `docs/arch
 
 ## M3: Manual Cloudx Activation
 
-Window: active. Status: cloud endpoint accepted; local endpoint pending.
+Window: complete. Status: both endpoints accepted on 2026-07-15; observation active.
 
 ### Repository Preparation
 
@@ -163,15 +163,19 @@ Signed `0.1.2` release evidence: `docs/archive/2026-07-14-release-0.1.2.md`.
 
 Cloud helper activation, topology, formal import/model canary, and GitHub dual-stage evidence: `docs/archive/2026-07-15-m3-cloud-helper-activation.md`.
 
+Local activation, API/CPA recovery, command acceptance, and dual-endpoint rollback evidence: `docs/archive/2026-07-15-m3-local-activation.md`.
+
 ### Activation Progress
 
 - [x] Activate the compatible cloud helper and validated runtime/release identity boundary.
 - [x] Verify handshake, fresh health, scoped client credential access, formal SSH import dry-run, independent tunnel, and a complete model request.
 - [x] Reverify the signed GitHub release through a formal dual-endpoint `already-staged` transaction.
-- [ ] Reverify and activate the local artifact, native profile, minimal shell hook, and local command links under a separate confirmation.
-- [ ] Run local rollback rehearsal and begin the M3 observation window while retaining the legacy listener and processes.
+- [x] Reverify and activate the local artifact, native profile, minimal shell hook, and local command links under a separate confirmation.
+- [x] Run dual-endpoint N-1 rollback rehearsal and begin the M3 observation window while retaining the legacy listener and processes.
 
 Before local activation, preserve the existing `codexx use api` and local CPA recovery path under private Cloudx state. The minimal account selector retains both `api` and `cpa` profiles; Cloudx does not take ownership of the local CLIProxyAPI launchd service.
+
+First activation also registers the highest staged N-1 release as `previous`, making rollback available before the first post-activation upgrade.
 
 Activation is split into separate operator-confirmed steps.
 

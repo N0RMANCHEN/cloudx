@@ -2,7 +2,13 @@
 
 ## Unreleased
 
+- Advance repository development to `0.1.3` so post-`0.1.2` changes cannot produce a different artifact under an already signed version number; deployed endpoints remain on signed `0.1.2`.
 - Preserve `codexx use <account>` in the minimal shell hook and add a private, size-limited recovery bundle for legacy local API/CPA entrypoints, profiles, launchd state, binary, configuration, and credentials before local activation.
+- Register the highest staged N-1 artifact as `previous` during a first endpoint activation so rollback is available immediately instead of only after the second upgrade.
+- Include the adjacent legacy `codexx_app` runtime package in the local recovery bundle so the archived launcher is independently executable instead of depending on the live installation.
+- Document the accepted native/account/local-CPA/cloud/import/update command surface and label `codexx-legacy` as an observation-window recovery tool rather than a Cloudx product command.
+- Preserve the account-scoped legacy Git shim and detach it from the removed `codexx git-shim` internal command so already-running API sessions keep working after local activation.
+- Activate signed local `0.1.2`, seed the native profile from `soul0`, preserve `api` and `cpa` selection, validate local CPA and cloud model traffic, and complete real N-1 rollback round trips on both endpoints without stopping legacy services.
 - Bind scoped-key installation to an exact staged release, verify the cloud artifact version before any gateway mutation, and write a matching shadow deployment identity.
 - Cover local file, directory, missing-path, and symlink behavior for the SSH-backed `cloud import` source reader, and document why a local path cannot be passed directly to `ssh cloud import`.
 - Add a confirmation-gated first-cloud-activation bootstrap that creates the initial `current` and `cloudx-remote` links atomically and rolls both back on failed verification.

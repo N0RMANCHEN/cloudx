@@ -11,7 +11,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from backup_legacy_local import candidate_paths, create_backup  # noqa: E402
+from backup_legacy_local import augment_runtime, candidate_paths, create_backup  # noqa: E402
 
 
 class LegacyLocalBackupTests(unittest.TestCase):
@@ -33,6 +33,7 @@ class LegacyLocalBackupTests(unittest.TestCase):
     def test_backup_copies_api_cpa_and_entrypoints_without_manifest_secrets(self) -> None:
         secret = b"must-not-appear-in-manifest"
         self.write(".local/bin/codexx", b"legacy", 0o755)
+        self.write(".local/bin/codexx_app/main.py", b"runtime")
         self.write(".codex-accounts/api/.codex/auth.json", secret)
         self.write(".codex-accounts/cpa/.codex/config.toml", b"cpa")
         self.write(".cli-proxy-api/account.json", b"credential")
@@ -42,6 +43,7 @@ class LegacyLocalBackupTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "created")
         self.assertEqual((destination / "home/.codex-accounts/api/.codex/auth.json").read_bytes(), secret)
+        self.assertEqual((destination / "home/.local/bin/codexx_app/main.py").read_bytes(), b"runtime")
         manifest = (destination / "manifest.json").read_text(encoding="utf-8")
         self.assertNotIn(secret.decode(), manifest)
         self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o700)
@@ -61,6 +63,25 @@ class LegacyLocalBackupTests(unittest.TestCase):
         values = {path.relative_to(self.home).as_posix() for path in candidate_paths(self.home)}
         self.assertIn(".cli-proxy-api/account.json", values)
         self.assertNotIn(".cli-proxy-api/logs/error.log", values)
+
+    def test_existing_backup_can_be_augmented_with_runtime_after_activation(self) -> None:
+        self.write(".local/bin/codexx", b"legacy", 0o755)
+        destination = self.home / "backup"
+        create_backup(self.home, destination)
+        self.write(".local/bin/codexx_app/main.py", b"runtime")
+        result = augment_runtime(self.home, destination)
+        self.assertEqual(result["status"], "augmented")
+        self.assertEqual(result["addedFiles"], 1)
+        self.assertEqual((destination / "home/.local/bin/codexx_app/main.py").read_bytes(), b"runtime")
+
+    def test_existing_backup_can_add_account_scoped_git_shim(self) -> None:
+        self.write(".local/bin/codexx", b"legacy", 0o755)
+        destination = self.home / "backup"
+        create_backup(self.home, destination)
+        self.write(".codex-accounts/api/.local/bin/git", b"shim", 0o755)
+        result = augment_runtime(self.home, destination)
+        self.assertGreaterEqual(result["addedFiles"], 1)
+        self.assertEqual((destination / "home/.codex-accounts/api/.local/bin/git").read_bytes(), b"shim")
 
 
 if __name__ == "__main__":

@@ -25,6 +25,17 @@ def user_home() -> pathlib.Path:
     return pathlib.Path(pwd.getpwuid(os.getuid()).pw_dir)
 
 
+def runtime_paths(home: pathlib.Path) -> List[pathlib.Path]:
+    runtime = home / ".local/bin/codexx_app"
+    if not runtime.is_dir() or runtime.is_symlink():
+        return []
+    return [
+        path
+        for path in sorted(runtime.rglob("*"))
+        if (path.is_file() or path.is_symlink()) and "__pycache__" not in path.parts and path.suffix != ".pyc"
+    ]
+
+
 def candidate_paths(home: pathlib.Path) -> List[pathlib.Path]:
     relative = [
         ".zshrc",
@@ -36,6 +47,7 @@ def candidate_paths(home: pathlib.Path) -> List[pathlib.Path]:
         ".codex-accounts/api/.codex/auth.json",
         ".codex-accounts/api/.codex/config.toml",
         ".codex-accounts/api/.local/bin/codexx",
+        ".codex-accounts/api/.local/bin/git",
         ".codex-accounts/cpa/.codex/auth.json",
         ".codex-accounts/cpa/.codex/config.toml",
     ]
@@ -43,6 +55,7 @@ def candidate_paths(home: pathlib.Path) -> List[pathlib.Path]:
     cpa = home / ".cli-proxy-api"
     if cpa.is_dir() and not cpa.is_symlink():
         paths.extend(path for path in sorted(cpa.iterdir()) if path.is_file() or path.is_symlink())
+    paths.extend(runtime_paths(home))
     unique = {str(path): path for path in paths}
     return [unique[name] for name in sorted(unique)]
 
@@ -151,16 +164,85 @@ def create_backup(home: pathlib.Path, destination: pathlib.Path) -> Dict[str, An
     }
 
 
+def augment_runtime(home: pathlib.Path, destination: pathlib.Path) -> Dict[str, Any]:
+    manifest = destination / "manifest.json"
+    try:
+        document = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError("legacy backup manifest is unavailable or invalid") from exc
+    if not isinstance(document, dict) or document.get("schema") != "cloudx.legacy-local-backup.v1":
+        raise RuntimeError("legacy backup manifest schema is unsupported")
+    records = document.get("files")
+    if not isinstance(records, list):
+        raise RuntimeError("legacy backup manifest has no file records")
+    existing = {str(item.get("backup")) for item in records if isinstance(item, dict)}
+    added = 0
+    total = int(document.get("totalBytes") or 0)
+    for source in candidate_paths(home):
+        relative = source.relative_to(home)
+        target = destination / "home" / relative
+        backup_name = str(target.relative_to(destination))
+        if backup_name in existing:
+            continue
+        if not source.exists() and not source.is_symlink():
+            continue
+        metadata = source_metadata([source])[0][1]
+        raw = read_regular(source, metadata)
+        if total + len(raw) > MAX_TOTAL_BYTES:
+            raise RuntimeError("legacy backup exceeds 128 MiB")
+        mode = stat.S_IMODE(metadata.st_mode)
+        atomic_write(target, raw, mode)
+        total += len(raw)
+        added += 1
+        records.append({
+            "source": str(source),
+            "backup": backup_name,
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "size": len(raw),
+            "mode": "%04o" % mode,
+        })
+    document["files"] = sorted(records, key=lambda item: str(item.get("backup")))
+    document["fileCount"] = len(document["files"])
+    document["totalBytes"] = total
+    document["updatedAt"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    atomic_write(manifest, (json.dumps(document, indent=2, sort_keys=True) + "\n").encode("utf-8"), 0o600)
+    return {
+        "schema": "cloudx.legacy-local-backup-result.v1",
+        "status": "augmented",
+        "backup": str(destination),
+        "manifest": str(manifest),
+        "addedFiles": added,
+        "fileCount": document["fileCount"],
+        "totalBytes": total,
+    }
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description="Back up the local codex-plus API and CPA recovery path")
     root.add_argument("--apply", action="store_true")
     root.add_argument("--confirm", default="")
+    root.add_argument("--augment-runtime", type=pathlib.Path)
     return root
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser().parse_args(argv)
     home = user_home()
+    if args.augment_runtime:
+        if not args.apply:
+            print(json.dumps({
+                "schema": "cloudx.legacy-local-backup-plan.v1",
+                "status": "confirmation-required",
+                "confirmation": CONFIRMATION,
+                "operation": "augment-runtime",
+                "backup": str(args.augment_runtime),
+                "candidateFileCount": len(candidate_paths(home)),
+            }, sort_keys=True, separators=(",", ":")))
+            return 0
+        if args.confirm != CONFIRMATION:
+            raise RuntimeError("legacy local backup confirmation does not match")
+        print(json.dumps(augment_runtime(home, args.augment_runtime), sort_keys=True, separators=(",", ":")))
+        return 0
     sources = source_metadata(candidate_paths(home))
     if not args.apply:
         print(json.dumps({
@@ -171,6 +253,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "totalBytes": sum(metadata.st_size for _, metadata in sources),
             "includes": [
                 "legacy codexx entrypoints and shell configuration",
+                "legacy codexx_app runtime package",
                 "api and cpa account profiles",
                 "local CLIProxyAPI binary, launchd definition, config, and top-level credentials",
             ],

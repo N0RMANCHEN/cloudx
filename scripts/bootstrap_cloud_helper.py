@@ -84,6 +84,26 @@ def atomic_write(path: pathlib.Path, data: bytes, mode: int) -> None:
         raise
 
 
+def atomic_link(link: pathlib.Path, target: pathlib.Path) -> None:
+    temporary = link.parent / (".%s.%d" % (link.name, os.getpid()))
+    temporary.unlink(missing_ok=True)
+    temporary.symlink_to(target)
+    os.replace(str(temporary), str(link))
+
+
+def previous_release(root: pathlib.Path, version: str) -> Optional[pathlib.Path]:
+    releases = root / "releases"
+    target = tuple(int(part) for part in version.split("."))
+    candidates = []
+    for path in releases.iterdir() if releases.is_dir() else ():
+        if not path.is_dir() or not (path / "cloudx-cloud.pyz").is_file() or not VERSION_RE.match(path.name):
+            continue
+        parsed = tuple(int(part) for part in path.name.split("."))
+        if parsed < target:
+            candidates.append((parsed, path))
+    return max(candidates, default=(None, None), key=lambda item: item[0])[1]
+
+
 def launcher_documents(operator: str) -> tuple[bytes, bytes, bytes]:
     runner = b"""#!/bin/sh
 set -eu
@@ -191,6 +211,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     verify_artifact(artifact, version)
 
     activated = False
+    previous_created = False
     created = []
     try:
         runner, helper, sudoers = launcher_documents(args.operator)
@@ -211,6 +232,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         ):
             raise RuntimeError("cloud release activation returned an unexpected result")
         activated = True
+        previous = args.root / "previous"
+        if not previous.is_symlink():
+            fallback = previous_release(args.root, version)
+            if fallback:
+                atomic_link(previous, fallback)
+                previous_created = True
         verify_artifact(args.helper, version, direct=True)
         handshake = run_document([str(args.helper), "handshake", "--json"], "cloud helper handshake")
         if (
@@ -228,6 +255,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             path.unlink(missing_ok=True)
         if activated and (current.exists() or current.is_symlink()):
             current.unlink(missing_ok=True)
+        if previous_created:
+            (args.root / "previous").unlink(missing_ok=True)
         raise RuntimeError("cloud helper bootstrap failed and was rolled back: %s" % exc) from exc
 
     print(json.dumps({

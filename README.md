@@ -44,3 +44,5 @@ cloud import credentials.json
 Build both artifacts with `./build.sh`. Validate the repository with `./verify.sh`.
 
 No install command in this repository activates a release automatically. See `docs/operations.md` for side-by-side staging and recovery.
+
+See `docs/command-surface.md` for the accepted `codexx`, local CPA, cloud gateway, legacy recovery, and signed-update interactions during migration.

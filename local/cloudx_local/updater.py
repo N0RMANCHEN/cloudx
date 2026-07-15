@@ -271,6 +271,22 @@ def _atomic_link(link: pathlib.Path, target: pathlib.Path) -> None:
     os.replace(str(temporary), str(link))
 
 
+def _latest_staged_before(root: pathlib.Path, version: str, artifact_name: str) -> Optional[pathlib.Path]:
+    releases = root / "releases"
+    candidates = []
+    if releases.is_dir():
+        for path in releases.iterdir():
+            if not path.is_dir() or not (path / artifact_name).is_file():
+                continue
+            try:
+                parsed = _version_tuple(path.name)
+            except RuntimeError:
+                continue
+            if parsed < _version_tuple(version):
+                candidates.append((parsed, path))
+    return max(candidates, default=(None, None), key=lambda item: item[0])[1]
+
+
 def _activate_local(config: LocalConfig, version: str) -> Optional[str]:
     root = _local_root(config)
     destination = root / "releases" / version
@@ -283,6 +299,10 @@ def _activate_local(config: LocalConfig, version: str) -> Optional[str]:
     _atomic_link(current, destination)
     if old_target and old_target != destination:
         _atomic_link(previous, old_target)
+    elif not previous.is_symlink():
+        fallback = _latest_staged_before(root, version, "cloudx-local.pyz")
+        if fallback:
+            _atomic_link(previous, fallback)
     bin_dir = config.home / ".local/bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
     stable_artifact = current / "cloudx-local.pyz"
