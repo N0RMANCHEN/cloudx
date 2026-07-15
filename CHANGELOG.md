@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 0.1.9 - 2026-07-15
+
+- Recover the unavailable `0.1.4` through `0.1.8` release private key with a new repository-external mode-0600 Ed25519 key and commit only its replacement public trust root; `0.1.9` must use candidate-verified out-of-band staging before ordinary signed updates resume.
 - Make local activation create the documented private `codexx-legacy` recovery entrypoint and atomically detach backed-up account Git shims from the removed `codexx git-shim` internal command, preserving already-running codex-plus API sessions through cutover.
 - Independently activate signed local `0.1.8` on the `/Users/hirohi` workstation, restore signed `0.1.7` as its N-1 rollback release, and validate local API plus isolated cloud model traffic while retaining the exact CLIProxyAPI and existing Codex process identities.
 - Replace the signed CPA-health adapter's `/opt/codex-gateway/codexx_app` imports with standard-library Cloudx auth scanning and quota probing, size and symlink guards, atomic private refresh state, and same-filesystem reversible quarantine with transactional rollback.
