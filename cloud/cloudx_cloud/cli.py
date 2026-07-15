@@ -13,6 +13,7 @@ from .importer import ImportRejected, ImportResult, import_records, read_limited
 from .release import activate as activate_release
 from .release import read_bundle, rollback as rollback_release, stage as stage_release
 from .release import status as release_status
+from .systemd_templates import TEMPLATES, read_template
 from .version import IMPORT_CONTRACT_VERSION, PROTOCOL_MAX, PROTOCOL_MIN, VERSION
 
 
@@ -31,6 +32,7 @@ def handshake(config: Config) -> Dict[str, Any]:
             "account-state-adapter.v1",
             "client-config.v1",
             "health.v1",
+            "health-publisher-templates.v1",
             "import.v1",
             "legacy-gateway.v1",
         ],
@@ -86,12 +88,17 @@ def parser() -> argparse.ArgumentParser:
     activate_parser.add_argument("--confirm", required=True)
     rollback_parser = sub.add_parser("release-rollback")
     rollback_parser.add_argument("--confirm", required=True)
+    template_parser = sub.add_parser("systemd-template")
+    template_parser.add_argument("name", choices=TEMPLATES)
     sub.add_parser("self-check")
     return root
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser().parse_args(argv)
+    if args.command == "systemd-template":
+        sys.stdout.write(read_template(args.name))
+        return 0
     config = Config.from_environment()
     if args.command == "handshake":
         emit(handshake(config))

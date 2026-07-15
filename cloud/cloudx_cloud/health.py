@@ -60,9 +60,8 @@ def _account_counts(config: Config) -> Tuple[Dict[str, int], str, int]:
 
 
 def _import_status(config: Config) -> str:
-    config.import_lock_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with config.import_lock_path.open("a+") as handle:
+        with config.import_lock_path.open("r") as handle:
             try:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
@@ -72,6 +71,8 @@ def _import_status(config: Config) -> str:
                     fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
                 except OSError:
                     pass
+    except FileNotFoundError:
+        return "ready"
     except OSError:
         return "unavailable"
     return "ready"

@@ -21,6 +21,8 @@ Phi is a separate product and repository.
 
 Phi may read `/run/cloudx/health.json` or execute `cloudx-remote health --json` with a scoped identity. The signal contains counts and status only. Phi must not read Cloudx keys, auth files, account identities, or release directories.
 
+The M4 target is the exact `cloudx.health.v1` schema produced by a signed Cloudx artifact. The older `/var/lib/cloudx/health/v1.json` document with `contract: cloudx.health` and `schemaVersion: 1` is sanitized migration evidence, but it is not the Cloudx runtime contract and cannot satisfy the final consumer gate.
+
 Cloudx never imports Phi modules and never requires Phi for routing, import, health, recovery, update, or rollback.
 
 The legacy unattended repair timer that edits a checkout, deploys a parser, restarts the importer, and merges a branch is not a supported target behavior. Its replacement is diagnostic evidence plus an operator-reviewed pull request.

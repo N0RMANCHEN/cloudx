@@ -1,0 +1,31 @@
+[Unit]
+Description=Publish the signed Cloudx health contract
+After=network-online.target cloudx-account-state.service
+Wants=network-online.target cloudx-account-state.service
+ConditionPathExists=/run/cloudx-account-state/accounts.json
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/cloudx/cloudx-shadow.env
+Environment=CLOUDX_ACCOUNT_STATE_PATH=/run/cloudx-account-state/accounts.json
+Environment=CLOUDX_HEALTH_PATH=/run/cloudx/health.json
+ExecStart=/usr/bin/python3 /opt/cloudx/current/cloudx-cloud.pyz publish-health --json
+User=cloudx
+Group=cloudx
+UMask=0022
+RuntimeDirectory=cloudx
+RuntimeDirectoryMode=0755
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+ReadOnlyPaths=/opt/cloudx/releases /etc/cloudx /run/cloudx-account-state -/run/cloudx-shadow/import.lock
+ReadWritePaths=/run/cloudx
+InaccessiblePaths=/var/lib/codex-gateway/cliproxy-auth /var/lib/codex-gateway/cliproxy-auth-archive /etc/cliproxy /etc/codex-gateway/import-client-keys
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

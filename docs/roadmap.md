@@ -11,6 +11,7 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 - Signed `0.1.5` activates the simplified mode UX (`codexx api`, `codexx cloud`, named accounts, plain `codex`), split local/cloud import routing, endpoint-aware `./install`, and truthful idempotent activation status.
 - Signed `0.1.6` restores the non-invasive zsh right-prompt mode badge as `[cx:api]`, `[cx:cloud]`, or `[cx:<account>]` while preserving unrelated `RPROMPT` content and removing only its own segment on exit.
 - Repository development has advanced to `0.1.7`; deployed endpoints remain on signed `0.1.6` and no `0.1.7` activation is implied.
+- M4 preflight found that `phi-cloudx-health` already has a dedicated sandboxed identity, but it still reads the legacy `contract: cloudx.health` file and its timer is `active (elapsed)` with no next trigger. The signed `cloudx.health.v1` active publisher is being prepared separately before any Phi consumer window.
 - The legacy local port `18317`, local CPA, cloud CLIProxyAPI, old importer, monitors, Phi services, and private codex-plus recovery bundle remain available; the active local shell source is now the Cloudx hook.
 - The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation.
 - The `v0.1.3` workflow attempt likewise failed before artifact publication because the current trust-root private key was unavailable; its tag remains immutable, no `0.1.3` artifact ref exists, and recovery advances to `0.1.4` with a replacement public trust root.
@@ -213,6 +214,14 @@ Activation is split into separate operator-confirmed steps.
 Earliest window: seven stable days after M3. Status: pending.
 
 Phi remains a separate repository and release train. Migrations occur one service per maintenance window.
+
+### Pre-Window Readiness
+
+- [x] Audit the installed Phi health consumer identity, filesystem sandbox, source contract, and timer state without running or restarting it.
+- [x] Add signed-artifact templates for an active `/run/cloudx/health.json` publisher and aggregate account-state adapter without installing or enabling them.
+- [ ] Publish and stage the signed readiness release on both endpoints while leaving `current` and all services unchanged.
+- [ ] In a separately confirmed Cloudx maintenance action before M4, install the versioned health units, validate `cloudx.health.v1`, and preserve the legacy contract as rollback.
+- [ ] Do not begin the first Phi service migration before 2026-07-22 and a fresh seven-day stability review.
 
 The 2026-07-15 inventory confirms Phi `0.80.6`, aliases `phi-api`, `phi-deepseek`, and `pi`, plus active goal, Cloudx-health, provider-health, roadmap-driver, and mail services. Classification for later windows is:
 

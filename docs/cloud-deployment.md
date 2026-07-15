@@ -17,3 +17,16 @@ Shadow units execute the exact signed artifact selected by `CLOUDX_CLOUD_ARTIFAC
 The scoped client credential file must be owned by the account that executes `cloudx-remote client-config` and have mode 0600 or stricter. It is never included in health, handshake, logs, Git, or a release bundle.
 
 For the first canary, configure the existing gateway address explicitly. Do not change the gateway bind address, API key, CLIProxyAPI unit, mihomo, Tailscale, or SSH. `cloudx-remote self-check`, `handshake`, `health`, and a dry-run import must pass before any unit is enabled.
+
+## Active Health Publisher Preparation
+
+The signed cloud artifact also carries read-only templates under `cloudx_cloud/data/systemd/` for a future active `cloudx.health.v1` publisher. An operator can inspect an exact template without installing it:
+
+```bash
+cloudx-remote systemd-template cloudx-account-state.service
+cloudx-remote systemd-template cloudx-account-state.timer
+cloudx-remote systemd-template cloudx-health.service
+cloudx-remote systemd-template cloudx-health.timer
+```
+
+The account-state adapter writes aggregate state to `/run/cloudx-account-state/accounts.json`. The health publisher runs as `cloudx`, writes the mode-0644 contract to `/run/cloudx/health.json`, reads the importer lock without creating or modifying it, and cannot access gateway configuration or credential directories. Merely building, publishing, staging, or activating a Cloudx artifact does not install, enable, start, or restart these units. Their deployment is a separate operator-confirmed Cloudx maintenance action that must finish before the Phi M4 consumer window; an M4 Phi change cannot deploy or restart Cloudx.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.1.7 - 2026-07-15
+
+- Carry active `cloudx.health.v1` account-state and health publisher templates inside the signed cloud artifact, with a read-only command for exact template inspection and no implicit installation or service action.
+- Make health inspection observe the importer lock without creating its directory or lock file, keeping the health path read-only apart from its declared atomic health publication.
 - Advance repository development to `0.1.7` after publishing `0.1.6`, so the immutable signed prompt-badge release is not rebuilt in place.
 - Read the target release's shell hook before moving the local `current` symlink, preventing zipimport truncation when activation is launched through the stable `cloudx-update` entrypoint.
 
