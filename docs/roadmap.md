@@ -4,12 +4,12 @@ This roadmap is the dependency order for Cloudx. Every activation, service chang
 
 ## Current State
 
-- Signed `0.1.1`, `0.1.2`, `0.1.4`, `0.1.5`, `0.1.6`, and `0.1.7` artifacts are staged side-by-side on both endpoints. Both `current` links select signed `0.1.7`, and both `previous` links select signed `0.1.6`.
+- Signed `0.1.1`, `0.1.2`, `0.1.4`, `0.1.5`, `0.1.6`, `0.1.7`, and `0.1.8` artifacts are staged side-by-side on both endpoints. Both `current` links select signed `0.1.7`, and both `previous` links select signed `0.1.6`.
 - The root-owned cloud helper, local entrypoints, minimal shell hook, native profile, runtime/release identity boundary, and rollback paths are active and verified.
 - Signed `0.1.5` activates the simplified mode UX (`codexx api`, `codexx cloud`, named accounts, plain `codex`), split local/cloud import routing, endpoint-aware `./install`, and truthful idempotent activation status.
 - Signed `0.1.6` restores the non-invasive zsh right-prompt mode badge as `[cx:api]`, `[cx:cloud]`, or `[cx:<account>]` while preserving unrelated `RPROMPT` content and removing only its own segment on exit.
 - Signed `0.1.7` is active on both endpoints. Its active account-state and `cloudx.health.v1` timers are installed, enabled, and repeatedly publish `/run/cloudx-account-state/accounts.json` and `/run/cloudx/health.json`; the legacy health contract remains active as rollback.
-- Repository development has advanced to `0.1.8`; deployed endpoints remain on signed `0.1.7` and no `0.1.8` activation is implied.
+- Repository development has advanced to `0.1.9`; deployed endpoints remain on signed `0.1.7`, signed `0.1.8` is staged only, and no activation is implied.
 - M4 preflight found that `phi-cloudx-health` has a dedicated sandboxed identity and can read the new formal contract without reading credentials. Its installed service still points at the legacy `contract: cloudx.health` file; the timer has been re-armed and is repeating, while formal consumer migration remains Phi-owned.
 - M5 dependency preflight found no active Cloudx broker lease, but the legacy `18317` listener, local CPA, existing Codex sessions, old cloud importer, quota monitor, mutable-checkout CPA health service, and legacy quota/health consumers remain active dependencies. No retirement gate is accepted yet.
 - The legacy local port `18317`, local CPA, cloud CLIProxyAPI, old importer, monitors, Phi services, and private codex-plus recovery bundle remain available; the active local shell source is now the Cloudx hook.
@@ -21,6 +21,7 @@ This roadmap is the dependency order for Cloudx. Every activation, service chang
 - Signed `0.1.5` was built from commit `db05c9004fee0def4ca73553f28a255423aea133`, published to immutable `release-artifacts/v0.1.5`, and remains staged as an older rollback artifact.
 - Signed `0.1.6` was built from commit `907d1746e0d76dfada579a77454d4efbc3ce69c4`, published to immutable `release-artifacts/v0.1.6`, and remains the previous release on both endpoints.
 - Signed `0.1.7` was built from commit `fb4d7e7e4094a90e0edea3e09aeca9802e980f25`, published to immutable `release-artifacts/v0.1.7`, selected by the signed stable ref, and is active on both endpoints.
+- Signed `0.1.8` was built from commit `cbd561ef1146b289f66b0e07e696687632b0277c`, published to immutable `release-artifacts/v0.1.8`, selected by the signed stable ref, and staged on both endpoints without moving either release link or installing its CPA-health units.
 - A restricted `cloudx` identity, versioned shadow environment, scoped client credential, shadow auth directory, and read-only account-state timer are installed.
 - The distinct shadow health service and timer are enabled and publish fresh, secret-free health from the active Cloudx CPA aggregate state.
 
@@ -227,7 +228,7 @@ Status: pending.
 - [ ] Replace the legacy quota monitor writer only after Cloudx health and reversible quarantine have accepted observation evidence.
 - [ ] Disable and archive the unattended import repair timer.
 - [ ] Remove the old codex-plus shell hook and installed package only after native `codex`, account switching, and rollback pass in a fresh shell.
-- [x] Add a signed-release CPA health command and unit templates that remove the mutable-checkout execution path while declaring the temporary `/opt/codex-gateway/codexx_app` compatibility dependency.
+- [x] Publish and stage signed `0.1.8` with a CPA health command and unit templates that remove the mutable-checkout execution path while declaring the temporary `/opt/codex-gateway/codexx_app` compatibility dependency.
 - [ ] In a separately approved maintenance action, install the versioned `cloudx-cpa-health` units, validate aggregate output and reversible quarantine, and retain the old unit as rollback before removing the mutable checkout.
 - [ ] Remove `legacy_bridge` in its own release after N/N-1 protocol support no longer requires it.
 - [ ] Preserve recovery archives and service manifests outside release directories.

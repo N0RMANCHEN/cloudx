@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Advance repository development to `0.1.9` after publishing and staging signed `0.1.8`, leaving both active endpoints and every service unit on their prior selections.
+
+## 0.1.8 - 2026-07-15
+
 - Record the M5 dependency preflight without stopping legacy sessions or services; active Codex sessions, port `18317`, local CPA, old importer, quota consumers, and mutable-checkout health execution remain explicit retirement blockers.
 - Carry a signed-release `cpa-health` compatibility adapter and systemd templates that move execution off the mutable codex-plus checkout, keep `/opt/codex-gateway/codexx_app` as a declared temporary dependency, and redact account paths from journal output.
 - Remove calendar dates and fixed waiting periods from the roadmap; milestone advancement now depends on accepted evidence, rollback readiness, dependency order, and explicit operator confirmation.
