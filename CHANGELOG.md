@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Activate signed `0.1.8` cloud-first and local-second, then transactionally replace only the production CPA-health service/timer with the signed templates; preserve the old unit and private state rollback, validate two natural aggregate-only runs, and leave gateway, importer, Phi, legacy listeners, shell hook, native profile, and existing Codex processes unchanged.
 - Advance repository development to `0.1.9` after publishing and staging signed `0.1.8`, leaving both active endpoints and every service unit on their prior selections.
 
 ## 0.1.8 - 2026-07-15
