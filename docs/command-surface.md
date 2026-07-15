@@ -41,6 +41,8 @@ codexx cloud import <local-file-or-directory>
 
 `codexx cloud` acquires a broker lease owned by the current shell and configures an isolated Cloudx `CODEX_HOME`; the following `codex` remains the official local binary. `codexx cloud import` reads a local path and sends its bytes through SSH stdin to the cloud importer. `cloud codex` and `cloud import` remain compatibility entrypoints.
 
+In zsh, the active selection is shown at the right edge as `[cx:api]`, `[cx:cloud]`, or `[cx:<account>]`. Cloudx appends only its own segment, preserves existing `RPROMPT` content, and removes its segment after `codexx exit`.
+
 The low-level single-file equivalent is:
 
 ```bash

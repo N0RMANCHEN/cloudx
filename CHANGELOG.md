@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 0.1.6 - 2026-07-15
+
+- Restore the codex-plus-style zsh right-prompt mode badge as `[cx:api]`, `[cx:cloud]`, or `[cx:<account>]`, preserving unrelated `RPROMPT` segments across switching, hook reload, and `codexx exit`.
 - Advance repository development to `0.1.6` after publishing `0.1.5`, preventing later source changes from producing another artifact under the signed version.
 - Prepare a credential-free `cloudx.repair-request` v1 handoff, exact base revision, and isolated Phi repair workspace without push, PR, merge, deploy, replay, or production writes.
 - Record the verified Phi and legacy-service inventory as M4/M5 migration input without disabling or deleting any unit.

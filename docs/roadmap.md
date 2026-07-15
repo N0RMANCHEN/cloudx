@@ -9,7 +9,7 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 - Signed `0.1.1`, `0.1.2`, `0.1.4`, and `0.1.5` artifacts are staged side-by-side on both endpoints. Both `current` links select signed `0.1.5`, and both `previous` links select signed `0.1.4`.
 - The root-owned cloud helper, local entrypoints, minimal shell hook, native profile, runtime/release identity boundary, and rollback paths are active and verified.
 - Signed `0.1.5` activates the simplified mode UX (`codexx api`, `codexx cloud`, named accounts, plain `codex`), split local/cloud import routing, endpoint-aware `./install`, and truthful idempotent activation status.
-- Repository development has advanced to `0.1.6`; deployed endpoints remain on signed `0.1.5` and no `0.1.6` activation is implied.
+- Repository development has advanced to `0.1.6`, including a non-invasive zsh right-prompt mode badge compatible with the former `[cx:<account>]` display; deployed endpoints remain on signed `0.1.5` and no `0.1.6` activation is implied.
 - The legacy local port `18317`, local CPA, cloud CLIProxyAPI, old importer, monitors, Phi services, and private codex-plus recovery bundle remain available; the active local shell source is now the Cloudx hook.
 - The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation.
 - The `v0.1.3` workflow attempt likewise failed before artifact publication because the current trust-root private key was unavailable; its tag remains immutable, no `0.1.3` artifact ref exists, and recovery advances to `0.1.4` with a replacement public trust root.
