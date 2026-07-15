@@ -48,3 +48,11 @@ Two natural timer activations completed successfully from the signed artifact. B
 Source `0.1.9` replaced that compatibility import boundary with native standard-library auth scanning and HTTP quota classification. Signed `0.1.10` is the accepted production release after immutable `0.1.9` was rejected during cloud staging for a stale embedded trust root. The native implementation rejects symlinked, non-regular, oversized, and over-count credential inputs; preserves direct, nested-token, and sub2api bundle parsing; and writes refresh state and quarantine manifests atomically with mode 0600. Quarantine uses a locked same-filesystem rename and restores the source automatically if its manifest transaction fails. The explicit restore command requires the quarantined filename to be repeated as confirmation and emits no filename or account identity.
 
 Signed `0.1.10` passed cloud-side read-only parity, candidate-verified staging, cloud-first/local-second activation, complete model canaries, and endpoint-only N-1 rollback rehearsals. Its native unit templates passed `systemd-analyze verify` and replaced only the CPA-health service/timer in a rollback-protected transaction. Two natural timer invocations returned aggregate-only healthy results and left anonymous auth/archive inventories unchanged. Cloudx CPA health no longer needs `/opt/codex-gateway/codexx_app`, but the active legacy HTTP importer still imports `codexx_app.cloud_import_server`; removing the runtime therefore remains gated on separate importer retirement and rollback acceptance.
+
+Repository `0.1.11` prepares that importer migration by carrying a signed `codex-gateway-import` compatibility adapter. Inspect it without installing anything:
+
+```bash
+cloudx-remote compatibility-script codex-gateway-import
+```
+
+The adapter preserves FILE/stdin and `--force`, adds an explicit `--dry-run`, and routes bytes directly to `cloudx-remote import`. It contains no HTTP endpoint, token-file read, or curl dependency. Installing the script and stopping the old HTTP service remain separate confirmation-gated actions.

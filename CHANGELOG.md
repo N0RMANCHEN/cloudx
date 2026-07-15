@@ -4,6 +4,7 @@
 
 - Archive the already disabled legacy quota-monitor and unattended import-repair units, scripts, state, failure receipts, locks, and systemd evidence under root-only Cloudx state without removing their installed rollback paths or touching the active HTTP importer.
 - Move two resolved legacy raw import inputs out of the failure-record tree and ordinary archive into a separate root-only secret-recovery area, leaving hash-only receipts and preserving SSH importer acceptance plus external service continuity.
+- Add a signed-artifact `codex-gateway-import` compatibility adapter that preserves FILE/stdin and `--force`, adds `--dry-run`, and routes directly to `cloudx-remote import` without an HTTP token or port `8780` dependency.
 
 ## 0.1.10 - 2026-07-15
 

@@ -7,6 +7,8 @@ from typing import Any, Dict, Optional, Sequence
 
 from . import cpa_auth, cpa_health
 from .account_state import AccountStateRejected, adapt_file
+from .compatibility_scripts import SCRIPTS as COMPATIBILITY_SCRIPTS
+from .compatibility_scripts import read_compatibility_script
 from .config import Config
 from .gateway import probe_gateway, read_credential
 from .health import build_health, publish
@@ -32,6 +34,7 @@ def handshake(config: Config) -> Dict[str, Any]:
         "capabilities": [
             "account-state-adapter.v1",
             "client-config.v1",
+            "import-compatibility-script.v1",
             "cpa-health-native.v1",
             "cpa-health-templates.v1",
             "health.v1",
@@ -97,6 +100,8 @@ def parser() -> argparse.ArgumentParser:
     rollback_parser.add_argument("--confirm", required=True)
     template_parser = sub.add_parser("systemd-template")
     template_parser.add_argument("name", choices=TEMPLATES)
+    compatibility_parser = sub.add_parser("compatibility-script")
+    compatibility_parser.add_argument("name", choices=COMPATIBILITY_SCRIPTS)
     sub.add_parser("self-check")
     return root
 
@@ -105,6 +110,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser().parse_args(argv)
     if args.command == "systemd-template":
         sys.stdout.write(read_template(args.name))
+        return 0
+    if args.command == "compatibility-script":
+        sys.stdout.write(read_compatibility_script(args.name))
         return 0
     if args.command == "cpa-health":
         try:

@@ -1,0 +1,67 @@
+#!/bin/sh
+set -eu
+
+force=false
+dry_run=false
+source_path=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --force) force=true ;;
+    --dry-run) dry_run=true ;;
+    -)
+      if [ -n "$source_path" ]; then
+        echo "only one source file is supported per command" >&2
+        exit 2
+      fi
+      source_path="-"
+      ;;
+    -h|--help)
+      echo "usage: sudo codex-gateway-import [--dry-run] [--force] FILE|-"
+      exit 0
+      ;;
+    -*)
+      echo "unknown option: $arg" >&2
+      exit 2
+      ;;
+    *)
+      if [ -n "$source_path" ]; then
+        echo "only one source file is supported per command" >&2
+        exit 2
+      fi
+      source_path="$arg"
+      ;;
+  esac
+done
+
+if [ -z "$source_path" ]; then
+  echo "source file is required" >&2
+  exit 2
+fi
+if [ "$source_path" = "-" ] && [ -t 0 ]; then
+  echo "stdin import requires piped input" >&2
+  exit 2
+fi
+if [ "$source_path" != "-" ] && [ ! -f "$source_path" ]; then
+  echo "source file not found: $source_path" >&2
+  exit 2
+fi
+
+remote=${CLOUDX_REMOTE_BIN:-cloudx-remote}
+run_import() {
+  if [ "$force" = true ] && [ "$dry_run" = true ]; then
+    "$remote" import --force --dry-run
+  elif [ "$force" = true ]; then
+    "$remote" import --force
+  elif [ "$dry_run" = true ]; then
+    "$remote" import --dry-run
+  else
+    "$remote" import
+  fi
+}
+
+if [ "$source_path" = "-" ]; then
+  run_import
+else
+  run_import < "$source_path"
+fi
