@@ -8,9 +8,10 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 
 - Signed `0.1.1` and `0.1.2` artifacts are staged side-by-side on both endpoints. Both `current` links select signed `0.1.2`, and both `previous` links select signed `0.1.1`.
 - The root-owned cloud helper, local entrypoints, minimal shell hook, native profile, runtime/release identity boundary, and rollback paths are active and verified.
-- Repository `0.1.3` implements the simplified mode UX (`codexx api`, `codexx cloud`, named accounts, plain `codex`), split local/cloud import routing, and endpoint-aware `./install`; signed publication and rollout are the next patch-release action.
+- Repository `0.1.4` implements the simplified mode UX (`codexx api`, `codexx cloud`, named accounts, plain `codex`), split local/cloud import routing, and endpoint-aware `./install`; signed publication and rollout are the next patch-release action.
 - The current legacy `codexx cloud` path, local port `18317`, CLIProxyAPI, importer, monitors, Phi services, and shell hook remain unchanged.
 - The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation.
+- The `v0.1.3` workflow attempt likewise failed before artifact publication because the current trust-root private key was unavailable; its tag remains immutable, no `0.1.3` artifact ref exists, and recovery advances to `0.1.4` with a replacement public trust root.
 - Signed `0.1.1` artifacts were built from commit `2fc4c0a8ecc9a60e3858d721d070a36fffa04ed6`, published to immutable `release-artifacts/v0.1.1`, and remain staged beside `0.1.2`; neither version is activated.
 - Signed `0.1.2` artifacts were built from commit `3b3e03f77aa6e0cb0355de8e1b21c3a0564a314e` and published to immutable `release-artifacts/v0.1.2`; the signed stable ref now selects `0.1.2`.
 - A restricted `cloudx` identity, versioned shadow environment, scoped client credential, shadow auth directory, and read-only account-state timer are installed.
@@ -173,7 +174,7 @@ Local activation, API/CPA recovery, command acceptance, and dual-endpoint rollba
 - [x] Reverify the signed GitHub release through a formal dual-endpoint `already-staged` transaction.
 - [x] Reverify and activate the local artifact, native profile, minimal shell hook, and local command links under a separate confirmation.
 - [x] Run dual-endpoint N-1 rollback rehearsal and begin the M3 observation window while retaining the legacy listener and processes.
-- [ ] Publish and roll out signed `0.1.3` so the simplified mode UX replaces the `cloud codex`-first interaction while retaining it as compatibility.
+- [ ] Publish and roll out signed `0.1.4` so the simplified mode UX replaces the `cloud codex`-first interaction while retaining it as compatibility.
 
 Before local activation, preserve the existing `codexx use api` and local CPA recovery path under private Cloudx state. The minimal account selector retains both `api` and `cpa` profiles; Cloudx does not take ownership of the local CLIProxyAPI launchd service.
 
