@@ -37,3 +37,28 @@ Cloudx `0.1.7` source carries signed-artifact systemd templates for:
 The templates deny access to gateway configuration, importer keys, and auth directories. Health inspection no longer creates or writes the importer lock. The artifact exposes each exact template through `cloudx-remote systemd-template <name>`.
 
 Publishing, staging, or activating the artifact does not install or run these units. Installation remains a separate operator-confirmed Cloudx maintenance action before M4.
+
+## Signed Release And Staging
+
+- source commit: `fb4d7e7e4094a90e0edea3e09aeca9802e980f25`
+- artifact ref: `release-artifacts/v0.1.7`
+- artifact ref SHA: `a78965434a182e1bfb9a1976186b4b6b910f5010`
+- stable ref SHA: `1b6f87b5e243f0e7e65feaba3fcafe7beaddc2c6`
+- local artifact SHA-256: `19a0861b07b4ab1d0b9d0532965c7914eb62d376468eeff229ec35a977c1322e`
+- cloud artifact SHA-256: `1302b83569559125b70ba041a01693cc4624d2983887212d8b1ac6ff76daa60b`
+
+Fresh clones verified the signed manifest and stable index. Both artifacts reported version `0.1.7` and protocol range 1 through 1. The emitted active health template from the published cloud artifact matched the repository template, and `systemd-analyze verify` accepted all four unit files.
+
+Local staging completed first. The initial combined updater attempt then received a transient SSH exit 255 before remote staging; the local `current` and `previous` links remained `0.1.6` and `0.1.5`. Replaying the exact signed offline bundle through `cloudx-remote release-stage` succeeded, and the formal updater retry reported `already-staged` on both endpoints.
+
+After staging:
+
+- local and cloud `current` remain `0.1.6`
+- local and cloud `previous` remain `0.1.5`
+- `cloudx-account-state.*` and `cloudx-health.*` are absent from `/etc/systemd/system` and have `LoadState=not-found`
+- the legacy 18317 listener remains PID `78601`
+- the local CPA remains PID `17165`
+- cloud CLIProxyAPI remains PID `977036`
+- the old cloud importer remains PID `133756`
+
+No service was installed, enabled, started, stopped, restarted, or reloaded. Repository verification passed architecture checks, 92 tests, and deterministic `0.1.7` local/cloud builds before publication.

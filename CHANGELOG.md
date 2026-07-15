@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Advance repository development to `0.1.8` after publishing and staging signed `0.1.7`, leaving both active endpoints and all service units on their prior selections.
+
 ## 0.1.7 - 2026-07-15
 
 - Carry active `cloudx.health.v1` account-state and health publisher templates inside the signed cloud artifact, with a read-only command for exact template inspection and no implicit installation or service action.

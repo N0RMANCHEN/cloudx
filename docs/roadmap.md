@@ -6,20 +6,22 @@ This roadmap is the delivery order for Cloudx. Dates below are earliest planning
 
 ## Current State
 
-- Signed `0.1.1`, `0.1.2`, `0.1.4`, `0.1.5`, and `0.1.6` artifacts are staged side-by-side on both endpoints. Both `current` links select signed `0.1.6`, and both `previous` links select signed `0.1.5`.
+- Signed `0.1.1`, `0.1.2`, `0.1.4`, `0.1.5`, `0.1.6`, and `0.1.7` artifacts are staged side-by-side on both endpoints. Both `current` links select signed `0.1.6`, and both `previous` links select signed `0.1.5`.
 - The root-owned cloud helper, local entrypoints, minimal shell hook, native profile, runtime/release identity boundary, and rollback paths are active and verified.
 - Signed `0.1.5` activates the simplified mode UX (`codexx api`, `codexx cloud`, named accounts, plain `codex`), split local/cloud import routing, endpoint-aware `./install`, and truthful idempotent activation status.
 - Signed `0.1.6` restores the non-invasive zsh right-prompt mode badge as `[cx:api]`, `[cx:cloud]`, or `[cx:<account>]` while preserving unrelated `RPROMPT` content and removing only its own segment on exit.
-- Repository development has advanced to `0.1.7`; deployed endpoints remain on signed `0.1.6` and no `0.1.7` activation is implied.
-- M4 preflight found that `phi-cloudx-health` already has a dedicated sandboxed identity, but it still reads the legacy `contract: cloudx.health` file and its timer is `active (elapsed)` with no next trigger. The signed `cloudx.health.v1` active publisher is being prepared separately before any Phi consumer window.
+- Signed `0.1.7` is published and staged with the active `cloudx.health.v1` publisher templates and the local activation zipapp-race fix; it is not activated and no health unit is installed.
+- Repository development has advanced to `0.1.8`; deployed endpoints remain on signed `0.1.6` and no `0.1.7` or `0.1.8` activation is implied.
+- M4 preflight found that `phi-cloudx-health` already has a dedicated sandboxed identity, but it still reads the legacy `contract: cloudx.health` file and its timer is `active (elapsed)` with no next trigger. The signed `cloudx.health.v1` active publisher is staged separately before any Phi consumer window.
 - The legacy local port `18317`, local CPA, cloud CLIProxyAPI, old importer, monitors, Phi services, and private codex-plus recovery bundle remain available; the active local shell source is now the Cloudx hook.
 - The `v0.1.0` workflow attempt failed before artifact publication because its configured signing material was unavailable; it produced no release refs, assets, staging, or activation.
 - The `v0.1.3` workflow attempt likewise failed before artifact publication because the current trust-root private key was unavailable; its tag remains immutable, no `0.1.3` artifact ref exists, and recovery advances to `0.1.4` with a replacement public trust root.
 - Signed `0.1.1` artifacts were built from commit `2fc4c0a8ecc9a60e3858d721d070a36fffa04ed6`, published to immutable `release-artifacts/v0.1.1`, and remain staged beside `0.1.2`; neither version is activated.
 - Signed `0.1.2` artifacts were built from commit `3b3e03f77aa6e0cb0355de8e1b21c3a0564a314e` and remain available at immutable `release-artifacts/v0.1.2`; they were the active release before the simplified-mode rollout.
 - Signed `0.1.4` recovered the unavailable release key from source commit `370aa4904cf143f9ed87b3fff37e8f76155819aa` without moving `v0.1.3`; its immutable artifact ref remains available as the final rollback release.
-- Signed `0.1.5` was built from commit `db05c9004fee0def4ca73553f28a255423aea133`, published to immutable `release-artifacts/v0.1.5`, and is selected by the signed stable ref.
-- Signed `0.1.6` was built from commit `907d1746e0d76dfada579a77454d4efbc3ce69c4`, published to immutable `release-artifacts/v0.1.6`, and is selected by the signed stable ref.
+- Signed `0.1.5` was built from commit `db05c9004fee0def4ca73553f28a255423aea133`, published to immutable `release-artifacts/v0.1.5`, and remains the previous release on both endpoints.
+- Signed `0.1.6` was built from commit `907d1746e0d76dfada579a77454d4efbc3ce69c4`, published to immutable `release-artifacts/v0.1.6`, and remains active on both endpoints.
+- Signed `0.1.7` was built from commit `fb4d7e7e4094a90e0edea3e09aeca9802e980f25`, published to immutable `release-artifacts/v0.1.7`, selected by the signed stable ref, and staged without activation on both endpoints.
 - A restricted `cloudx` identity, versioned shadow environment, scoped client credential, shadow auth directory, and read-only account-state timer are installed.
 - The distinct shadow health service and timer are enabled and publish fresh, secret-free health from the active Cloudx CPA aggregate state.
 
@@ -219,7 +221,7 @@ Phi remains a separate repository and release train. Migrations occur one servic
 
 - [x] Audit the installed Phi health consumer identity, filesystem sandbox, source contract, and timer state without running or restarting it.
 - [x] Add signed-artifact templates for an active `/run/cloudx/health.json` publisher and aggregate account-state adapter without installing or enabling them.
-- [ ] Publish and stage the signed readiness release on both endpoints while leaving `current` and all services unchanged.
+- [x] Publish and stage signed `0.1.7` on both endpoints while leaving `current` and all services unchanged.
 - [ ] In a separately confirmed Cloudx maintenance action before M4, install the versioned health units, validate `cloudx.health.v1`, and preserve the legacy contract as rollback.
 - [ ] Do not begin the first Phi service migration before 2026-07-22 and a fresh seven-day stability review.
 
