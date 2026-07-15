@@ -5,6 +5,7 @@
 - Simplify the interactive model to `codexx api`, `codexx cloud`, `codexx <account>`, then plain official `codex`; cloud mode now holds a broker lease owned by the selecting shell and releases it on mode change, exit, or shell death.
 - Route `codexx import` to the explicitly labeled local CPA compatibility adapter and `codexx cloud import` to the SSH cloud importer while keeping the former legacy dependency visible.
 - Add reversible account rename/remove operations and an endpoint-aware `./install` that includes local shell-source installation instead of relying on a remembered manual `.zshrc` step.
+- Report the actual retained local `previous` release on first and repeated activation, and advance the already published workflow batch to `0.1.5` rather than changing `0.1.4` in place.
 - Advance the simplified workflow batch to `0.1.4` after the unpublished `v0.1.3` signing attempt failed; rotate the repository-external release key, commit only its replacement public trust root, and leave the failed tag unmoved.
 - Preserve `codexx use <account>` in the minimal shell hook and add a private, size-limited recovery bundle for legacy local API/CPA entrypoints, profiles, launchd state, binary, configuration, and credentials before local activation.
 - Register the highest staged N-1 artifact as `previous` during a first endpoint activation so rollback is available immediately instead of only after the second upgrade.

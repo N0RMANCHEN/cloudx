@@ -123,7 +123,8 @@ class ReleaseFlowTests(unittest.TestCase):
         (cloud_old / "cloudx-cloud.pyz").write_bytes(b"old")
         with mock.patch("cloudx_local.updater._trusted_signers", return_value=self.signers):
             updater.stage(self.config, self.release_dir, local_only=True)
-            updater.apply(self.config, CURRENT_VERSION, CURRENT_VERSION, True, False, None)
+            first = updater.apply(self.config, CURRENT_VERSION, CURRENT_VERSION, True, False, None)
+            repeated = updater.apply(self.config, CURRENT_VERSION, CURRENT_VERSION, True, False, None)
         with mock.patch.dict(os.environ, {"CLOUDX_RELEASE_ROOT": str(cloud_root)}):
             current = cloud_root / "releases" / CURRENT_VERSION
             current.mkdir()
@@ -131,6 +132,8 @@ class ReleaseFlowTests(unittest.TestCase):
             cloud_release.activate(CURRENT_VERSION, CURRENT_VERSION)
         self.assertEqual((local_root / "previous").resolve().name, "0.1.1")
         self.assertEqual((cloud_root / "previous").resolve().name, "0.1.1")
+        self.assertEqual(first["previousLocal"], "0.1.1")
+        self.assertEqual(repeated["previousLocal"], "0.1.1")
 
     def test_cloud_only_activation_does_not_touch_local_release(self) -> None:
         remote = mock.Mock()

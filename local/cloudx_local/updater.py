@@ -308,7 +308,7 @@ def _activate_local(config: LocalConfig, version: str) -> Optional[str]:
     stable_artifact = current / "cloudx-local.pyz"
     for name in ("codexx", "cloud", "cloudx-update"):
         _atomic_link(bin_dir / name, stable_artifact)
-    return old_target.name if old_target else None
+    return previous.resolve().name if previous.is_symlink() else None
 
 
 def _rollback_local(config: LocalConfig, version: str) -> None:
