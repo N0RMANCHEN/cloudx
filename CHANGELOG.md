@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Record the read-only HTTP importer stop-gate audit: the signed SSH adapter has no live port-`8780` client traffic, but the legacy health exporter and Phi goal watchdog still consume importer process state, so service retirement remains separately blocked and unapproved.
+
 ## 0.1.11 - 2026-07-15
 
 - Archive the already disabled legacy quota-monitor and unattended import-repair units, scripts, state, failure receipts, locks, and systemd evidence under root-only Cloudx state without removing their installed rollback paths or touching the active HTTP importer.
