@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -101,6 +102,21 @@ class RemoteTests(unittest.TestCase):
         )
         with self.assertRaises(RuntimeError):
             remote.resolve_endpoint()
+
+    @mock.patch("cloudx_local.remote.subprocess.run")
+    def test_read_only_ssh_detaches_stdin_but_payload_commands_pipe_bytes(self, run: mock.Mock) -> None:
+        run.return_value = completed(0, {})
+        remote = RemoteClient(self.config)
+
+        remote._ssh(["handshake"])
+        read_only = run.call_args.kwargs
+        self.assertEqual(read_only["stdin"], subprocess.DEVNULL)
+        self.assertNotIn("input", read_only)
+
+        remote._ssh(["import"], input_bytes=b"payload")
+        payload = run.call_args.kwargs
+        self.assertEqual(payload["input"], b"payload")
+        self.assertNotIn("stdin", payload)
 
 
 if __name__ == "__main__":

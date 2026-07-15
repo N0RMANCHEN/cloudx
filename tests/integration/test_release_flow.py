@@ -164,6 +164,40 @@ class ReleaseFlowTests(unittest.TestCase):
         expected = (ROOT / "local/cloudx_local/data/cloudx.zsh").read_bytes()
         self.assertEqual(updater._shell_hook_from_artifact(local_artifact), expected)
 
+    def test_shell_hook_install_is_idempotent(self) -> None:
+        zshrc = self.config.home / ".zshrc"
+        zshrc.write_text(
+            "export KEEP=1\n\n\n"
+            "# codexx shell hook start\n"
+            "source /old/hook.zsh\n"
+            "# codexx shell hook end\n",
+            encoding="utf-8",
+        )
+        hook = b"# replacement hook\n"
+
+        updater.install_shell_hook(self.config, hook)
+        first = zshrc.read_bytes()
+        updater.install_shell_hook(self.config, hook)
+
+        self.assertEqual(zshrc.read_bytes(), first)
+        self.assertEqual(
+            first,
+            b"export KEEP=1\n\n"
+            b"# cloudx shell hook start\n"
+            b"source %s/.config/cloudx/shell.zsh\n" % str(self.config.home).encode()
+            + b"# cloudx shell hook end\n",
+        )
+        self.assertEqual((self.config.home / ".config/cloudx/shell.zsh").read_bytes(), hook)
+
+        zshrc.unlink()
+        updater.install_shell_hook(self.config, hook)
+        self.assertEqual(
+            zshrc.read_bytes(),
+            b"# cloudx shell hook start\n"
+            b"source %s/.config/cloudx/shell.zsh\n" % str(self.config.home).encode()
+            + b"# cloudx shell hook end\n",
+        )
+
     def test_cloud_only_activation_does_not_touch_local_release(self) -> None:
         remote = mock.Mock()
         remote.activate_release.return_value = {

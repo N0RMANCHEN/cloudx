@@ -353,11 +353,15 @@ def install_shell_hook(config: LocalConfig, hook_data: Optional[bytes] = None) -
             continue
         if not skipping:
             filtered.append(line)
+    while filtered and not filtered[-1].strip():
+        filtered.pop()
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     if zshrc.is_file():
         backup = config.state_dir / "shell-backups" / ("zshrc-%s" % timestamp)
         atomic_write(backup, original.encode("utf-8"), mode=0o600)
-    filtered.extend(["", "# cloudx shell hook start", "source %s" % hook, "# cloudx shell hook end"])
+    if filtered:
+        filtered.append("")
+    filtered.extend(["# cloudx shell hook start", "source %s" % hook, "# cloudx shell hook end"])
     atomic_write(zshrc, ("\n".join(filtered).rstrip() + "\n").encode("utf-8"), mode=0o644)
     return hook
 

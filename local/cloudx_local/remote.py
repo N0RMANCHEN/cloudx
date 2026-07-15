@@ -39,13 +39,19 @@ class RemoteClient:
             command_text,
         ]
         try:
+            run_options: Dict[str, Any] = {
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.PIPE,
+                "timeout": timeout,
+                "check": False,
+            }
+            if input_bytes is None:
+                run_options["stdin"] = subprocess.DEVNULL
+            else:
+                run_options["input"] = input_bytes
             return subprocess.run(
                 command,
-                input=input_bytes,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=timeout,
-                check=False,
+                **run_options,
             )
         except FileNotFoundError as exc:
             raise RuntimeError("ssh executable was not found: %s" % self.config.ssh_binary) from exc
