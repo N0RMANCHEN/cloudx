@@ -1,0 +1,33 @@
+{
+  "activation": {
+    "automatic": false,
+    "serviceRestartRequired": false
+  },
+  "artifacts": [
+    {
+      "component": "local",
+      "name": "cloudx-local-0.1.10.pyz",
+      "sha256": "75fc8d18aa47c99bbaf8b0500702a2ae3c73008d976054c5cbfed68c08c8cd3a",
+      "size": 28762
+    },
+    {
+      "component": "cloud",
+      "name": "cloudx-cloud-0.1.10.pyz",
+      "sha256": "bc77149ecc27ac17cc64fd449944389819a6d860a970dd9f9dc810ec6f135502",
+      "size": 34136
+    }
+  ],
+  "contracts": {
+    "handshake": 1,
+    "health": 1,
+    "import": 1
+  },
+  "product": "cloudx",
+  "protocol": {
+    "max": 1,
+    "min": 1
+  },
+  "schema": "cloudx.release-manifest.v1",
+  "sourceCommit": "d495808539c18c2acb416c73d048844a9935bcd6",
+  "version": "0.1.10"
+}
