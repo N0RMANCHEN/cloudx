@@ -1,0 +1,13 @@
+{
+  "access_token": "header.eyJleHAiOjQxMDI0NDQ4MDB9.signature",
+  "account_id": "account_sanitized",
+  "disabled": false,
+  "email": "account@example.invalid",
+  "expired": "2100-01-01T00:00:00+00:00",
+  "id_token": "header.eyJleHAiOjQxMDI0NDQ4MDB9.signature",
+  "last_refresh": "2026-01-01T00:00:00+00:00",
+  "plan_type": "plus",
+  "refresh_token": "",
+  "type": "codex",
+  "websockets": true
+}

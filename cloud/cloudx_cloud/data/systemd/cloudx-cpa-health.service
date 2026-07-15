@@ -1,8 +1,7 @@
 [Unit]
-Description=Probe and reversibly isolate Cloudx CPA accounts from a signed release
+Description=Probe and reversibly isolate Cloudx CPA accounts with the native signed runtime
 After=network-online.target mihomo.service cliproxy.service
 Wants=network-online.target
-ConditionPathExists=/opt/codex-gateway/codexx_app
 
 [Service]
 Type=oneshot
@@ -11,7 +10,6 @@ Group=root
 UMask=0077
 Environment=HTTP_PROXY=http://127.0.0.1:7890
 Environment=HTTPS_PROXY=http://127.0.0.1:7890
-Environment=CLOUDX_LEGACY_RUNTIME_ROOT=/opt/codex-gateway
 Environment=CLOUDX_WARNING_AVAILABLE_ACCOUNTS=3
 Environment=CLOUDX_FAILURE_CONFIRMATIONS=3
 ExecStart=/usr/bin/python3 /opt/cloudx/current/cloudx-cloud.pyz cpa-health
@@ -21,7 +19,7 @@ ProtectHome=true
 ProtectSystem=strict
 StateDirectory=cloudx/cpa-health
 StateDirectoryMode=0700
-ReadOnlyPaths=/opt/cloudx/releases /opt/codex-gateway
+ReadOnlyPaths=/opt/cloudx/releases
 ReadWritePaths=/var/lib/cloudx/cpa-health /var/lib/codex-gateway/cliproxy-auth /var/lib/codex-gateway/cliproxy-auth-archive
 InaccessiblePaths=/etc/phi /etc/msmtprc /etc/codex-quota-monitor.env /etc/codex-quota-monitor.gmail-app-password
 PrivateDevices=true

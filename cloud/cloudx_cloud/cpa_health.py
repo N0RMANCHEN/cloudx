@@ -2,22 +2,21 @@ from __future__ import annotations
 
 import argparse
 import fcntl
-import importlib
 import json
 import os
 import pathlib
-import sys
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from . import cpa_auth, cpa_quota
+
 
 DEFAULT_AUTH_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth")
 DEFAULT_ARCHIVE_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth-archive")
 DEFAULT_STATE_DIR = pathlib.Path("/var/lib/cloudx/cpa-health")
-DEFAULT_LEGACY_RUNTIME_ROOT = pathlib.Path("/opt/codex-gateway")
 DEFAULT_WARNING_AVAILABLE_ACCOUNTS = 3
 DEFAULT_FAILURE_CONFIRMATIONS = 3
 
@@ -27,7 +26,7 @@ class CpaHealthUnavailable(RuntimeError):
 
 
 @dataclass(frozen=True)
-class LegacyRuntime:
+class CpaRuntime:
     quarantine: Callable[..., Dict[str, Any]]
     refresh: Callable[..., Dict[str, Any]]
     scan: Callable[..., List[Dict[str, Any]]]
@@ -40,26 +39,14 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def load_legacy_runtime(root: pathlib.Path) -> LegacyRuntime:
-    resolved = root.expanduser().resolve()
-    if not (resolved / "codexx_app").is_dir():
-        raise CpaHealthUnavailable("declared legacy CPA runtime is unavailable")
-    value = str(resolved)
-    if value not in sys.path:
-        sys.path.insert(0, value)
-    try:
-        auth = importlib.import_module("codexx_app.cliproxy_auth")
-        dashboard = importlib.import_module("codexx_app.dashboard_cliproxy")
-        quota = importlib.import_module("codexx_app.runtime_quota_http")
-    except (AttributeError, ImportError, OSError) as exc:
-        raise CpaHealthUnavailable("declared legacy CPA runtime could not be loaded") from exc
-    return LegacyRuntime(
-        quarantine=auth._quarantine_auth_record,
-        refresh=auth.refresh_clip_proxy_auth_accounts,
-        scan=auth.scan_clip_proxy_auth_accounts,
-        contexts=dashboard._clip_proxy_auth_contexts,
-        payload_auth=dashboard._clip_proxy_payload_auth,
-        probe=quota.probe_account_quota_http,
+def native_runtime() -> CpaRuntime:
+    return CpaRuntime(
+        quarantine=cpa_auth.quarantine_auth_record,
+        refresh=cpa_auth.refresh_auth_accounts,
+        scan=cpa_auth.scan_auth_records,
+        contexts=cpa_auth.auth_contexts,
+        payload_auth=cpa_auth.payload_auth,
+        probe=cpa_quota.probe_account_quota_http,
     )
 
 
@@ -80,7 +67,7 @@ def cloudx_config(
 
 
 def probe_context(
-    runtime: LegacyRuntime,
+    runtime: CpaRuntime,
     config: Dict[str, Any],
     context: Dict[str, Any],
 ) -> Optional[Dict[str, Any]]:
@@ -88,7 +75,7 @@ def probe_context(
     payload = context.get("payload") if isinstance(context.get("payload"), dict) else {}
     auth = runtime.payload_auth(payload)
     if not isinstance(auth, dict):
-        raise CpaHealthUnavailable("legacy CPA runtime returned invalid auth context")
+        raise CpaHealthUnavailable("CPA runtime returned invalid auth context")
     return runtime.probe(
         config,
         {"name": state_key, "account": state_key},
@@ -146,7 +133,7 @@ def summarize_probes(
 
 
 def probe_accounts(
-    runtime: LegacyRuntime,
+    runtime: CpaRuntime,
     config: Dict[str, Any],
     *,
     warning_available_accounts: int,
@@ -154,7 +141,7 @@ def probe_accounts(
 ) -> Tuple[Dict[str, Any], List[str]]:
     contexts = runtime.contexts(config, "api")
     if not isinstance(contexts, list) or any(not isinstance(item, dict) for item in contexts):
-        raise CpaHealthUnavailable("legacy CPA runtime returned invalid account contexts")
+        raise CpaHealthUnavailable("CPA runtime returned invalid account contexts")
     with ThreadPoolExecutor(max_workers=min(max_workers, max(1, len(contexts)))) as pool:
         probes = list(pool.map(lambda context: probe_context(runtime, config, context), contexts))
     login_candidates: List[str] = []
@@ -164,7 +151,7 @@ def probe_accounts(
         payload = context.get("payload") if isinstance(context.get("payload"), dict) else {}
         auth = runtime.payload_auth(payload)
         if not isinstance(auth, dict):
-            raise CpaHealthUnavailable("legacy CPA runtime returned invalid auth context")
+            raise CpaHealthUnavailable("CPA runtime returned invalid auth context")
         tokens = auth.get("tokens", {})
         if isinstance(tokens, dict) and not str(tokens.get("refresh_token") or "").strip():
             login_candidates.append(str(context.get("path") or ""))
@@ -212,7 +199,7 @@ def save_state(path: pathlib.Path, summary: Dict[str, Any]) -> None:
 
 
 def archive_static_failures(
-    runtime: LegacyRuntime,
+    runtime: CpaRuntime,
     config: Dict[str, Any],
     state_dir: pathlib.Path,
 ) -> List[str]:
@@ -232,7 +219,7 @@ def archive_static_failures(
 
 
 def archive_confirmed_login_failures(
-    runtime: LegacyRuntime,
+    runtime: CpaRuntime,
     config: Dict[str, Any],
     login_candidates: List[str],
     previous: Dict[str, Any],
@@ -244,7 +231,7 @@ def archive_confirmed_login_failures(
         previous_candidates = {}
     scanned = runtime.scan(config)
     if not isinstance(scanned, list):
-        raise CpaHealthUnavailable("legacy CPA runtime returned invalid account records")
+        raise CpaHealthUnavailable("CPA runtime returned invalid account records")
     records = {
         str(record.get("path") or ""): record
         for record in scanned
@@ -296,13 +283,6 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--archive-dir", type=pathlib.Path, default=DEFAULT_ARCHIVE_DIR)
     parser.add_argument("--state-dir", type=pathlib.Path, default=DEFAULT_STATE_DIR)
     parser.add_argument(
-        "--legacy-runtime-root",
-        type=pathlib.Path,
-        default=pathlib.Path(
-            os.environ.get("CLOUDX_LEGACY_RUNTIME_ROOT", str(DEFAULT_LEGACY_RUNTIME_ROOT))
-        ),
-    )
-    parser.add_argument(
         "--warning-available-accounts",
         type=int,
         default=int(
@@ -321,8 +301,15 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def run(args: argparse.Namespace, runtime: Optional[LegacyRuntime] = None) -> int:
-    active_runtime = runtime or load_legacy_runtime(args.legacy_runtime_root)
+def add_restore_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("selector", help="exact quarantined filename")
+    parser.add_argument("--confirm", required=True, help="repeat the exact quarantined filename")
+    parser.add_argument("--auth-dir", type=pathlib.Path, default=DEFAULT_AUTH_DIR)
+    parser.add_argument("--archive-dir", type=pathlib.Path, default=DEFAULT_ARCHIVE_DIR)
+
+
+def run(args: argparse.Namespace, runtime: Optional[CpaRuntime] = None) -> int:
+    active_runtime = runtime or native_runtime()
     config = cloudx_config(
         args.auth_dir,
         args.archive_dir,
@@ -362,4 +349,17 @@ def run(args: argparse.Namespace, runtime: Optional[LegacyRuntime] = None) -> in
         summary["archive_candidates"] = archive_candidates
         save_state(state_path, summary)
         print(json.dumps(public_summary(summary), ensure_ascii=False, sort_keys=True))
+    return 0
+
+
+def restore_run(args: argparse.Namespace) -> int:
+    if args.confirm != args.selector:
+        raise CpaHealthUnavailable("CPA restore confirmation does not match")
+    config = cloudx_config(args.auth_dir, args.archive_dir, failure_confirmations=1)
+    cpa_auth.restore_quarantined_auth(config, args.selector)
+    print(json.dumps({
+        "schema": "cloudx.cpa-quarantine-restore.v1",
+        "status": "restored",
+        "restored_count": 1,
+    }, ensure_ascii=False, sort_keys=True))
     return 0

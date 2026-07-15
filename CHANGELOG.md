@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Replace the signed CPA-health adapter's `/opt/codex-gateway/codexx_app` imports with standard-library Cloudx auth scanning and quota probing, size and symlink guards, atomic private refresh state, and same-filesystem reversible quarantine with transactional rollback.
+- Add an exact-confirmation native quarantine restore command, sanitized production-shape fixtures, and regression coverage for direct, nested, and sub2api credentials, HTTP quota classification, secret-free failure records, and failed-manifest rollback.
+- Validate the unsigned `0.1.9` cloud candidate against the active `0.1.8` adapter in read-only `--check` mode: both classified 15 logical accounts identically while auth and archive inventories remained unchanged; no release, activation, unit install, or restart was performed.
 - Activate signed `0.1.8` cloud-first and local-second, then transactionally replace only the production CPA-health service/timer with the signed templates; preserve the old unit and private state rollback, validate two natural aggregate-only runs, and leave gateway, importer, Phi, legacy listeners, shell hook, native profile, and existing Codex processes unchanged.
 - Advance repository development to `0.1.9` after publishing and staging signed `0.1.8`, leaving both active endpoints and every service unit on their prior selections.
 

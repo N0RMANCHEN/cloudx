@@ -101,8 +101,10 @@ class CloudHealthTests(unittest.TestCase):
             self.assertEqual(main(["systemd-template", "cloudx-cpa-health.service"]), 0)
         service = output.getvalue()
         self.assertIn("/opt/cloudx/current/cloudx-cloud.pyz cpa-health", service)
-        self.assertIn("CLOUDX_LEGACY_RUNTIME_ROOT=/opt/codex-gateway", service)
-        self.assertIn("ReadOnlyPaths=/opt/cloudx/releases /opt/codex-gateway", service)
+        self.assertIn("native signed runtime", service)
+        self.assertNotIn("CLOUDX_LEGACY_RUNTIME_ROOT", service)
+        self.assertNotIn("/opt/codex-gateway/codexx_app", service)
+        self.assertIn("ReadOnlyPaths=/opt/cloudx/releases", service)
         self.assertNotIn("/home/", service)
 
 

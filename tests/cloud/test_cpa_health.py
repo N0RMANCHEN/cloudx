@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT / "cloud"))
 from cloudx_cloud import cpa_health  # noqa: E402
 
 
-def runtime(**overrides: object) -> cpa_health.LegacyRuntime:
+def runtime(**overrides: object) -> cpa_health.CpaRuntime:
     defaults = {
         "quarantine": mock.Mock(return_value={}),
         "refresh": mock.Mock(return_value={"actions": []}),
@@ -28,7 +28,7 @@ def runtime(**overrides: object) -> cpa_health.LegacyRuntime:
         "probe": mock.Mock(return_value=None),
     }
     defaults.update(overrides)
-    return cpa_health.LegacyRuntime(**defaults)
+    return cpa_health.CpaRuntime(**defaults)
 
 
 class CpaHealthTests(unittest.TestCase):
@@ -127,7 +127,6 @@ class CpaHealthTests(unittest.TestCase):
                 auth_dir=pathlib.Path(value) / "auth",
                 archive_dir=pathlib.Path(value) / "archive",
                 state_dir=state_dir,
-                legacy_runtime_root=pathlib.Path(value) / "runtime",
                 warning_available_accounts=3,
                 failure_confirmations=3,
             )
@@ -140,10 +139,35 @@ class CpaHealthTests(unittest.TestCase):
             active_runtime.refresh.assert_not_called()
             active_runtime.quarantine.assert_not_called()
 
-    def test_missing_declared_legacy_runtime_fails_closed(self) -> None:
-        with tempfile.TemporaryDirectory() as value:
-            with self.assertRaisesRegex(cpa_health.CpaHealthUnavailable, "unavailable"):
-                cpa_health.load_legacy_runtime(pathlib.Path(value))
+    def test_default_runtime_uses_only_native_cloudx_modules(self) -> None:
+        active_runtime = cpa_health.native_runtime()
+        for callback in (
+            active_runtime.quarantine,
+            active_runtime.refresh,
+            active_runtime.scan,
+            active_runtime.contexts,
+            active_runtime.payload_auth,
+            active_runtime.probe,
+        ):
+            self.assertTrue(callback.__module__.startswith("cloudx_cloud.cpa_"))
+
+    def test_restore_requires_exact_confirmation_and_redacts_filename(self) -> None:
+        args = argparse.Namespace(
+            selector="private-account.json",
+            confirm="different.json",
+            auth_dir=pathlib.Path("/tmp/auth"),
+            archive_dir=pathlib.Path("/tmp/archive"),
+        )
+        with self.assertRaisesRegex(cpa_health.CpaHealthUnavailable, "confirmation"):
+            cpa_health.restore_run(args)
+
+        args.confirm = args.selector
+        output = StringIO()
+        with mock.patch.object(cpa_health.cpa_auth, "restore_quarantined_auth", return_value={}), redirect_stdout(output):
+            self.assertEqual(cpa_health.restore_run(args), 0)
+        rendered = output.getvalue()
+        self.assertNotIn("private-account", rendered)
+        self.assertEqual(json.loads(rendered)["restored_count"], 1)
 
 
 if __name__ == "__main__":

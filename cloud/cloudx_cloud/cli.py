@@ -5,7 +5,7 @@ import json
 import sys
 from typing import Any, Dict, Optional, Sequence
 
-from . import cpa_health
+from . import cpa_auth, cpa_health
 from .account_state import AccountStateRejected, adapt_file
 from .config import Config
 from .gateway import probe_gateway, read_credential
@@ -32,7 +32,7 @@ def handshake(config: Config) -> Dict[str, Any]:
         "capabilities": [
             "account-state-adapter.v1",
             "client-config.v1",
-            "cpa-health-compat.v1",
+            "cpa-health-native.v1",
             "cpa-health-templates.v1",
             "health.v1",
             "health-publisher-templates.v1",
@@ -81,6 +81,8 @@ def parser() -> argparse.ArgumentParser:
     account_state_parser.add_argument("--json", action="store_true")
     cpa_health_parser = sub.add_parser("cpa-health")
     cpa_health.add_arguments(cpa_health_parser)
+    cpa_restore_parser = sub.add_parser("cpa-health-restore")
+    cpa_health.add_restore_arguments(cpa_restore_parser)
     config_parser = sub.add_parser("client-config")
     config_parser.add_argument("--json", action="store_true")
     import_parser = sub.add_parser("import")
@@ -105,7 +107,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         sys.stdout.write(read_template(args.name))
         return 0
     if args.command == "cpa-health":
-        return cpa_health.run(args)
+        try:
+            return cpa_health.run(args)
+        except (cpa_auth.CpaAuthRejected, cpa_health.CpaHealthUnavailable, OSError) as exc:
+            print("cpa-health: %s" % exc, file=sys.stderr)
+            return 1
+    if args.command == "cpa-health-restore":
+        try:
+            return cpa_health.restore_run(args)
+        except (cpa_auth.CpaAuthRejected, cpa_health.CpaHealthUnavailable, OSError) as exc:
+            print("cpa-health-restore: %s" % exc, file=sys.stderr)
+            return 1
     config = Config.from_environment()
     if args.command == "handshake":
         emit(handshake(config))

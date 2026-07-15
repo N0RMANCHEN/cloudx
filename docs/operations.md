@@ -13,6 +13,22 @@ Never use a build, test, or update command against the active legacy local port 
 
 Artifacts are written to `dist/`. Building has no install or activation side effects.
 
+The CPA-health probe can be inspected without state or quarantine writes:
+
+```bash
+sudo /usr/bin/python3 /opt/cloudx/current/cloudx-cloud.pyz cpa-health --check
+```
+
+After a native CPA-health release is explicitly activated, restore one quarantined file only with its exact private archive filename repeated as confirmation:
+
+```bash
+sudo /usr/bin/python3 /opt/cloudx/current/cloudx-cloud.pyz \
+  cpa-health-restore <quarantined-file.json> \
+  --confirm <quarantined-file.json>
+```
+
+The restore response is aggregate-only. Inspect the root-readable quarantine manifest before the action; the command refuses ambiguous selectors, an existing destination, an invalid manifest, or a cross-filesystem move.
+
 Replay the accepted fake importer matrix in an automatically cleaned temporary directory with:
 
 ```bash
