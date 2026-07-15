@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Record the read-only HTTP importer stop-gate audit: the signed SSH adapter has no live port-`8780` client traffic, but the legacy health exporter and Phi goal watchdog still consume importer process state, so service retirement remains separately blocked and unapproved.
+- Record a Phi-owned goal-watchdog readiness candidate that switches to formal Cloudx health ordering and permits only SQLite WAL shared-memory sidecars through the read-only home sandbox; focused tests, full Phi checks, mount-namespace execution, and exact component rollback pass without a Phi commit, release, deploy, or service change.
 
 ## 0.1.11 - 2026-07-15
 
