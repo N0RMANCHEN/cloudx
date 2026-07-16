@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Plan a decoupled Phi Personal Agent Mesh companion boundary: trusted devices terminate at Phi cloud, Cloudx remains the gateway/capacity/credential dependency, and M4A gates compatibility, backpressure, failure semantics, data minimization, and independent rollback without making Cloudx a Task or device control plane.
 - Attribute the post-cutover HTTP importer traffic to short-lived operator-driven legacy compatibility requests; no timer, cron, active installed client, later request, active transaction, or established connection remains, while service stop still awaits separate approval.
 - Advance repository development to `0.1.15` after pushing the immutable `v0.1.14` tag, preventing later source changes from producing another artifact under that release identity while signed publication remains pending.
 - Implement a release-packaged migration-only HTTP importer stop-gate evaluator with bounded strict evidence, deterministic blockers, evidence-digest binding, explicit non-authorization, versioned release contracts, and secret-free public output.

@@ -10,6 +10,7 @@ This roadmap is the dependency order for Cloudx. Every activation, service chang
 - Signed `0.1.6` restores the non-invasive zsh right-prompt mode badge as `[cx:api]`, `[cx:cloud]`, or `[cx:<account>]` while preserving unrelated `RPROMPT` content and removing only its own segment on exit.
 - Signed `0.1.7` introduced the active account-state and `cloudx.health.v1` publishers. Signed `0.1.10` introduced the native CPA implementation, while signed `0.1.13` now executes the enabled publishers and repeatedly publishes `/run/cloudx-account-state/accounts.json` and `/run/cloudx/health.json`; signed `0.1.12` is N-1 and the legacy health contract remains active as rollback.
 - Repository development is now `0.1.15`. The immutable annotated `v0.1.14` tag pins release source `75c27446f0a1386a6fbe52a364aff0203c099467`, but no `release-artifacts/v0.1.14` ref or `0.1.14` stable selection exists yet, so signed publication, staging, and activation remain pending. Advancing source identity before further changes prevents a second artifact from being built under `0.1.14`; source `0.1.15` retains the alias-root N-1 regression fix.
+- The repository now records a planned Phi Personal Agent Mesh companion boundary: devices terminate at Phi cloud, Cloudx remains a cloud-only gateway/capacity dependency, and both products retain independent control planes and releases. No runtime contract, credential, service, or activation changes are authorized by this planning entry.
 - An isolated exact-signed `0.1.13 -> 0.1.12 -> 0.1.13` dual-endpoint rehearsal passed with final `current=0.1.13`, `previous=0.1.12`, canonical idempotent hook bytes, and a signed scripted cloud-mode canary. Because the first local cutover runs under current `0.1.12`, the production plan must immediately repeat the same-version local `0.1.13` apply so the newly current updater removes inherited blank-line drift. A `/tmp` path alias also exposed an N-1 comparison defect that does not affect canonical production `/Users` or `/opt` roots; tagged source `0.1.14` preserves `previous` across aliased same-version apply and has regression coverage.
 - Phi's first consumer migration is active: `phi-cloudx-health` runs from its own versioned release, reads `/run/cloudx/health.json` with its restricted identity, and repeats on its timer without credential access. It previously accepted producer `0.1.11`; the Cloudx producer now selects protocol-compatible `0.1.13`, and no Phi service was restarted during Cloudx activation.
 - The native CPA-health unit installed from signed `0.1.10` remains active and executes the current signed `0.1.13` artifact from `/opt/cloudx/current/cloudx-cloud.pyz` without `/opt/codex-gateway/codexx_app` in its service contract. Its accepted `0.1.10` observation returned aggregate-only healthy state with 15 total, 10 ready, 5 limited, 0 failed, and 0 archived; auth/archive inventories remained unchanged. The old unit and private state remain in root-only rollback snapshot `/var/lib/cloudx/cpa-health-service-backups/20260715T130117Z-0.1.10`.
@@ -46,6 +47,7 @@ This roadmap is the dependency order for Cloudx. Every activation, service chang
 | M2 versioned shadow deployment and focused validation | Complete | Shadow evidence accepted |
 | M3 manual Cloudx activation | Complete; observation active | Explicit activation completed |
 | M4 Phi consumer migration | In progress | Formal health and goal-watchdog consumers accepted; remaining Phi-owned migrations stay independently gated |
+| M4A Phi Agent Mesh dependency readiness | Planned | Boundary profile, scoped credential, capacity/backpressure semantics, compatibility fixtures, and independent rollback accepted |
 | M5 legacy retirement | Pending | Dependency audit, rollback readiness, and separate approval |
 | M6 optional gateway/network boundary changes | Deferred | Threat model, rollback rehearsal, and separate approval |
 
@@ -232,6 +234,43 @@ The current inventory confirms Phi `0.80.6`, aliases `phi-api`, `phi-deepseek`, 
 7. Remove Phi's direct `sudo awk` access to the gateway key after its scoped client migration passes a real request.
 
 No M4 item may merge Cloudx code, deploy Cloudx artifacts, restart Cloudx services, or mutate Cloudx auth state.
+
+## M4A: Phi Agent Mesh Dependency Readiness
+
+Status: planned; no runtime, credential, service, release, or activation change is authorized.
+
+This milestone is the Cloudx companion to Phi `INT/P1-1` and `CT/P1-3`. It does not make Cloudx an Agent Mesh control plane. It makes the existing gateway and health dependency explicit, compatible, capacity-aware, and independently recoverable before Phi enables cross-device provider-dependent journeys.
+
+### Cloudx-Owned Work
+
+- [ ] Freeze the initial topology so trusted devices connect to Phi and only Phi cloud is a normal Cloudx Mesh consumer.
+- [ ] Publish a versioned compatibility profile referencing the existing handshake, health, gateway, credential, release, and rollback contracts; add a new runtime schema only if existing contracts cannot express a required state without ambiguity.
+- [ ] Define a scoped, revocable, rotatable Phi cloud consumer credential that cannot import accounts, mutate gateway configuration, activate releases, or represent a Phi device.
+- [ ] Define bounded concurrency, rate-limit, queue/backpressure, timeout, and retry semantics for a single Phi cloud consumer without adding Task or device concepts to Cloudx.
+- [ ] Make capacity output distinguish healthy capacity, exhausted capacity, unknown observation, stale contract, probe failure, and incompatible producer without leaking account identity.
+- [ ] Verify current and previous protocol compatibility and independent Phi/Cloudx upgrade and rollback ordering.
+- [ ] Verify Cloudx logs, health, receipts, release state, and public errors contain no Phi Task, session, device, lease, approval, local path, transfer content, or Artifact metadata.
+- [ ] Verify the Phi privileged boundary cannot read Cloudx auth or invoke import, gateway mutation, or Cloudx release mutation as an Agent capability.
+
+### Explicitly Not Cloudx Work
+
+- Device registration, presence, naming, trust, revocation, or target selection.
+- Session writer lease, device execution lease, Task, approval, ContextRequest, LocalAction, transfer, Artifact, Reminder, or notification truth.
+- macOS directory, TCC, Keychain, local policy, target approval, or local execution.
+- Agent planning, runtime prompts, semantic routing, cross-device scheduling, or user-facing Mesh UI.
+- Direct endpoint-to-Cloudx access for local inference; that requires a separate approved milestone.
+
+### Acceptance Gate
+
+- The matching Phi owner matrix and Cloudx boundary document agree on every responsibility and prohibited data field.
+- Cross-repository fixtures cover gateway unavailable, capacity unknown, exhausted, stale health, incompatible protocol, revoked credential, rate limit, Cloudx rollback, and independent release ordering.
+- Provider-dependent Phi phases wait, degrade, or fail without changing Phi Device, Task, lease, approval, revocation, or completed local-action truth.
+- Cloudx remains fully operable when Phi is unavailable, and Phi retains Task truth when Cloudx is unavailable.
+- No acceptance evidence requires synchronized release, production credentials in Git, a shared database, or cross-repository mutation authority.
+
+### Rollback
+
+Disable only the new compatibility capability/profile and retain the current single Phi cloud consumer plus `cloudx.health.v1`. Roll back Phi and Cloudx independently to the last compatible releases; do not change account, Device, or Task truth.
 
 ## M5: Legacy Retirement
 

@@ -7,7 +7,8 @@ Machine-enforced rules live in `config/governance/architecture_rules.json` and `
 ```text
 local entrypoints -> local implementation -> shared contracts
 cloud entrypoint  -> cloud implementation -> shared contracts
-Phi              -> cloudx.health.v1
+Phi devices      -> Phi cloud control plane
+Phi cloud        -> Cloudx gateway + versioned health contracts
 ```
 
 Forbidden directions:
@@ -15,6 +16,9 @@ Forbidden directions:
 - local importing cloud implementation modules
 - cloud importing local implementation modules
 - Cloudx importing or invoking Phi runtime code
+- Cloudx receiving Phi Device, Task, lease, approval, local-path, transfer-content, or Artifact metadata
+- a Phi device using Mesh membership as a Cloudx gateway credential
+- Phi privileged automation reading Cloudx auth or invoking Cloudx import, gateway mutation, or release mutation
 - shared contracts importing either endpoint
 - release code reading runtime credentials or session state
 

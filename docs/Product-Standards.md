@@ -28,6 +28,9 @@ The migration-only HTTP importer stop-gate evaluator accepts a bounded sanitized
 - The broker uses a Cloudx-owned port distinct from the legacy bridge and never treats a transient HTTP probe failure as authority to kill an SSH tunnel.
 - The existing legacy bridge remains a supported migration fallback until its removal has a separate, accepted roadmap item.
 - Import and health code cannot require Phi.
+- In the initial Personal Agent Mesh, trusted devices terminate at Phi cloud and only the Phi cloud runtime is a normal Cloudx gateway consumer. Cloudx never stores Phi device, Task, lease, approval, local-path, transfer-content, or Artifact metadata.
+- Phi uses a revocable least-privilege Cloudx consumer credential that cannot import accounts, mutate gateway or release state, or represent a Phi device identity.
+- Direct endpoint-to-Cloudx access for future local inference requires a separate accepted milestone and credential contract; Mesh membership alone never grants gateway access.
 - Local CPA import may delegate to the explicitly labeled legacy recovery adapter only while codex-plus retirement is incomplete; that dependency must not be hidden.
 - Unsupported or shadow-only behavior must be labeled as such in command output and documentation.
 
@@ -35,6 +38,7 @@ The migration-only HTTP importer stop-gate evaluator accepts a bounded sanitized
 
 - account pools or automatic account selection on the local client
 - task, agent, queue, approval, workspace, or project control planes
+- Phi device registration, target selection, execution leases, LocalAction routing, or cross-device approval
 - chat clients or multi-user hosted execution
 - autonomous code repair, merge, deploy, or service restart
 - ownership of Tailscale, mihomo, SSH, systemd, or CLIProxyAPI
