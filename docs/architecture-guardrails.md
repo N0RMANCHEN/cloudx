@@ -22,6 +22,8 @@ Forbidden directions:
 - shared contracts importing either endpoint
 - release code reading runtime credentials or session state
 
+The initial Mesh direction is frozen in `config/governance/phi_mesh_topology.v1.json`. The architecture gate rejects direct device-to-Cloudx access, any additional normal Mesh consumer, Cloudx control-plane ownership, synchronized release coupling, or removal of the separate approval requirements for future direct endpoint access.
+
 ## Runtime Separation
 
 Release directories are immutable code. Configuration and state live outside them. Activation changes an atomic `current` symlink only after explicit confirmation. Existing processes continue using the release from which they started.

@@ -13,6 +13,23 @@ from typing import Iterable, List
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RULES_PATH = ROOT / "config/governance/architecture_rules.json"
 
+FROZEN_PHI_MESH_TOPOLOGY = {
+    "schema": "cloudx.phi-mesh-topology.v1",
+    "status": "frozen",
+    "trusted_device_ingress": "phi_cloud",
+    "normal_cloudx_consumers": ["phi_cloud"],
+    "cloudx_role": "gateway_capacity_dependency",
+    "cloudx_mesh_control_plane": False,
+    "direct_device_to_cloudx": False,
+    "synchronized_release_required": False,
+    "direct_endpoint_access_requires": [
+        "separate_roadmap_milestone",
+        "separate_threat_model",
+        "separate_credential_contract",
+        "operator_approval",
+    ],
+}
+
 
 def iter_watched(roots: Iterable[str], suffixes: Iterable[str]) -> Iterable[pathlib.Path]:
     allowed = set(suffixes)
@@ -29,6 +46,16 @@ def relative(path: pathlib.Path) -> str:
     return path.relative_to(ROOT).as_posix()
 
 
+def check_phi_mesh_topology(document: object) -> List[str]:
+    if document != FROZEN_PHI_MESH_TOPOLOGY:
+        return [
+            "initial Phi Mesh topology differs from the frozen v1 boundary; "
+            "trusted devices must terminate at Phi cloud and Phi cloud must remain "
+            "the only normal Cloudx consumer"
+        ]
+    return []
+
+
 def check() -> List[str]:
     rules = json.loads(RULES_PATH.read_text(encoding="utf-8"))
     errors: List[str] = []
@@ -36,6 +63,11 @@ def check() -> List[str]:
     for name in rules["required_paths"]:
         if not (ROOT / name).exists():
             errors.append("missing required path: %s" % name)
+
+    topology_path = ROOT / rules["phi_mesh_topology_path"]
+    if topology_path.is_file():
+        topology = json.loads(topology_path.read_text(encoding="utf-8"))
+        errors.extend(check_phi_mesh_topology(topology))
 
     version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     for path in (ROOT / "local/cloudx_local/version.py", ROOT / "cloud/cloudx_cloud/version.py"):

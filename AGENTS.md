@@ -12,6 +12,7 @@ Cloudx is a single-user bridge between the official local Codex runtime and a pe
 - `cloud codex` and `cloud import` remain compatibility entrypoints during migration.
 - `./install` performs endpoint-aware signed staging and installs the local shell source as part of local activation.
 - The local and cloud components are built independently from this repository and share only versioned contracts.
+- In the initial Personal Agent Mesh topology, trusted devices connect to Phi cloud and only Phi cloud is a normal Cloudx Mesh consumer; direct device access requires a separate approved milestone.
 - Cloudx is not a task system, agent control plane, hosted multi-tenant service, or replacement coding runtime.
 
 ## Source Of Truth

@@ -1,0 +1,18 @@
+{
+  "schema": "cloudx.phi-mesh-topology.v1",
+  "status": "frozen",
+  "trusted_device_ingress": "phi_cloud",
+  "normal_cloudx_consumers": [
+    "phi_cloud"
+  ],
+  "cloudx_role": "gateway_capacity_dependency",
+  "cloudx_mesh_control_plane": false,
+  "direct_device_to_cloudx": false,
+  "synchronized_release_required": false,
+  "direct_endpoint_access_requires": [
+    "separate_roadmap_milestone",
+    "separate_threat_model",
+    "separate_credential_contract",
+    "operator_approval"
+  ]
+}

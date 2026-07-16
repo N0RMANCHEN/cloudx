@@ -6,6 +6,7 @@
   "required_paths": [
     "AGENTS.md",
     "VERSION",
+    "config/governance/phi_mesh_topology.v1.json",
     "local/__main__.py",
     "cloud/__main__.py",
     "cloud/cloudx_cloud/http_importer_gate.py",
@@ -24,5 +25,6 @@
     "--deploy --merge",
     "127.0.0.1:18317"
   ],
+  "phi_mesh_topology_path": "config/governance/phi_mesh_topology.v1.json",
   "frozen_files": {}
 }
