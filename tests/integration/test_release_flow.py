@@ -324,6 +324,7 @@ class ReleaseFlowTests(unittest.TestCase):
         manifest = json.loads((release / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["contracts"]["httpImporterStopGate"], 1)
         self.assertEqual(manifest["contracts"]["phiCloudConsumerCredential"], 1)
+        self.assertEqual(manifest["contracts"]["phiCloudConsumerTrafficPolicy"], 1)
         self.assertEqual(manifest["contracts"]["phiMeshCompatibilityProfile"], 1)
         evidence = (ROOT / "shared/contracts/examples/http-importer-stop-gate-evidence.json").read_bytes()
         gate = subprocess.run(
@@ -375,6 +376,25 @@ class ReleaseFlowTests(unittest.TestCase):
         policy = json.loads(credential_policy.stdout)
         self.assertEqual(policy["scope"]["allowedOperations"], ["gateway_inference"])
         self.assertFalse(policy["representation"]["device"])
+
+        traffic_policy = subprocess.run(
+            [
+                sys.executable,
+                str(release / ("cloudx-cloud-%s.pyz" % CURRENT_VERSION)),
+                "phi-consumer-traffic-policy",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(
+            traffic_policy.returncode,
+            0,
+            msg=traffic_policy.stderr.decode("utf-8", errors="replace"),
+        )
+        traffic = json.loads(traffic_policy.stdout)
+        self.assertEqual(traffic["limits"]["maxInFlight"], 4)
+        self.assertTrue(traffic["retry"]["neverRetryAfterResponseBytes"])
 
 
 if __name__ == "__main__":

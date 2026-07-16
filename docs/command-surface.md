@@ -81,6 +81,14 @@ cloudx-remote phi-consumer-credential-policy
 
 `cloudx.phi-cloud-consumer-credential.v1` defines a distinct mode-`0640` secret outside Git and release directories, readable only through the future dedicated Phi consumer group. The bearer represents the Phi cloud service, never a device, Task, or session. It is accepted only for gateway inference and carries no SSH, `cloudx-remote`, import, gateway-configuration, or release authority. The policy describes overlap-first rotation and revocation ordering but does not install, rotate, revoke, or restart anything.
 
+The traffic policy is published alongside it:
+
+```bash
+cloudx-remote phi-consumer-traffic-policy
+```
+
+`cloudx.phi-cloud-consumer-traffic-policy.v1` defines the initial single-consumer ceilings: four in-flight logical requests, sixteen FIFO waiters, thirty gateway attempts per minute with burst four, bounded admission/connect/header/idle/overall timeouts, and at most three attempts with capped jittered backoff. Queue overflow and admission timeout fail before a gateway attempt. Retries stay in the logical request's original concurrency slot, consume the same rate budget, and stop permanently once any response bytes arrive. The document installs no limiter and gives Cloudx no Task, scheduling, or queue ownership.
+
 ## Local CPA Compatibility
 
 The existing local CLIProxyAPI remains an external launchd service on `127.0.0.1:8317`. Cloudx preserves its use through the existing `api` and `cpa` profiles:

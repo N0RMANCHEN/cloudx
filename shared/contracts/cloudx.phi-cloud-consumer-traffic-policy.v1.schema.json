@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.phi-cloud-consumer-traffic-policy.v1.schema.json",
+  "title": "Cloudx Phi cloud consumer traffic policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "consumer",
+    "admission",
+    "limits",
+    "queue",
+    "timeouts",
+    "retry",
+    "outcomes",
+    "authorization"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.phi-cloud-consumer-traffic-policy.v1"},
+    "consumer": {"const": "phi_cloud"},
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit", "scope", "partitioning", "priority"],
+      "properties": {
+        "unit": {"const": "logical_gateway_request"},
+        "scope": {"const": "single_consumer_global"},
+        "partitioning": {"const": "none"},
+        "priority": {"const": "fifo"}
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maxInFlight",
+        "maxQueueDepth",
+        "sustainedAttemptsPerMinute",
+        "burstAttempts",
+        "everyAttemptConsumesRateBudget",
+        "retryKeepsInFlightSlot"
+      ],
+      "properties": {
+        "maxInFlight": {"const": 4},
+        "maxQueueDepth": {"const": 16},
+        "sustainedAttemptsPerMinute": {"const": 30},
+        "burstAttempts": {"const": 4},
+        "everyAttemptConsumesRateBudget": {"const": true},
+        "retryKeepsInFlightSlot": {"const": true}
+      }
+    },
+    "queue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["discipline", "admissionTimeoutMilliseconds", "fullBehavior", "timeoutBehavior"],
+      "properties": {
+        "discipline": {"const": "fifo"},
+        "admissionTimeoutMilliseconds": {"const": 30000},
+        "fullBehavior": {"const": "reject_without_gateway_attempt"},
+        "timeoutBehavior": {"const": "reject_without_gateway_attempt"}
+      }
+    },
+    "timeouts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connectMilliseconds",
+        "responseHeaderMilliseconds",
+        "streamIdleMilliseconds",
+        "overallMilliseconds"
+      ],
+      "properties": {
+        "connectMilliseconds": {"const": 5000},
+        "responseHeaderMilliseconds": {"const": 30000},
+        "streamIdleMilliseconds": {"const": 60000},
+        "overallMilliseconds": {"const": 300000}
+      }
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maxAttempts",
+        "backoffBaseMilliseconds",
+        "backoffMaxMilliseconds",
+        "jitter",
+        "retryAfterMaxMilliseconds",
+        "retryAfterAboveCapBehavior",
+        "retryableTransportFailures",
+        "retryableHttpStatuses",
+        "neverRetryAfterResponseBytes"
+      ],
+      "properties": {
+        "maxAttempts": {"const": 3},
+        "backoffBaseMilliseconds": {"const": 500},
+        "backoffMaxMilliseconds": {"const": 5000},
+        "jitter": {"const": "full"},
+        "retryAfterMaxMilliseconds": {"const": 30000},
+        "retryAfterAboveCapBehavior": {"const": "fail"},
+        "retryableTransportFailures": {
+          "const": [
+            "connect_timeout",
+            "connection_reset",
+            "temporary_dns_failure",
+            "tls_handshake_timeout"
+          ]
+        },
+        "retryableHttpStatuses": {
+          "const": [408, 429, 500, 502, 503, 504]
+        },
+        "neverRetryAfterResponseBytes": {"const": true}
+      }
+    },
+    "outcomes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["queueFull", "queueTimeout", "rateLimited", "requestTimeout", "retryExhausted"],
+      "properties": {
+        "queueFull": {"const": "consumer_queue_full"},
+        "queueTimeout": {"const": "consumer_queue_timeout"},
+        "rateLimited": {"const": "consumer_rate_limited"},
+        "requestTimeout": {"const": "consumer_request_timeout"},
+        "retryExhausted": {"const": "consumer_retry_exhausted"}
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyReadOnly", "policyInstallsEnforcement", "policyMutatesGateway"],
+      "properties": {
+        "policyReadOnly": {"const": true},
+        "policyInstallsEnforcement": {"const": false},
+        "policyMutatesGateway": {"const": false}
+      }
+    }
+  }
+}

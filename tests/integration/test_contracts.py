@@ -92,6 +92,27 @@ class ContractTests(unittest.TestCase):
         for forbidden in ("api_key", "apikey", "bearer ", "token-"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_phi_cloud_consumer_traffic_is_bounded_without_control_plane_fields(self) -> None:
+        policy = json.loads(
+            (CONTRACTS / "examples/phi-cloud-consumer-traffic-policy.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(policy["schema"], "cloudx.phi-cloud-consumer-traffic-policy.v1")
+        limits = policy["limits"]
+        self.assertEqual(limits["maxInFlight"], 4)
+        self.assertEqual(limits["maxQueueDepth"], 16)
+        self.assertEqual(policy["admission"]["unit"], "logical_gateway_request")
+        self.assertEqual(limits["sustainedAttemptsPerMinute"], 30)
+        self.assertTrue(limits["everyAttemptConsumesRateBudget"])
+        self.assertTrue(limits["retryKeepsInFlightSlot"])
+        self.assertEqual(policy["queue"]["fullBehavior"], "reject_without_gateway_attempt")
+        self.assertLess(policy["timeouts"]["connectMilliseconds"], policy["timeouts"]["overallMilliseconds"])
+        self.assertEqual(policy["retry"]["maxAttempts"], 3)
+        self.assertTrue(policy["retry"]["neverRetryAfterResponseBytes"])
+        self.assertFalse(policy["authorization"]["policyInstallsEnforcement"])
+        serialized = json.dumps(policy).casefold()
+        for forbidden in ("task", "device", "lease", "approval", "artifact", "workspace"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_release_trust_root_matches_both_endpoint_artifacts(self) -> None:
         expected = (ROOT / "release/allowed_signers").read_bytes()
         self.assertEqual((ROOT / "local/cloudx_local/data/allowed_signers").read_bytes(), expected)

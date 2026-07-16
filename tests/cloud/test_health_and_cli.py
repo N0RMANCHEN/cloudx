@@ -18,6 +18,7 @@ from cloudx_cloud.cli import client_config, handshake, main  # noqa: E402
 from cloudx_cloud.compatibility_profile import read_profile  # noqa: E402
 from cloudx_cloud.config import Config  # noqa: E402
 from cloudx_cloud.consumer_credential import read_policy  # noqa: E402
+from cloudx_cloud.consumer_traffic import read_policy as read_traffic_policy  # noqa: E402
 from cloudx_cloud.gateway import GatewayProbe  # noqa: E402
 from cloudx_cloud.health import build_health, publish  # noqa: E402
 
@@ -56,6 +57,7 @@ class CloudHealthTests(unittest.TestCase):
         self.assertIn("client-config.v1", document["capabilities"])
         self.assertIn("http-importer-stop-gate.v1", document["capabilities"])
         self.assertIn("phi-cloud-consumer-credential.v1", document["capabilities"])
+        self.assertIn("phi-cloud-consumer-traffic-policy.v1", document["capabilities"])
         self.assertIn("phi-mesh-compatibility-profile.v1", document["capabilities"])
 
     def test_compatibility_profile_is_packaged_read_only_and_secret_free(self) -> None:
@@ -103,6 +105,31 @@ class CloudHealthTests(unittest.TestCase):
         with mock.patch("cloudx_cloud.consumer_credential.pkgutil.get_data", return_value=modified):
             with self.assertRaisesRegex(RuntimeError, "digest"):
                 read_policy()
+
+    def test_phi_consumer_traffic_policy_is_packaged_and_bounded(self) -> None:
+        policy = read_traffic_policy()
+        expected = json.loads(
+            (ROOT / "shared/contracts/examples/phi-cloud-consumer-traffic-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(policy, expected)
+        self.assertEqual(policy["limits"]["maxInFlight"], 4)
+        self.assertEqual(policy["limits"]["maxQueueDepth"], 16)
+        self.assertEqual(policy["retry"]["maxAttempts"], 3)
+        self.assertTrue(policy["retry"]["neverRetryAfterResponseBytes"])
+
+        output = StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(main(["phi-consumer-traffic-policy"]), 0)
+        self.assertEqual(json.loads(output.getvalue()), policy)
+
+    def test_phi_consumer_traffic_policy_rejects_unbounded_concurrency(self) -> None:
+        raw = (ROOT / "shared/contracts/examples/phi-cloud-consumer-traffic-policy.json").read_bytes()
+        modified = raw.replace(b'"maxInFlight": 4', b'"maxInFlight": 400')
+        with mock.patch("cloudx_cloud.consumer_traffic.pkgutil.get_data", return_value=modified):
+            with self.assertRaisesRegex(RuntimeError, "digest"):
+                read_traffic_policy()
 
     def test_client_config_requires_private_file(self) -> None:
         document = client_config(self.config)

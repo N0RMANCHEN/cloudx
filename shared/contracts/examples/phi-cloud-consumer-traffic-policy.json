@@ -1,0 +1,65 @@
+{
+  "schema": "cloudx.phi-cloud-consumer-traffic-policy.v1",
+  "consumer": "phi_cloud",
+  "admission": {
+    "unit": "logical_gateway_request",
+    "scope": "single_consumer_global",
+    "partitioning": "none",
+    "priority": "fifo"
+  },
+  "limits": {
+    "maxInFlight": 4,
+    "maxQueueDepth": 16,
+    "sustainedAttemptsPerMinute": 30,
+    "burstAttempts": 4,
+    "everyAttemptConsumesRateBudget": true,
+    "retryKeepsInFlightSlot": true
+  },
+  "queue": {
+    "discipline": "fifo",
+    "admissionTimeoutMilliseconds": 30000,
+    "fullBehavior": "reject_without_gateway_attempt",
+    "timeoutBehavior": "reject_without_gateway_attempt"
+  },
+  "timeouts": {
+    "connectMilliseconds": 5000,
+    "responseHeaderMilliseconds": 30000,
+    "streamIdleMilliseconds": 60000,
+    "overallMilliseconds": 300000
+  },
+  "retry": {
+    "maxAttempts": 3,
+    "backoffBaseMilliseconds": 500,
+    "backoffMaxMilliseconds": 5000,
+    "jitter": "full",
+    "retryAfterMaxMilliseconds": 30000,
+    "retryAfterAboveCapBehavior": "fail",
+    "retryableTransportFailures": [
+      "connect_timeout",
+      "connection_reset",
+      "temporary_dns_failure",
+      "tls_handshake_timeout"
+    ],
+    "retryableHttpStatuses": [
+      408,
+      429,
+      500,
+      502,
+      503,
+      504
+    ],
+    "neverRetryAfterResponseBytes": true
+  },
+  "outcomes": {
+    "queueFull": "consumer_queue_full",
+    "queueTimeout": "consumer_queue_timeout",
+    "rateLimited": "consumer_rate_limited",
+    "requestTimeout": "consumer_request_timeout",
+    "retryExhausted": "consumer_retry_exhausted"
+  },
+  "authorization": {
+    "policyReadOnly": true,
+    "policyInstallsEnforcement": false,
+    "policyMutatesGateway": false
+  }
+}

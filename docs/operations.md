@@ -29,6 +29,14 @@ cloudx-remote phi-consumer-credential-policy
 
 This prints no credential and performs no filesystem or gateway read. It defines the future secret path, group-readable mode, gateway-only scope, denied operations, and overlap-first rotation/revocation order. Provisioning or changing that credential still requires a separately approved transaction with a gateway canary and rollback evidence.
 
+Inspect the matching bounded traffic semantics with:
+
+```bash
+cloudx-remote phi-consumer-traffic-policy
+```
+
+The output is static and secret-free. The initial values are conservative interoperability ceilings rather than claims about live provider capacity. Enforcement belongs to the Phi provider adapter or an explicitly approved gateway boundary; Cloudx does not persist the queue, accept work items, or infer per-endpoint priority.
+
 The CPA-health probe can be inspected without state or quarantine writes:
 
 ```bash

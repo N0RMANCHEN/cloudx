@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Define `cloudx.phi-cloud-consumer-traffic-policy.v1` with four in-flight logical requests, sixteen FIFO waiters, a thirty-per-minute/burst-four attempt budget, separated bounded timeouts, capped three-attempt retry semantics, fail-fast backpressure, and no Task, device, scheduler, or Cloudx queue ownership.
 - Define `cloudx.phi-cloud-consumer-credential.v1` as a secret-free, gateway-inference-only Phi cloud credential policy with a distinct private path, no device representation or Cloudx administrative authority, overlap-first rotation, explicit revocation, and no implied install or restart authorization.
 - Publish `cloudx.phi-mesh-compatibility-profile.v1` from the signed cloud artifact as a secret-free, read-only reference to the existing handshake, health, gateway, credential-bearing client configuration, signed-release, and rollback contracts, with no new runtime state or authorization.
 - Freeze the initial Phi Personal Agent Mesh topology in the authoritative product contract and a machine-checked governance profile: trusted devices terminate at Phi cloud, Phi cloud is the only normal Cloudx Mesh consumer, and direct endpoint access remains separately gated.

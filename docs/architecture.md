@@ -20,6 +20,7 @@ The cloud artifact owns:
 - secret-free gateway and account health publication
 - a secret-free, read-only Phi Mesh compatibility profile that references existing public contracts
 - a secret-free Phi cloud consumer credential policy with a gateway-only audience and no Cloudx administrative authority
+- a bounded single-consumer traffic policy without Task, scheduling, or queue ownership
 - a migration-only, non-authorizing HTTP importer stop-gate evidence evaluator
 - versioned install, stage, activate, and rollback helpers
 
