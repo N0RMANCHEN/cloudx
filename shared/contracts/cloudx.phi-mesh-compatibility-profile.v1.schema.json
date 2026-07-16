@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.phi-mesh-compatibility-profile.v1.schema.json",
+  "title": "Cloudx Phi Mesh compatibility profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "profileVersion",
+    "topology",
+    "protocol",
+    "contracts",
+    "compatibility",
+    "authorization"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.phi-mesh-compatibility-profile.v1"},
+    "profileVersion": {"const": 1},
+    "topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "consumer", "directDeviceAccess"],
+      "properties": {
+        "schema": {"const": "cloudx.phi-mesh-topology.v1"},
+        "consumer": {"const": "phi_cloud"},
+        "directDeviceAccess": {"const": false}
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max"],
+      "properties": {
+        "min": {"type": "integer", "minimum": 1},
+        "max": {"type": "integer", "minimum": 1}
+      }
+    },
+    "contracts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handshake", "health", "gateway", "credential", "release", "rollback"],
+      "properties": {
+        "handshake": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema", "command", "requiredCapabilities", "secretFree"],
+          "properties": {
+            "schema": {"const": "cloudx.handshake.v1"},
+            "command": {"const": "cloudx-remote handshake --json"},
+            "requiredCapabilities": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "secretFree": {"const": true}
+          }
+        },
+        "health": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema", "command", "publishedPath", "secretFree"],
+          "properties": {
+            "schema": {"const": "cloudx.health.v1"},
+            "command": {"const": "cloudx-remote health --json"},
+            "publishedPath": {"const": "/run/cloudx/health.json"},
+            "secretFree": {"const": true}
+          }
+        },
+        "gateway": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["capability", "basePath", "configurationSchema"],
+          "properties": {
+            "capability": {"const": "legacy-gateway.v1"},
+            "basePath": {"const": "/v1"},
+            "configurationSchema": {"const": "cloudx.client-config.v1"}
+          }
+        },
+        "credential": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["configurationSchema", "secretBearing", "profileContainsSecret", "lifecycle"],
+          "properties": {
+            "configurationSchema": {"const": "cloudx.client-config.v1"},
+            "secretBearing": {"const": true},
+            "profileContainsSecret": {"const": false},
+            "lifecycle": {"const": "separate_scoped_credential_lifecycle"}
+          }
+        },
+        "release": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["manifestSchema", "indexSchema", "statusSchema", "statusCommand", "automaticActivation"],
+          "properties": {
+            "manifestSchema": {"const": "cloudx.release-manifest.v1"},
+            "indexSchema": {"const": "cloudx.release-index.v1"},
+            "statusSchema": {"const": "cloudx.release-status.v1"},
+            "statusCommand": {"const": "cloudx-remote release-status"},
+            "automaticActivation": {"const": false}
+          }
+        },
+        "rollback": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["resultSchema", "command", "currentAndPreviousRequired", "offlineRequired"],
+          "properties": {
+            "resultSchema": {"const": "cloudx.release-rollback.v1"},
+            "command": {"const": "cloudx-remote release-rollback --confirm <previous-version>"},
+            "currentAndPreviousRequired": {"const": true},
+            "offlineRequired": {"const": true}
+          }
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolOverlapRequired",
+        "currentAndPreviousReleaseRequired",
+        "independentReleaseOrdering",
+        "synchronizedDeploymentRequired"
+      ],
+      "properties": {
+        "protocolOverlapRequired": {"const": true},
+        "currentAndPreviousReleaseRequired": {"const": true},
+        "independentReleaseOrdering": {"const": true},
+        "synchronizedDeploymentRequired": {"const": false}
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profileReadOnly",
+        "profileGrantsCredentialAccess",
+        "profileGrantsImport",
+        "profileGrantsGatewayMutation",
+        "profileGrantsReleaseMutation"
+      ],
+      "properties": {
+        "profileReadOnly": {"const": true},
+        "profileGrantsCredentialAccess": {"const": false},
+        "profileGrantsImport": {"const": false},
+        "profileGrantsGatewayMutation": {"const": false},
+        "profileGrantsReleaseMutation": {"const": false}
+      }
+    }
+  }
+}

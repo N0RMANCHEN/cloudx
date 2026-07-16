@@ -65,4 +65,6 @@ A Cloudx outage, stale health document, unknown capacity, incompatible protocol,
 
 Phi and Cloudx keep independent release trains and N/N-1 rollback. Their compatibility gate binds only public protocol range, health schema, gateway capability, consumer credential revision, capacity/backpressure semantics, and secret-free evidence. No synchronized deployment is required.
 
+Cloudx publishes the initial reference set as `cloudx.phi-mesh-compatibility-profile.v1` from the signed cloud artifact. The profile reuses `cloudx.handshake.v1`, `cloudx.health.v1`, `legacy-gateway.v1`, `cloudx.client-config.v1`, and the existing signed release/status/rollback contracts; it creates no new runtime state and grants no credential or mutation authority.
+
 Direct endpoint-to-Cloudx connectivity for future local inference is outside the initial Mesh boundary and requires its own threat model, credential contract, roadmap gate, and operator approval.

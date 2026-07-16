@@ -15,6 +15,7 @@
     "shared/contracts/cloudx.http-importer-stop-gate-evidence.v1.schema.json",
     "shared/contracts/cloudx.http-importer-stop-gate.v1.schema.json",
     "shared/contracts/cloudx.import.v1.schema.json",
+    "shared/contracts/cloudx.phi-mesh-compatibility-profile.v1.schema.json",
     "docs/operations.md",
     "docs/phi-boundary.md",
     "prompts/README.md"

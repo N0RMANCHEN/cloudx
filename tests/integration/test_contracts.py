@@ -48,6 +48,25 @@ class ContractTests(unittest.TestCase):
         for forbidden in ("token", "email", "account", "server-admin", "api_key"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_phi_mesh_compatibility_profile_references_existing_contracts(self) -> None:
+        profile = json.loads(
+            (CONTRACTS / "examples/phi-mesh-compatibility-profile.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(profile["schema"], "cloudx.phi-mesh-compatibility-profile.v1")
+        self.assertEqual(profile["topology"]["consumer"], "phi_cloud")
+        self.assertFalse(profile["topology"]["directDeviceAccess"])
+        contracts = profile["contracts"]
+        self.assertEqual(contracts["handshake"]["schema"], "cloudx.handshake.v1")
+        self.assertEqual(contracts["health"]["schema"], "cloudx.health.v1")
+        self.assertEqual(contracts["gateway"]["configurationSchema"], "cloudx.client-config.v1")
+        self.assertEqual(contracts["credential"]["configurationSchema"], "cloudx.client-config.v1")
+        self.assertEqual(contracts["release"]["manifestSchema"], "cloudx.release-manifest.v1")
+        self.assertEqual(contracts["rollback"]["resultSchema"], "cloudx.release-rollback.v1")
+        handshake = json.loads((CONTRACTS / "examples/handshake.json").read_text(encoding="utf-8"))
+        self.assertTrue(set(contracts["handshake"]["requiredCapabilities"]).issubset(handshake["capabilities"]))
+        self.assertFalse(profile["compatibility"]["synchronizedDeploymentRequired"])
+        self.assertFalse(profile["authorization"]["profileGrantsReleaseMutation"])
+
     def test_release_trust_root_matches_both_endpoint_artifacts(self) -> None:
         expected = (ROOT / "release/allowed_signers").read_bytes()
         self.assertEqual((ROOT / "local/cloudx_local/data/allowed_signers").read_bytes(), expected)

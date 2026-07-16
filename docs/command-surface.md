@@ -63,6 +63,16 @@ The input is limited to 64 KiB, must use `cloudx.http-importer-stop-gate-evidenc
 
 The result is `cloudx.http-importer-stop-gate.v1`, binds the canonical evidence with a SHA-256 digest, contains no account identity or credential data, labels itself `migration-only`, sets `automaticAction=false`, and always keeps `authorization.serviceStop=false`. It neither collects root-only evidence nor authorizes or performs a service change.
 
+## Phi Mesh Compatibility Profile
+
+The signed cloud artifact publishes the static compatibility profile with:
+
+```bash
+cloudx-remote compatibility-profile
+```
+
+The result is `cloudx.phi-mesh-compatibility-profile.v1`. It references the existing handshake, health, gateway, credential-bearing client configuration, signed release, and rollback contracts; records protocol-overlap, N/N-1, offline rollback, and independent release-ordering requirements; contains no credential; and grants no runtime or mutation authority. Reading it does not probe the gateway or read Cloudx runtime configuration.
+
 ## Local CPA Compatibility
 
 The existing local CLIProxyAPI remains an external launchd service on `127.0.0.1:8317`. Cloudx preserves its use through the existing `api` and `cpa` profiles:

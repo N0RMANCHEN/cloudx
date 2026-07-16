@@ -13,6 +13,14 @@ Never use a build, test, or update command against the active legacy local port 
 
 Artifacts are written to `dist/`. Building has no install or activation side effects.
 
+Inspect the exact signed Phi Mesh compatibility profile without reading a credential, probing the gateway, or changing runtime state:
+
+```bash
+cloudx-remote compatibility-profile
+```
+
+The profile references the current public contracts and compatibility rules only. It is not an access grant, deployment instruction, or service-change authorization.
+
 The CPA-health probe can be inspected without state or quarantine writes:
 
 ```bash

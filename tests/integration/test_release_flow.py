@@ -323,6 +323,7 @@ class ReleaseFlowTests(unittest.TestCase):
         release = output / CURRENT_VERSION
         manifest = json.loads((release / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["contracts"]["httpImporterStopGate"], 1)
+        self.assertEqual(manifest["contracts"]["phiMeshCompatibilityProfile"], 1)
         evidence = (ROOT / "shared/contracts/examples/http-importer-stop-gate-evidence.json").read_bytes()
         gate = subprocess.run(
             [
@@ -339,6 +340,21 @@ class ReleaseFlowTests(unittest.TestCase):
         decision = json.loads(gate.stdout)
         self.assertEqual(decision["schema"], "cloudx.http-importer-stop-gate.v1")
         self.assertFalse(decision["authorization"]["serviceStop"])
+
+        profile = subprocess.run(
+            [
+                sys.executable,
+                str(release / ("cloudx-cloud-%s.pyz" % CURRENT_VERSION)),
+                "compatibility-profile",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(profile.returncode, 0, msg=profile.stderr.decode("utf-8", errors="replace"))
+        document = json.loads(profile.stdout)
+        self.assertEqual(document["schema"], "cloudx.phi-mesh-compatibility-profile.v1")
+        self.assertFalse(document["authorization"]["profileGrantsCredentialAccess"])
 
 
 if __name__ == "__main__":

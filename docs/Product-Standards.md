@@ -46,3 +46,5 @@ The migration-only HTTP importer stop-gate evaluator accepts a bounded sanitized
 ## Compatibility
 
 Local and cloud artifacts share a protocol range. A local artifact supports the current remote protocol and the immediately previous one. An absent helper is reported as `legacy_bridge`; it is not treated as permission to mutate the gateway.
+
+The read-only `cloudx.phi-mesh-compatibility-profile.v1` document references the existing handshake, health, gateway, client-configuration, signed-release, and rollback contracts. The profile is secret-free and grants no credential, import, gateway-mutation, release-mutation, service, or activation authority.

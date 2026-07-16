@@ -15,6 +15,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "cloud"))
 
 from cloudx_cloud.cli import client_config, handshake, main  # noqa: E402
+from cloudx_cloud.compatibility_profile import read_profile  # noqa: E402
 from cloudx_cloud.config import Config  # noqa: E402
 from cloudx_cloud.gateway import GatewayProbe  # noqa: E402
 from cloudx_cloud.health import build_health, publish  # noqa: E402
@@ -53,6 +54,31 @@ class CloudHealthTests(unittest.TestCase):
         self.assertNotIn("secret-key", serialized)
         self.assertIn("client-config.v1", document["capabilities"])
         self.assertIn("http-importer-stop-gate.v1", document["capabilities"])
+        self.assertIn("phi-mesh-compatibility-profile.v1", document["capabilities"])
+
+    def test_compatibility_profile_is_packaged_read_only_and_secret_free(self) -> None:
+        profile = read_profile()
+        expected = json.loads(
+            (ROOT / "shared/contracts/examples/phi-mesh-compatibility-profile.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(profile, expected)
+        self.assertTrue(profile["authorization"]["profileReadOnly"])
+        self.assertFalse(profile["authorization"]["profileGrantsCredentialAccess"])
+        serialized = json.dumps(profile).casefold()
+        for forbidden in ("api_key", "apikey", "token", "deviceid", "taskid", "sessionid"):
+            self.assertNotIn(forbidden, serialized)
+
+        output = StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(main(["compatibility-profile"]), 0)
+        self.assertEqual(json.loads(output.getvalue()), profile)
+
+    def test_compatibility_profile_rejects_modified_authority(self) -> None:
+        raw = (ROOT / "shared/contracts/examples/phi-mesh-compatibility-profile.json").read_bytes()
+        modified = raw.replace(b'"profileReadOnly": true', b'"profileReadOnly": false')
+        with mock.patch("cloudx_cloud.compatibility_profile.pkgutil.get_data", return_value=modified):
+            with self.assertRaisesRegex(RuntimeError, "digest"):
+                read_profile()
 
     def test_client_config_requires_private_file(self) -> None:
         document = client_config(self.config)
