@@ -52,6 +52,7 @@ class CloudHealthTests(unittest.TestCase):
         self.assertEqual(document["schema"], "cloudx.handshake.v1")
         self.assertNotIn("secret-key", serialized)
         self.assertIn("client-config.v1", document["capabilities"])
+        self.assertIn("http-importer-stop-gate.v1", document["capabilities"])
 
     def test_client_config_requires_private_file(self) -> None:
         document = client_config(self.config)

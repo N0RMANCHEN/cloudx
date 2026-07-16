@@ -18,6 +18,7 @@ The cloud artifact owns:
 - a version and capability handshake
 - the canonical credential parser and transactional importer
 - secret-free gateway and account health publication
+- a migration-only, non-authorizing HTTP importer stop-gate evidence evaluator
 - versioned install, stage, activate, and rollback helpers
 
 CLIProxyAPI remains the gateway runtime. Cloudx checks its contract but does not bundle or silently upgrade it.

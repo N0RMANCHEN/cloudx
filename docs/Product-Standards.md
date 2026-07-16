@@ -15,6 +15,8 @@ Cloudx 0.x supports these durable behaviors:
 
 Remote handshake, health, release staging, and rollback exist to make those behaviors operable. They are not a general control plane.
 
+The migration-only HTTP importer stop-gate evaluator accepts a bounded sanitized evidence contract and returns deterministic precondition blockers. It does not collect privileged host state, stop or disable a service, or grant authorization; every result keeps `serviceStop=false` and requires a separate operator-confirmed transaction.
+
 ## Product Invariants
 
 - Single user and personal node first.

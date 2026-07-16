@@ -99,7 +99,7 @@ class ReleaseVerificationMatrixTests(unittest.TestCase):
             "version": version,
             "sourceCommit": "matrix-%s" % version,
             "protocol": manifest_protocol or {"min": 1, "max": 1},
-            "contracts": {"health": 1, "handshake": 1, "import": 1},
+            "contracts": {"health": 1, "handshake": 1, "httpImporterStopGate": 1, "import": 1},
             "artifacts": [self._record(local_artifact, "local"), self._record(cloud_artifact, "cloud")],
             "activation": {"automatic": False, "serviceRestartRequired": False},
         }

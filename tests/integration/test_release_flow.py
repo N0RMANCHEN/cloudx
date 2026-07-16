@@ -49,7 +49,7 @@ class ReleaseFlowTests(unittest.TestCase):
             "version": CURRENT_VERSION,
             "sourceCommit": "testcommit",
             "protocol": {"min": 1, "max": 1},
-            "contracts": {"health": 1, "handshake": 1, "import": 1},
+            "contracts": {"health": 1, "handshake": 1, "httpImporterStopGate": 1, "import": 1},
             "artifacts": [self._record(local_artifact, "local"), self._record(cloud_artifact, "cloud")],
             "activation": {"automatic": False, "serviceRestartRequired": False},
         }
@@ -296,6 +296,49 @@ class ReleaseFlowTests(unittest.TestCase):
             result = updater.check(self.config, index_dir, quiet=True)
         self.assertTrue(result["updateAvailable"])
         self.assertFalse((self.config.home / ".local/lib/cloudx/current").exists())
+
+    def test_created_release_declares_and_executes_http_importer_stop_gate(self) -> None:
+        output = self.root / "created-release"
+        signers = self.root / "allowed_signers"
+        signers.write_bytes(self.signers)
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/create_release.py"),
+                "--output",
+                str(output),
+                "--signing-key",
+                str(self.key),
+                "--allowed-signers",
+                str(signers),
+            ],
+            cwd=str(ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, msg=completed.stderr)
+
+        release = output / CURRENT_VERSION
+        manifest = json.loads((release / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["contracts"]["httpImporterStopGate"], 1)
+        evidence = (ROOT / "shared/contracts/examples/http-importer-stop-gate-evidence.json").read_bytes()
+        gate = subprocess.run(
+            [
+                sys.executable,
+                str(release / ("cloudx-cloud-%s.pyz" % CURRENT_VERSION)),
+                "http-importer-stop-gate",
+            ],
+            input=evidence,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(gate.returncode, 0, msg=gate.stderr.decode("utf-8", errors="replace"))
+        decision = json.loads(gate.stdout)
+        self.assertEqual(decision["schema"], "cloudx.http-importer-stop-gate.v1")
+        self.assertFalse(decision["authorization"]["serviceStop"])
 
 
 if __name__ == "__main__":

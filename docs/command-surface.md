@@ -51,6 +51,18 @@ ssh cloud cloudx-remote import --dry-run < local-file
 
 `ssh cloud import local-file` cannot upload a local path because arguments after the SSH host are resolved on the remote host.
 
+## Migration-Only HTTP Importer Gate
+
+The signed cloud artifact can evaluate a separately captured sanitized stop-gate evidence document:
+
+```bash
+cloudx-remote http-importer-stop-gate < sanitized-stop-gate-evidence.json
+```
+
+The input is limited to 64 KiB, must use `cloudx.http-importer-stop-gate-evidence.v1`, and rejects missing, unknown, duplicate, mistyped, or internally inconsistent fields. Exit `0` means the declared preconditions are satisfied; exit `2` returns deterministic blockers; exit `1` rejects invalid evidence.
+
+The result is `cloudx.http-importer-stop-gate.v1`, binds the canonical evidence with a SHA-256 digest, contains no account identity or credential data, labels itself `migration-only`, sets `automaticAction=false`, and always keeps `authorization.serviceStop=false`. It neither collects root-only evidence nor authorizes or performs a service change.
+
 ## Local CPA Compatibility
 
 The existing local CLIProxyAPI remains an external launchd service on `127.0.0.1:8317`. Cloudx preserves its use through the existing `api` and `cpa` profiles:

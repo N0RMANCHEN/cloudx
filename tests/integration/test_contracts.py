@@ -33,6 +33,21 @@ class ContractTests(unittest.TestCase):
         automatic = schema["properties"]["activation"]["properties"]["automatic"]
         self.assertEqual(automatic, {"const": False})
 
+    def test_http_importer_stop_gate_is_secret_free_and_non_authorizing(self) -> None:
+        evidence = json.loads(
+            (CONTRACTS / "examples/http-importer-stop-gate-evidence.json").read_text(encoding="utf-8")
+        )
+        decision = json.loads(
+            (CONTRACTS / "examples/http-importer-stop-gate.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(evidence["schema"], "cloudx.http-importer-stop-gate-evidence.v1")
+        self.assertEqual(decision["schema"], "cloudx.http-importer-stop-gate.v1")
+        self.assertFalse(decision["automaticAction"])
+        self.assertFalse(decision["authorization"]["serviceStop"])
+        serialized = json.dumps(decision).casefold()
+        for forbidden in ("token", "email", "account", "server-admin", "api_key"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_release_trust_root_matches_both_endpoint_artifacts(self) -> None:
         expected = (ROOT / "release/allowed_signers").read_bytes()
         self.assertEqual((ROOT / "local/cloudx_local/data/allowed_signers").read_bytes(), expected)

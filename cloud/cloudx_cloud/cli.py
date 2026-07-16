@@ -5,7 +5,7 @@ import json
 import sys
 from typing import Any, Dict, Optional, Sequence
 
-from . import cpa_auth, cpa_health
+from . import cpa_auth, cpa_health, http_importer_gate
 from .account_state import AccountStateRejected, adapt_file
 from .compatibility_scripts import SCRIPTS as COMPATIBILITY_SCRIPTS
 from .compatibility_scripts import read_compatibility_script
@@ -39,6 +39,7 @@ def handshake(config: Config) -> Dict[str, Any]:
             "cpa-health-templates.v1",
             "health.v1",
             "health-publisher-templates.v1",
+            "http-importer-stop-gate.v1",
             "import.v1",
             "legacy-gateway.v1",
         ],
@@ -102,6 +103,7 @@ def parser() -> argparse.ArgumentParser:
     template_parser.add_argument("name", choices=TEMPLATES)
     compatibility_parser = sub.add_parser("compatibility-script")
     compatibility_parser.add_argument("name", choices=COMPATIBILITY_SCRIPTS)
+    sub.add_parser("http-importer-stop-gate")
     sub.add_parser("self-check")
     return root
 
@@ -114,6 +116,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.command == "compatibility-script":
         sys.stdout.write(read_compatibility_script(args.name))
         return 0
+    if args.command == "http-importer-stop-gate":
+        try:
+            document = http_importer_gate.evaluate_stream(sys.stdin.buffer)
+        except http_importer_gate.EvidenceRejected as exc:
+            print("http-importer-stop-gate: %s" % exc, file=sys.stderr)
+            return 1
+        emit(document)
+        return 0 if document["preconditionsSatisfied"] else 2
     if args.command == "cpa-health":
         try:
             return cpa_health.run(args)

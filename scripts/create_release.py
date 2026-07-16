@@ -50,7 +50,7 @@ def main() -> int:
         "version": version,
         "sourceCommit": source_commit(),
         "protocol": {"min": 1, "max": 1},
-        "contracts": {"health": 1, "handshake": 1, "import": 1},
+        "contracts": {"health": 1, "handshake": 1, "httpImporterStopGate": 1, "import": 1},
         "artifacts": [
             artifact_record(local_artifact, "local"),
             artifact_record(cloud_artifact, "cloud"),

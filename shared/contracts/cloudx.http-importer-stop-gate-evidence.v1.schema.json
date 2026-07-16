@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.http-importer-stop-gate-evidence.v1.schema.json",
+  "title": "Cloudx HTTP importer stop-gate evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "capturedAt",
+    "service",
+    "listener",
+    "traffic",
+    "transactions",
+    "adapter",
+    "consumers",
+    "dependencies",
+    "rollback"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.http-importer-stop-gate-evidence.v1"},
+    "capturedAt": {"type": "string", "format": "date-time", "maxLength": 64},
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "active", "enabled", "identityStable"],
+      "properties": {
+        "name": {"const": "codex-import.service"},
+        "active": {"type": "boolean"},
+        "enabled": {"type": "boolean"},
+        "identityStable": {"type": "boolean"}
+      }
+    },
+    "listener": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["port", "listening", "establishedConnections"],
+      "properties": {
+        "port": {"type": "integer", "minimum": 0, "maximum": 1000000},
+        "listening": {"type": "boolean"},
+        "establishedConnections": {"type": "integer", "minimum": 0, "maximum": 1000000}
+      }
+    },
+    "traffic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["journalReadable", "lastRequestAt", "unattributedRequests", "activeHttpCallers", "laterRequests"],
+      "properties": {
+        "journalReadable": {"type": "boolean"},
+        "lastRequestAt": {
+          "oneOf": [
+            {"type": "string", "format": "date-time", "maxLength": 64},
+            {"type": "null"}
+          ]
+        },
+        "unattributedRequests": {"type": "integer", "minimum": 0, "maximum": 1000000},
+        "activeHttpCallers": {"type": "integer", "minimum": 0, "maximum": 1000000},
+        "laterRequests": {"type": "integer", "minimum": 0, "maximum": 1000000}
+      }
+    },
+    "transactions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lockHolders", "rawFailureInputs", "failureRecordsSanitized", "importStatus"],
+      "properties": {
+        "lockHolders": {"type": "integer", "minimum": 0, "maximum": 1000000},
+        "rawFailureInputs": {"type": "integer", "minimum": 0, "maximum": 1000000},
+        "failureRecordsSanitized": {"type": "boolean"},
+        "importStatus": {"enum": ["ready", "busy", "unavailable"]}
+      }
+    },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transport", "httpReferences", "sha256", "signedArtifactVerified"],
+      "properties": {
+        "transport": {"enum": ["ssh", "http", "unknown"]},
+        "httpReferences": {"type": "integer", "minimum": 0, "maximum": 1000000},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "signedArtifactVerified": {"type": "boolean"}
+      }
+    },
+    "consumers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["legacyHealthReaders", "goalWatchdogFormalHealth", "legacyExporterRetained"],
+      "properties": {
+        "legacyHealthReaders": {"type": "integer", "minimum": 0, "maximum": 1000000},
+        "goalWatchdogFormalHealth": {"type": "boolean"},
+        "legacyExporterRetained": {"type": "boolean"}
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requiredUnits"],
+      "properties": {
+        "requiredUnits": {"type": "integer", "minimum": 0, "maximum": 1000000}
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unitSnapshot", "runtimeSnapshot", "tokenMetadataSnapshot", "failureReceiptsSnapshot", "restorePlan"],
+      "properties": {
+        "unitSnapshot": {"type": "boolean"},
+        "runtimeSnapshot": {"type": "boolean"},
+        "tokenMetadataSnapshot": {"type": "boolean"},
+        "failureReceiptsSnapshot": {"type": "boolean"},
+        "restorePlan": {"type": "boolean"}
+      }
+    }
+  }
+}

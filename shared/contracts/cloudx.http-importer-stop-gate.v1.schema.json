@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.http-importer-stop-gate.v1.schema.json",
+  "title": "Cloudx HTTP importer stop-gate decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "scope",
+    "capturedAt",
+    "evidenceDigest",
+    "status",
+    "preconditionsSatisfied",
+    "automaticAction",
+    "authorization",
+    "blockers"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.http-importer-stop-gate.v1"},
+    "scope": {"const": "migration-only"},
+    "capturedAt": {"type": "string", "format": "date-time", "maxLength": 64},
+    "evidenceDigest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "status": {"enum": ["preconditions-satisfied", "blocked"]},
+    "preconditionsSatisfied": {"type": "boolean"},
+    "automaticAction": {"const": false},
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["serviceStop", "required"],
+      "properties": {
+        "serviceStop": {"const": false},
+        "required": {"const": "separate-operator-confirmation"}
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+          "code": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+          "message": {"type": "string", "minLength": 1, "maxLength": 160}
+        }
+      }
+    }
+  }
+}
