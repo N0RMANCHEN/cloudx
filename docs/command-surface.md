@@ -73,6 +73,14 @@ cloudx-remote compatibility-profile
 
 The result is `cloudx.phi-mesh-compatibility-profile.v1`. It references the existing handshake, health, gateway, credential-bearing client configuration, signed release, and rollback contracts; records protocol-overlap, N/N-1, offline rollback, and independent release-ordering requirements; contains no credential; and grants no runtime or mutation authority. Reading it does not probe the gateway or read Cloudx runtime configuration.
 
+The adjacent credential policy is also read-only:
+
+```bash
+cloudx-remote phi-consumer-credential-policy
+```
+
+`cloudx.phi-cloud-consumer-credential.v1` defines a distinct mode-`0640` secret outside Git and release directories, readable only through the future dedicated Phi consumer group. The bearer represents the Phi cloud service, never a device, Task, or session. It is accepted only for gateway inference and carries no SSH, `cloudx-remote`, import, gateway-configuration, or release authority. The policy describes overlap-first rotation and revocation ordering but does not install, rotate, revoke, or restart anything.
+
 ## Local CPA Compatibility
 
 The existing local CLIProxyAPI remains an external launchd service on `127.0.0.1:8317`. Cloudx preserves its use through the existing `api` and `cpa` profiles:

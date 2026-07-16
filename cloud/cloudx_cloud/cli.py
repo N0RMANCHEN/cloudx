@@ -5,7 +5,7 @@ import json
 import sys
 from typing import Any, Dict, Optional, Sequence
 
-from . import compatibility_profile, cpa_auth, cpa_health, http_importer_gate
+from . import compatibility_profile, consumer_credential, cpa_auth, cpa_health, http_importer_gate
 from .account_state import AccountStateRejected, adapt_file
 from .compatibility_scripts import SCRIPTS as COMPATIBILITY_SCRIPTS
 from .compatibility_scripts import read_compatibility_script
@@ -42,6 +42,7 @@ def handshake(config: Config) -> Dict[str, Any]:
             "http-importer-stop-gate.v1",
             "import.v1",
             "legacy-gateway.v1",
+            "phi-cloud-consumer-credential.v1",
             "phi-mesh-compatibility-profile.v1",
         ],
         "deploymentId": config.deployment_id,
@@ -105,6 +106,7 @@ def parser() -> argparse.ArgumentParser:
     compatibility_parser = sub.add_parser("compatibility-script")
     compatibility_parser.add_argument("name", choices=COMPATIBILITY_SCRIPTS)
     sub.add_parser("compatibility-profile")
+    sub.add_parser("phi-consumer-credential-policy")
     sub.add_parser("http-importer-stop-gate")
     sub.add_parser("self-check")
     return root
@@ -123,6 +125,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             emit(compatibility_profile.read_profile())
         except RuntimeError as exc:
             print("compatibility-profile: %s" % exc, file=sys.stderr)
+            return 1
+        return 0
+    if args.command == "phi-consumer-credential-policy":
+        try:
+            emit(consumer_credential.read_policy())
+        except RuntimeError as exc:
+            print("phi-consumer-credential-policy: %s" % exc, file=sys.stderr)
             return 1
         return 0
     if args.command == "http-importer-stop-gate":

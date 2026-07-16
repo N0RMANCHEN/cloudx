@@ -67,6 +67,31 @@ class ContractTests(unittest.TestCase):
         self.assertFalse(profile["compatibility"]["synchronizedDeploymentRequired"])
         self.assertFalse(profile["authorization"]["profileGrantsReleaseMutation"])
 
+    def test_phi_cloud_consumer_credential_is_scoped_and_rotatable(self) -> None:
+        policy = json.loads(
+            (CONTRACTS / "examples/phi-cloud-consumer-credential.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(policy["schema"], "cloudx.phi-cloud-consumer-credential.v1")
+        self.assertEqual(policy["scope"]["allowedOperations"], ["gateway_inference"])
+        denied = set(policy["scope"]["deniedOperations"])
+        self.assertTrue({
+            "account_import",
+            "gateway_configuration_mutation",
+            "release_activation",
+            "device_identity_assertion",
+        }.issubset(denied))
+        self.assertFalse(policy["representation"]["device"])
+        self.assertFalse(policy["enforcement"]["sshLogin"])
+        self.assertFalse(policy["enforcement"]["cloudxRemote"])
+        self.assertNotEqual(policy["storage"]["secretPath"], "/etc/cloudx/client-credential")
+        self.assertTrue(policy["lifecycle"]["revocable"])
+        self.assertTrue(policy["lifecycle"]["rotatable"])
+        self.assertEqual(policy["lifecycle"]["rotationOrder"][-1], "revoke_previous_gateway_key")
+        self.assertFalse(policy["authorization"]["serviceRestartAuthorized"])
+        serialized = json.dumps(policy).casefold()
+        for forbidden in ("api_key", "apikey", "bearer ", "token-"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_release_trust_root_matches_both_endpoint_artifacts(self) -> None:
         expected = (ROOT / "release/allowed_signers").read_bytes()
         self.assertEqual((ROOT / "local/cloudx_local/data/allowed_signers").read_bytes(), expected)

@@ -48,3 +48,5 @@ The migration-only HTTP importer stop-gate evaluator accepts a bounded sanitized
 Local and cloud artifacts share a protocol range. A local artifact supports the current remote protocol and the immediately previous one. An absent helper is reported as `legacy_bridge`; it is not treated as permission to mutate the gateway.
 
 The read-only `cloudx.phi-mesh-compatibility-profile.v1` document references the existing handshake, health, gateway, client-configuration, signed-release, and rollback contracts. The profile is secret-free and grants no credential, import, gateway-mutation, release-mutation, service, or activation authority.
+
+The secret-free `cloudx.phi-cloud-consumer-credential.v1` policy defines a distinct gateway-only bearer for the Phi cloud service. Its only allowed operation is provider inference through `/v1`; it is not an SSH identity, cannot invoke `cloudx-remote`, read Cloudx auth or release state, import accounts, mutate gateway configuration, stage/activate/rollback a release, or assert a Phi Device, Task, or session identity. Installation, rotation, revocation, and any required gateway restart remain separately confirmed operations.

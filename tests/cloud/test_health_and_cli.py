@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "cloud"))
 from cloudx_cloud.cli import client_config, handshake, main  # noqa: E402
 from cloudx_cloud.compatibility_profile import read_profile  # noqa: E402
 from cloudx_cloud.config import Config  # noqa: E402
+from cloudx_cloud.consumer_credential import read_policy  # noqa: E402
 from cloudx_cloud.gateway import GatewayProbe  # noqa: E402
 from cloudx_cloud.health import build_health, publish  # noqa: E402
 
@@ -54,6 +55,7 @@ class CloudHealthTests(unittest.TestCase):
         self.assertNotIn("secret-key", serialized)
         self.assertIn("client-config.v1", document["capabilities"])
         self.assertIn("http-importer-stop-gate.v1", document["capabilities"])
+        self.assertIn("phi-cloud-consumer-credential.v1", document["capabilities"])
         self.assertIn("phi-mesh-compatibility-profile.v1", document["capabilities"])
 
     def test_compatibility_profile_is_packaged_read_only_and_secret_free(self) -> None:
@@ -79,6 +81,28 @@ class CloudHealthTests(unittest.TestCase):
         with mock.patch("cloudx_cloud.compatibility_profile.pkgutil.get_data", return_value=modified):
             with self.assertRaisesRegex(RuntimeError, "digest"):
                 read_profile()
+
+    def test_phi_consumer_credential_policy_is_packaged_and_non_authorizing(self) -> None:
+        policy = read_policy()
+        expected = json.loads(
+            (ROOT / "shared/contracts/examples/phi-cloud-consumer-credential.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(policy, expected)
+        self.assertEqual(policy["scope"]["allowedOperations"], ["gateway_inference"])
+        self.assertFalse(policy["representation"]["device"])
+        self.assertFalse(policy["authorization"]["installAuthorized"])
+
+        output = StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(main(["phi-consumer-credential-policy"]), 0)
+        self.assertEqual(json.loads(output.getvalue()), policy)
+
+    def test_phi_consumer_credential_policy_rejects_modified_scope(self) -> None:
+        raw = (ROOT / "shared/contracts/examples/phi-cloud-consumer-credential.json").read_bytes()
+        modified = raw.replace(b'"gateway_inference"', b'"account_import"', 1)
+        with mock.patch("cloudx_cloud.consumer_credential.pkgutil.get_data", return_value=modified):
+            with self.assertRaisesRegex(RuntimeError, "digest"):
+                read_policy()
 
     def test_client_config_requires_private_file(self) -> None:
         document = client_config(self.config)

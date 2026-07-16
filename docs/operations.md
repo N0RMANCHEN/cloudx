@@ -21,6 +21,14 @@ cloudx-remote compatibility-profile
 
 The profile references the current public contracts and compatibility rules only. It is not an access grant, deployment instruction, or service-change authorization.
 
+Inspect the proposed Phi cloud consumer credential boundary separately:
+
+```bash
+cloudx-remote phi-consumer-credential-policy
+```
+
+This prints no credential and performs no filesystem or gateway read. It defines the future secret path, group-readable mode, gateway-only scope, denied operations, and overlap-first rotation/revocation order. Provisioning or changing that credential still requires a separately approved transaction with a gateway canary and rollback evidence.
+
 The CPA-health probe can be inspected without state or quarantine writes:
 
 ```bash

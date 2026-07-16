@@ -67,4 +67,6 @@ Phi and Cloudx keep independent release trains and N/N-1 rollback. Their compati
 
 Cloudx publishes the initial reference set as `cloudx.phi-mesh-compatibility-profile.v1` from the signed cloud artifact. The profile reuses `cloudx.handshake.v1`, `cloudx.health.v1`, `legacy-gateway.v1`, `cloudx.client-config.v1`, and the existing signed release/status/rollback contracts; it creates no new runtime state and grants no credential or mutation authority.
 
+The companion `cloudx.phi-cloud-consumer-credential.v1` policy defines a separate gateway bearer stored outside release directories at `/etc/cloudx/consumers/phi-cloud/credential`, owned by root and readable only by the dedicated `phi-cloudx-consumer` group. It represents the Phi cloud service only, has no SSH or `cloudx-remote` authority, and cannot import, mutate gateway configuration, change releases, or assert Device, Task, or session identity. Rotation installs and canaries a new key before revoking the previous key; the policy itself authorizes no install, rotation, revocation, or restart.
+
 Direct endpoint-to-Cloudx connectivity for future local inference is outside the initial Mesh boundary and requires its own threat model, credential contract, roadmap gate, and operator approval.

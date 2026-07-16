@@ -55,6 +55,7 @@ def main() -> int:
             "handshake": 1,
             "httpImporterStopGate": 1,
             "import": 1,
+            "phiCloudConsumerCredential": 1,
             "phiMeshCompatibilityProfile": 1,
         },
         "artifacts": [

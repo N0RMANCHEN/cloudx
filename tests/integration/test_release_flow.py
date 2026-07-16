@@ -323,6 +323,7 @@ class ReleaseFlowTests(unittest.TestCase):
         release = output / CURRENT_VERSION
         manifest = json.loads((release / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["contracts"]["httpImporterStopGate"], 1)
+        self.assertEqual(manifest["contracts"]["phiCloudConsumerCredential"], 1)
         self.assertEqual(manifest["contracts"]["phiMeshCompatibilityProfile"], 1)
         evidence = (ROOT / "shared/contracts/examples/http-importer-stop-gate-evidence.json").read_bytes()
         gate = subprocess.run(
@@ -355,6 +356,25 @@ class ReleaseFlowTests(unittest.TestCase):
         document = json.loads(profile.stdout)
         self.assertEqual(document["schema"], "cloudx.phi-mesh-compatibility-profile.v1")
         self.assertFalse(document["authorization"]["profileGrantsCredentialAccess"])
+
+        credential_policy = subprocess.run(
+            [
+                sys.executable,
+                str(release / ("cloudx-cloud-%s.pyz" % CURRENT_VERSION)),
+                "phi-consumer-credential-policy",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(
+            credential_policy.returncode,
+            0,
+            msg=credential_policy.stderr.decode("utf-8", errors="replace"),
+        )
+        policy = json.loads(credential_policy.stdout)
+        self.assertEqual(policy["scope"]["allowedOperations"], ["gateway_inference"])
+        self.assertFalse(policy["representation"]["device"])
 
 
 if __name__ == "__main__":
