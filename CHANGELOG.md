@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Attribute the post-cutover HTTP importer traffic to short-lived operator-driven legacy compatibility requests; no timer, cron, active installed client, later request, active transaction, or established connection remains, while service stop still awaits separate approval.
+- Advance repository development to `0.1.15` after pushing the immutable `v0.1.14` tag, preventing later source changes from producing another artifact under that release identity while signed publication remains pending.
 
 ## 0.1.14 - 2026-07-16
 
