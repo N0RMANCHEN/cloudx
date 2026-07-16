@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Attribute the post-cutover HTTP importer traffic to short-lived operator-driven legacy compatibility requests; no timer, cron, active installed client, later request, active transaction, or established connection remains, while service stop still awaits separate approval.
+
 ## 0.1.14 - 2026-07-16
 
 - Accept the Phi-owned goal-watchdog formal-health migration after its pushed versioned release completed an install/rollback/reinstall round trip and 265 natural zero-action cycles with no systemd failures.
