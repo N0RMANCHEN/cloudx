@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.14 - 2026-07-16
+
 - Accept the Phi-owned goal-watchdog formal-health migration after its pushed versioned release completed an install/rollback/reinstall round trip and 265 natural zero-action cycles with no systemd failures.
 - Refresh the HTTP importer stop gate after the Phi goal-watchdog signal dependency was removed: the legacy service remains active and received new cloud-host HTTP account and import requests, so retirement stays separately blocked pending caller attribution and explicit rollback-safe approval.
 - Preserve the true local N-1 selector on repeated same-version activation when the configured home or release root is reached through a filesystem symlink.
