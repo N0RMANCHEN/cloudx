@@ -51,6 +51,7 @@ def main() -> int:
         "sourceCommit": source_commit(),
         "protocol": {"min": 1, "max": 1},
         "contracts": {
+            "capacity": 1,
             "health": 1,
             "handshake": 1,
             "httpImporterStopGate": 1,

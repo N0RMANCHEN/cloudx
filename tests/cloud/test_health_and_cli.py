@@ -54,6 +54,7 @@ class CloudHealthTests(unittest.TestCase):
         serialized = json.dumps(document)
         self.assertEqual(document["schema"], "cloudx.handshake.v1")
         self.assertNotIn("secret-key", serialized)
+        self.assertIn("capacity.v1", document["capabilities"])
         self.assertIn("client-config.v1", document["capabilities"])
         self.assertIn("http-importer-stop-gate.v1", document["capabilities"])
         self.assertIn("phi-cloud-consumer-credential.v1", document["capabilities"])

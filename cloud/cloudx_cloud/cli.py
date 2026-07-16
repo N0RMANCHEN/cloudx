@@ -5,7 +5,7 @@ import json
 import sys
 from typing import Any, Dict, Optional, Sequence
 
-from . import compatibility_profile, consumer_credential, consumer_traffic, cpa_auth, cpa_health, http_importer_gate
+from . import capacity, compatibility_profile, consumer_credential, consumer_traffic, cpa_auth, cpa_health, http_importer_gate
 from .account_state import AccountStateRejected, adapt_file
 from .compatibility_scripts import SCRIPTS as COMPATIBILITY_SCRIPTS
 from .compatibility_scripts import read_compatibility_script
@@ -33,6 +33,7 @@ def handshake(config: Config) -> Dict[str, Any]:
         "protocol": {"min": PROTOCOL_MIN, "max": PROTOCOL_MAX},
         "capabilities": [
             "account-state-adapter.v1",
+            "capacity.v1",
             "client-config.v1",
             "import-compatibility-script.v1",
             "cpa-health-native.v1",
@@ -82,6 +83,10 @@ def parser() -> argparse.ArgumentParser:
     handshake_parser.add_argument("--json", action="store_true")
     health_parser = sub.add_parser("health")
     health_parser.add_argument("--json", action="store_true")
+    capacity_parser = sub.add_parser("capacity")
+    capacity_parser.add_argument("--json", action="store_true")
+    capacity_parser.add_argument("--consumer-protocol-min", type=int, default=PROTOCOL_MIN)
+    capacity_parser.add_argument("--consumer-protocol-max", type=int, default=PROTOCOL_MAX)
     publish_parser = sub.add_parser("publish-health")
     publish_parser.add_argument("--json", action="store_true")
     account_state_parser = sub.add_parser("adapt-account-state")
@@ -179,6 +184,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if args.command == "publish-health":
             publish(config.health_path, document)
         emit(document)
+        return 0
+    if args.command == "capacity":
+        try:
+            emit(capacity.build_capacity(config, args.consumer_protocol_min, args.consumer_protocol_max))
+        except (OSError, ValueError, RuntimeError) as exc:
+            print("capacity: %s" % exc, file=sys.stderr)
+            return 1
         return 0
     if args.command == "adapt-account-state":
         try:

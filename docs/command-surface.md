@@ -89,6 +89,14 @@ cloudx-remote phi-consumer-traffic-policy
 
 `cloudx.phi-cloud-consumer-traffic-policy.v1` defines the initial single-consumer ceilings: four in-flight logical requests, sixteen FIFO waiters, thirty gateway attempts per minute with burst four, bounded admission/connect/header/idle/overall timeouts, and at most three attempts with capped jittered backoff. Queue overflow and admission timeout fail before a gateway attempt. Retries stay in the logical request's original concurrency slot, consume the same rate budget, and stop permanently once any response bytes arrive. The document installs no limiter and gives Cloudx no Task, scheduling, or queue ownership.
 
+Read the live aggregate capacity classification with the consumer's supported protocol range:
+
+```bash
+cloudx-remote capacity --consumer-protocol-min 1 --consumer-protocol-max 1 --json
+```
+
+`cloudx.capacity.v1` returns exactly one of `healthy_capacity`, `exhausted_capacity`, `unknown_observation`, `stale_contract`, `probe_failure`, or `incompatible_producer`. It probes the gateway and reads the existing aggregate account-state input without writing either. Missing or unobserved accounts remain unknown rather than being guessed exhausted; output contains no account identity or credential.
+
 ## Local CPA Compatibility
 
 The existing local CLIProxyAPI remains an external launchd service on `127.0.0.1:8317`. Cloudx preserves its use through the existing `api` and `cpa` profiles:

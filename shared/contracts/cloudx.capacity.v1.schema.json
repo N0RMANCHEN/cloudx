@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.capacity.v1.schema.json",
+  "title": "Cloudx secret-free capacity classification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "state",
+    "reason",
+    "producer",
+    "consumerProtocol",
+    "gateway",
+    "accountCounts",
+    "unobservedAccounts",
+    "checkedAt",
+    "freshness"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.capacity.v1"},
+    "state": {
+      "enum": [
+        "healthy_capacity",
+        "exhausted_capacity",
+        "unknown_observation",
+        "stale_contract",
+        "probe_failure",
+        "incompatible_producer"
+      ]
+    },
+    "reason": {
+      "enum": [
+        "available_accounts_observed",
+        "no_available_accounts",
+        "unobserved_accounts",
+        "missing_health_observation",
+        "invalid_account_counts",
+        "stale_health_observation",
+        "gateway_credential_invalid",
+        "gateway_network_failure",
+        "gateway_authentication_failed",
+        "gateway_client_response",
+        "gateway_server_response",
+        "gateway_probe_invalid",
+        "health_schema_mismatch",
+        "health_protocol_mismatch",
+        "protocol_range_mismatch"
+      ]
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cloudxVersion", "protocol", "healthSchema"],
+      "properties": {
+        "cloudxVersion": {"type": "string", "minLength": 1},
+        "protocol": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min", "max"],
+          "properties": {
+            "min": {"type": "integer", "minimum": 1},
+            "max": {"type": "integer", "minimum": 1}
+          }
+        },
+        "healthSchema": {"type": "string", "minLength": 1}
+      }
+    },
+    "consumerProtocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max"],
+      "properties": {
+        "min": {"type": "integer", "minimum": 1},
+        "max": {"type": "integer", "minimum": 1}
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "probe", "httpStatus"],
+      "properties": {
+        "status": {"enum": ["healthy", "degraded", "unavailable", "unknown"]},
+        "probe": {
+          "enum": [
+            "ok",
+            "credential_invalid",
+            "network",
+            "authentication",
+            "client_response",
+            "server_response",
+            "invalid"
+          ]
+        },
+        "httpStatus": {
+          "anyOf": [
+            {"type": "integer", "minimum": 100, "maximum": 599},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "accountCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "available", "limited", "unavailable"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "available": {"type": "integer", "minimum": 0},
+        "limited": {"type": "integer", "minimum": 0},
+        "unavailable": {"type": "integer", "minimum": 0}
+      }
+    },
+    "unobservedAccounts": {"type": "integer", "minimum": 0},
+    "checkedAt": {"type": "string", "format": "date-time"},
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "ageSeconds"],
+      "properties": {
+        "state": {"enum": ["fresh", "stale", "unknown"]},
+        "ageSeconds": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

@@ -71,4 +71,6 @@ The companion `cloudx.phi-cloud-consumer-credential.v1` policy defines a separat
 
 `cloudx.phi-cloud-consumer-traffic-policy.v1` supplies the initial four-request concurrency ceiling, sixteen-entry FIFO wait bound, thirty-attempts-per-minute rate with burst four, separated admission/connect/header/stream-idle/overall timeouts, and a three-attempt retry ceiling. Retries consume rate budget, retain the same concurrency slot, and never occur after response bytes. Phi owns enforcement in its provider adapter; Cloudx publishes the rule but stores no queue or work-item metadata.
 
+The live `cloudx.capacity.v1` result preserves six distinct states: healthy capacity, exhausted capacity, unknown observation, stale contract, probe failure, and incompatible producer. It includes only producer/consumer protocol ranges, gateway probe class, freshness, and aggregate account counts. Phi must not collapse unknown, stale, failed, or incompatible states into exhausted capacity.
+
 Direct endpoint-to-Cloudx connectivity for future local inference is outside the initial Mesh boundary and requires its own threat model, credential contract, roadmap gate, and operator approval.

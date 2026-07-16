@@ -37,6 +37,14 @@ cloudx-remote phi-consumer-traffic-policy
 
 The output is static and secret-free. The initial values are conservative interoperability ceilings rather than claims about live provider capacity. Enforcement belongs to the Phi provider adapter or an explicitly approved gateway boundary; Cloudx does not persist the queue, accept work items, or infer per-endpoint priority.
 
+Classify current capacity against a consumer protocol range without publishing or changing state:
+
+```bash
+cloudx-remote capacity --consumer-protocol-min 1 --consumer-protocol-max 1 --json
+```
+
+The command performs the same bounded gateway probe and aggregate account-state read used by formal health, then emits `cloudx.capacity.v1`. Protocol/schema mismatch takes precedence, followed by live probe failure, stale observation, unknown or incomplete observation, and finally healthy versus exhausted aggregate capacity. A valid classification always exits successfully; invalid CLI protocol ranges are rejected.
+
 The CPA-health probe can be inspected without state or quarantine writes:
 
 ```bash

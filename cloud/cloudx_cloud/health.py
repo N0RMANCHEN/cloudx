@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Tuple
 
 from .config import Config
-from .gateway import probe_gateway
+from .gateway import GatewayProbe, probe_gateway
 from .version import PROTOCOL_MAX, VERSION
 
 
@@ -78,10 +78,10 @@ def _import_status(config: Config) -> str:
     return "ready"
 
 
-def build_health(config: Config) -> Dict[str, Any]:
+def observe_health(config: Config) -> Tuple[Dict[str, Any], GatewayProbe]:
     gateway = probe_gateway(config.gateway_url, config.client_credential_file)
     counts, freshness, age = _account_counts(config)
-    return {
+    document = {
         "schema": "cloudx.health.v1",
         "cloudxVersion": VERSION,
         "protocolVersion": PROTOCOL_MAX,
@@ -91,6 +91,12 @@ def build_health(config: Config) -> Dict[str, Any]:
         "checkedAt": utc_now(),
         "freshness": {"state": freshness, "ageSeconds": age},
     }
+    return document, gateway
+
+
+def build_health(config: Config) -> Dict[str, Any]:
+    document, _gateway = observe_health(config)
+    return document
 
 
 def publish(path: pathlib.Path, document: Dict[str, Any]) -> None:

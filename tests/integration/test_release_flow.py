@@ -322,6 +322,7 @@ class ReleaseFlowTests(unittest.TestCase):
 
         release = output / CURRENT_VERSION
         manifest = json.loads((release / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["contracts"]["capacity"], 1)
         self.assertEqual(manifest["contracts"]["httpImporterStopGate"], 1)
         self.assertEqual(manifest["contracts"]["phiCloudConsumerCredential"], 1)
         self.assertEqual(manifest["contracts"]["phiCloudConsumerTrafficPolicy"], 1)
@@ -395,6 +396,31 @@ class ReleaseFlowTests(unittest.TestCase):
         traffic = json.loads(traffic_policy.stdout)
         self.assertEqual(traffic["limits"]["maxInFlight"], 4)
         self.assertTrue(traffic["retry"]["neverRetryAfterResponseBytes"])
+
+        capacity = subprocess.run(
+            [
+                sys.executable,
+                str(release / ("cloudx-cloud-%s.pyz" % CURRENT_VERSION)),
+                "capacity",
+                "--consumer-protocol-min",
+                "1",
+                "--consumer-protocol-max",
+                "1",
+            ],
+            env={
+                **os.environ,
+                "CLOUDX_GATEWAY_URL": "http://127.0.0.1:1",
+                "CLOUDX_ACCOUNT_STATE_PATH": str(self.root / "missing-account-state.json"),
+                "CLOUDX_CLIENT_CREDENTIAL_FILE": str(self.root / "missing-client-credential"),
+            },
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(capacity.returncode, 0, msg=capacity.stderr.decode("utf-8", errors="replace"))
+        capacity_document = json.loads(capacity.stdout)
+        self.assertEqual(capacity_document["schema"], "cloudx.capacity.v1")
+        self.assertEqual(capacity_document["state"], "probe_failure")
 
 
 if __name__ == "__main__":

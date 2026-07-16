@@ -28,6 +28,24 @@ class ContractTests(unittest.TestCase):
         counts = document["accountCounts"]
         self.assertEqual(counts["total"], counts["available"] + counts["limited"] + counts["unavailable"])
 
+    def test_capacity_example_is_aggregate_and_distinguishes_all_states(self) -> None:
+        schema = json.loads((CONTRACTS / "cloudx.capacity.v1.schema.json").read_text(encoding="utf-8"))
+        document = json.loads((CONTRACTS / "examples/capacity.json").read_text(encoding="utf-8"))
+        self.assertEqual(document["schema"], "cloudx.capacity.v1")
+        self.assertEqual(document["state"], "healthy_capacity")
+        states = set(schema["properties"]["state"]["enum"])
+        self.assertEqual(states, {
+            "healthy_capacity",
+            "exhausted_capacity",
+            "unknown_observation",
+            "stale_contract",
+            "probe_failure",
+            "incompatible_producer",
+        })
+        serialized = json.dumps(document).casefold()
+        for forbidden in ("api_key", "token", "email", "account_name", "deviceid", "taskid"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_manifest_forbids_automatic_activation(self) -> None:
         schema = json.loads((CONTRACTS / "cloudx.release-manifest.v1.schema.json").read_text(encoding="utf-8"))
         automatic = schema["properties"]["activation"]["properties"]["automatic"]

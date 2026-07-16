@@ -18,6 +18,7 @@ The cloud artifact owns:
 - a version and capability handshake
 - the canonical credential parser and transactional importer
 - secret-free gateway and account health publication
+- secret-free capacity classification with explicit stale, unknown, probe-failure, and compatibility states
 - a secret-free, read-only Phi Mesh compatibility profile that references existing public contracts
 - a secret-free Phi cloud consumer credential policy with a gateway-only audience and no Cloudx administrative authority
 - a bounded single-consumer traffic policy without Task, scheduling, or queue ownership
