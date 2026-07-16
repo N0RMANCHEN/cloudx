@@ -243,7 +243,8 @@ Status: pending.
 - [x] Complete a read-only stop-gate audit covering port activity, request history, systemd reverse dependencies, installed callers, legacy health output, and Phi consumers without stopping or disabling the importer.
 - [x] Recheck the stop gate after the Phi goal-watchdog formal-health cutover; confirm that its legacy signal dependency is gone but fresh cloud-host HTTP account and import requests independently keep retirement unapproved.
 - [x] Attribute every post-cutover HTTP request to short-lived operator-driven compatibility calls and verify that no active timer, cron job, installed client, later request, import transaction, or established connection remains.
-- [x] Add a signed migration-only stop-gate evaluator with bounded strict evidence, deterministic secret-free blockers, evidence-digest binding, and explicit `serviceStop=false` non-authorization.
+- [x] Implement a release-packaged migration-only stop-gate evaluator with bounded strict evidence, deterministic secret-free blockers, evidence-digest binding, and explicit `serviceStop=false` non-authorization for a later signed rollout.
+- [x] Evaluate the sanitized current production snapshot and confirm that only fresh importer-runtime and failure-receipt rollback snapshots remain as machine-reported precondition blockers.
 - [x] Replace the legacy quota monitor writer only after Cloudx health and reversible quarantine have accepted observation evidence.
 - [x] Disable and archive the unattended import repair timer.
 - [ ] Remove the old codex-plus shell hook and installed package only after native `codex`, account switching, and rollback pass in a fresh shell.

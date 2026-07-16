@@ -20,6 +20,8 @@ from cloudx_cloud.cli import main  # noqa: E402
 
 EVIDENCE_PATH = ROOT / "shared/contracts/examples/http-importer-stop-gate-evidence.json"
 DECISION_PATH = ROOT / "shared/contracts/examples/http-importer-stop-gate.json"
+ARCHIVE_EVIDENCE_PATH = ROOT / "docs/archive/2026-07-16-http-importer-stop-gate-evidence.json"
+ARCHIVE_DECISION_PATH = ROOT / "docs/archive/2026-07-16-http-importer-stop-gate-decision.json"
 
 
 class HttpImporterStopGateTests(unittest.TestCase):
@@ -135,6 +137,16 @@ class HttpImporterStopGateTests(unittest.TestCase):
         blocked_evidence["traffic"]["activeHttpCallers"] = 1
         blocked = http_importer_gate.evaluate(self.encode(blocked_evidence))
         self.assertNotEqual(accepted["evidenceDigest"], blocked["evidenceDigest"])
+
+    def test_archived_production_snapshot_matches_machine_decision(self) -> None:
+        decision = http_importer_gate.evaluate(ARCHIVE_EVIDENCE_PATH.read_bytes())
+        expected = json.loads(ARCHIVE_DECISION_PATH.read_text(encoding="utf-8"))
+        self.assertEqual(decision, expected)
+        self.assertEqual(
+            [item["code"] for item in decision["blockers"]],
+            ["rollback_runtime_missing", "rollback_failure_receipts_missing"],
+        )
+        self.assertFalse(decision["authorization"]["serviceStop"])
 
 
 if __name__ == "__main__":

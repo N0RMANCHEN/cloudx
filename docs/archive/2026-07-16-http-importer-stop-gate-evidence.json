@@ -1,0 +1,49 @@
+{
+  "adapter": {
+    "httpReferences": 0,
+    "sha256": "5830d8228b3bd7b1e46ec3276464dfc441f250da3da990a65c7b5eb3123dd539",
+    "signedArtifactVerified": true,
+    "transport": "ssh"
+  },
+  "capturedAt": "2026-07-16T06:28:27Z",
+  "consumers": {
+    "goalWatchdogFormalHealth": true,
+    "legacyExporterRetained": true,
+    "legacyHealthReaders": 0
+  },
+  "dependencies": {
+    "requiredUnits": 0
+  },
+  "listener": {
+    "establishedConnections": 0,
+    "listening": true,
+    "port": 8780
+  },
+  "rollback": {
+    "failureReceiptsSnapshot": false,
+    "restorePlan": true,
+    "runtimeSnapshot": false,
+    "tokenMetadataSnapshot": true,
+    "unitSnapshot": true
+  },
+  "schema": "cloudx.http-importer-stop-gate-evidence.v1",
+  "service": {
+    "active": true,
+    "enabled": true,
+    "identityStable": true,
+    "name": "codex-import.service"
+  },
+  "traffic": {
+    "activeHttpCallers": 0,
+    "journalReadable": true,
+    "lastRequestAt": "2026-07-16T00:39:33Z",
+    "laterRequests": 0,
+    "unattributedRequests": 0
+  },
+  "transactions": {
+    "failureRecordsSanitized": true,
+    "importStatus": "ready",
+    "lockHolders": 0,
+    "rawFailureInputs": 0
+  }
+}

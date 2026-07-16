@@ -1,0 +1,23 @@
+{
+  "authorization": {
+    "required": "separate-operator-confirmation",
+    "serviceStop": false
+  },
+  "automaticAction": false,
+  "blockers": [
+    {
+      "code": "rollback_runtime_missing",
+      "message": "The importer runtime snapshot is missing."
+    },
+    {
+      "code": "rollback_failure_receipts_missing",
+      "message": "The importer failure receipt snapshot is missing."
+    }
+  ],
+  "capturedAt": "2026-07-16T06:28:27Z",
+  "evidenceDigest": "sha256:c638fa1e3b9fbd1c1abf46ad8b56dabaa77db83c54da3cd3a769602210f3389a",
+  "preconditionsSatisfied": false,
+  "schema": "cloudx.http-importer-stop-gate.v1",
+  "scope": "migration-only",
+  "status": "blocked"
+}
