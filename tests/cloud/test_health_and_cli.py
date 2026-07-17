@@ -57,6 +57,7 @@ class CloudHealthTests(unittest.TestCase):
         self.assertIn("capacity.v1", document["capabilities"])
         self.assertIn("client-config.v1", document["capabilities"])
         self.assertIn("http-importer-stop-gate.v1", document["capabilities"])
+        self.assertIn("legacy-health-bridge.v1", document["capabilities"])
         self.assertIn("phi-cloud-consumer-credential.v1", document["capabilities"])
         self.assertIn("phi-cloud-consumer-traffic-policy.v1", document["capabilities"])
         self.assertIn("phi-mesh-compatibility-profile.v1", document["capabilities"])
@@ -72,6 +73,9 @@ class CloudHealthTests(unittest.TestCase):
         serialized = json.dumps(profile).casefold()
         for forbidden in ("api_key", "apikey", "token", "deviceid", "taskid", "sessionid"):
             self.assertNotIn(forbidden, serialized)
+        bridge = profile["contracts"]["legacyHealthBridge"]
+        self.assertTrue(bridge["migrationOnly"])
+        self.assertFalse(bridge["automaticInstallation"])
 
         output = StringIO()
         with redirect_stdout(output):
@@ -184,6 +188,18 @@ class CloudHealthTests(unittest.TestCase):
         self.assertNotIn("CLOUDX_LEGACY_RUNTIME_ROOT", service)
         self.assertNotIn("/opt/codex-gateway/codexx_app", service)
         self.assertIn("ReadOnlyPaths=/opt/cloudx/releases", service)
+        self.assertNotIn("/home/", service)
+
+    def test_signed_artifact_emits_fixed_release_legacy_bridge_templates(self) -> None:
+        service_output = StringIO()
+        with redirect_stdout(service_output):
+            self.assertEqual(main(["systemd-template", "cloudx-legacy-health-bridge.service"]), 0)
+        service = service_output.getvalue()
+        self.assertIn("${CLOUDX_LEGACY_HEALTH_BRIDGE_ARTIFACT} legacy-health-bridge", service)
+        self.assertIn("/run/cloudx/health.json", service)
+        self.assertIn("/var/lib/cloudx/health/v1.json", service)
+        self.assertIn("RestrictAddressFamilies=AF_UNIX", service)
+        self.assertNotIn("/opt/cloudx/current", service)
         self.assertNotIn("/home/", service)
 
 

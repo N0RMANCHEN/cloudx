@@ -10,7 +10,7 @@ from .public_metadata import validate_public_document
 
 RESOURCE = "data/contracts/phi-mesh-compatibility-profile.v1.json"
 SCHEMA = "cloudx.phi-mesh-compatibility-profile.v1"
-SHA256 = "69f9298faaecaa4036836d05f7098e760d4d5854f0ae5cb9a88c15bdec588787"
+SHA256 = "e5877a7f2588198b82bfc6dc55dfd18c851a77487c59ab67fad6629a56dca2c3"
 
 
 def read_profile() -> Dict[str, Any]:

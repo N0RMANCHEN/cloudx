@@ -17,7 +17,8 @@
       "requiredCapabilities": [
         "client-config.v1",
         "health.v1",
-        "legacy-gateway.v1"
+        "legacy-gateway.v1",
+        "legacy-health-bridge.v1"
       ],
       "secretFree": true
     },
@@ -25,6 +26,16 @@
       "schema": "cloudx.health.v1",
       "command": "cloudx-remote health --json",
       "publishedPath": "/run/cloudx/health.json",
+      "secretFree": true
+    },
+    "legacyHealthBridge": {
+      "contract": "cloudx.health",
+      "schemaVersion": 1,
+      "sourceSchema": "cloudx.health.v1",
+      "command": "cloudx-remote legacy-health-bridge",
+      "publishedPath": "/var/lib/cloudx/health/v1.json",
+      "migrationOnly": true,
+      "automaticInstallation": false,
       "secretFree": true
     },
     "gateway": {

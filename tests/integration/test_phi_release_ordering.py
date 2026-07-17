@@ -26,7 +26,7 @@ class PhiCloudxReleaseOrderingTests(unittest.TestCase):
     def _by_name(items: list[dict[str, object]]) -> dict[str, dict[str, object]]:
         return {str(item["name"]): item for item in items}
 
-    def test_current_evidence_truthfully_records_the_phi_n_minus_one_blocker(self) -> None:
+    def test_current_evidence_truthfully_records_the_unaccepted_legacy_bridge(self) -> None:
         evidence = load_evidence()
         result = evaluate(evidence)
         self.assertEqual(result["status"], "blocked")
@@ -35,9 +35,16 @@ class PhiCloudxReleaseOrderingTests(unittest.TestCase):
             for item in result["matrix"]
         }
         self.assertTrue(matrix[("current", "current")]["compatible"])
+        self.assertEqual(matrix[("current", "current")]["healthPath"], "direct")
         self.assertTrue(matrix[("previous", "current")]["compatible"])
         self.assertFalse(matrix[("current", "previous")]["compatible"])
-        self.assertEqual(matrix[("current", "previous")]["reasons"], ["health_contract_mismatch"])
+        self.assertEqual(matrix[("current", "previous")]["healthPath"], "legacy_bridge_pending")
+        self.assertEqual(
+            matrix[("current", "previous")]["reasons"],
+            ["legacy_bridge_not_runtime_accepted"],
+        )
+        self.assertEqual(result["legacyBridgeStatus"], "source-ready")
+        self.assertEqual(len(result["legacyBridgeBlockers"]), 3)
         orders = self._by_name(result["orders"])
         self.assertTrue(orders["cloudx_rollback"]["compatible"])
         self.assertFalse(orders["phi_rollback"]["compatible"])
@@ -55,6 +62,23 @@ class PhiCloudxReleaseOrderingTests(unittest.TestCase):
         self.assertEqual(result["status"], "compatible")
         self.assertEqual(result["blockers"], [])
         self.assertTrue(all(item["compatible"] for item in result["orders"]))
+
+    def test_runtime_accepted_legacy_bridge_would_make_all_release_orders_compatible(self) -> None:
+        evidence = load_evidence()
+        from check_phi_cloudx_release_ordering import _bridge_evidence
+
+        bridge = _bridge_evidence(evidence)
+        bridge["runtimeAcceptance"] = {
+            "signedArtifactPublished": True,
+            "bridgeUnitInstalled": True,
+            "rollbackRehearsed": True,
+        }
+        result = evaluate(evidence, bridge)
+        self.assertEqual(result["status"], "compatible")
+        self.assertEqual(result["blockers"], [])
+        self.assertTrue(all(item["compatible"] for item in result["orders"]))
+        bridged = [item for item in result["matrix"] if item["phiRelease"] == "previous"]
+        self.assertTrue(all(item["healthPath"] == "legacy_bridge" for item in bridged))
 
     def test_protocol_range_mismatch_is_distinct_from_contract_mismatch(self) -> None:
         evidence = load_evidence()

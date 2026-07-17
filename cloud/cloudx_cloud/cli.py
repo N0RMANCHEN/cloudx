@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import os
+import pathlib
 import sys
 from typing import Any, Dict, Optional, Sequence
 
 from . import capacity, compatibility_profile, consumer_credential, consumer_traffic, cpa_auth, cpa_health, http_importer_gate
+from . import legacy_health_bridge
 from .account_state import AccountStateRejected, adapt_file
 from .compatibility_scripts import SCRIPTS as COMPATIBILITY_SCRIPTS
 from .compatibility_scripts import read_compatibility_script
@@ -43,6 +46,7 @@ def handshake(config: Config) -> Dict[str, Any]:
             "http-importer-stop-gate.v1",
             "import.v1",
             "legacy-gateway.v1",
+            "legacy-health-bridge.v1",
             "phi-cloud-consumer-credential.v1",
             "phi-cloud-consumer-traffic-policy.v1",
             "phi-mesh-compatibility-profile.v1",
@@ -112,6 +116,13 @@ def parser() -> argparse.ArgumentParser:
     compatibility_parser = sub.add_parser("compatibility-script")
     compatibility_parser.add_argument("name", choices=COMPATIBILITY_SCRIPTS)
     sub.add_parser("compatibility-profile")
+    legacy_health_parser = sub.add_parser("legacy-health-bridge")
+    legacy_health_parser.add_argument(
+        "--source",
+        type=pathlib.Path,
+        default=pathlib.Path("/run/cloudx/health.json"),
+    )
+    legacy_health_parser.add_argument("--publish-to", type=pathlib.Path)
     sub.add_parser("phi-consumer-credential-policy")
     sub.add_parser("phi-consumer-traffic-policy")
     sub.add_parser("http-importer-stop-gate")
@@ -132,6 +143,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             emit(compatibility_profile.read_profile())
         except RuntimeError as exc:
             emit_error("compatibility-profile", exc)
+            return 1
+        return 0
+    if args.command == "legacy-health-bridge":
+        try:
+            emit(legacy_health_bridge.bridge_file(
+                args.source,
+                args.publish_to,
+                producer_revision=os.environ.get("CLOUDX_BUILD_COMMIT", "unknown"),
+            ))
+        except (legacy_health_bridge.LegacyHealthRejected, OSError, ValueError) as exc:
+            emit_error("legacy-health-bridge", exc)
             return 1
         return 0
     if args.command == "phi-consumer-credential-policy":

@@ -327,9 +327,45 @@ class ReleaseFlowTests(unittest.TestCase):
         validate_public_document(manifest, "cloudx.release-manifest.v1")
         self.assertEqual(manifest["contracts"]["capacity"], 1)
         self.assertEqual(manifest["contracts"]["httpImporterStopGate"], 1)
+        self.assertEqual(manifest["contracts"]["legacyHealthBridge"], 1)
         self.assertEqual(manifest["contracts"]["phiCloudConsumerCredential"], 1)
         self.assertEqual(manifest["contracts"]["phiCloudConsumerTrafficPolicy"], 1)
         self.assertEqual(manifest["contracts"]["phiMeshCompatibilityProfile"], 1)
+        cloud_artifact = release / ("cloudx-cloud-%s.pyz" % CURRENT_VERSION)
+        bridge = subprocess.run(
+            [
+                sys.executable,
+                str(cloud_artifact),
+                "legacy-health-bridge",
+                "--source",
+                str(ROOT / "shared/contracts/examples/health.json"),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(bridge.returncode, 0, msg=bridge.stderr.decode("utf-8", errors="replace"))
+        legacy_health = json.loads(bridge.stdout)
+        self.assertEqual(legacy_health["contract"], "cloudx.health")
+        self.assertEqual(legacy_health["schemaVersion"], 1)
+        self.assertEqual(legacy_health["gateway"]["processState"], "unknown")
+        self.assertEqual(legacy_health["imports"]["processState"], "unknown")
+
+        bridge_template = subprocess.run(
+            [
+                sys.executable,
+                str(cloud_artifact),
+                "systemd-template",
+                "cloudx-legacy-health-bridge.service",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(bridge_template.returncode, 0, msg=bridge_template.stderr)
+        self.assertIn("${CLOUDX_LEGACY_HEALTH_BRIDGE_ARTIFACT}", bridge_template.stdout)
+        self.assertNotIn("/opt/cloudx/current", bridge_template.stdout)
         evidence = (ROOT / "shared/contracts/examples/http-importer-stop-gate-evidence.json").read_bytes()
         gate = subprocess.run(
             [

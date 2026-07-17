@@ -95,6 +95,14 @@ cloudx-remote compatibility-profile
 
 The result is `cloudx.phi-mesh-compatibility-profile.v1`. It references the existing handshake, health, gateway, credential-bearing client configuration, signed release, and rollback contracts; records protocol-overlap, N/N-1, offline rollback, and independent release-ordering requirements; contains no credential; and grants no runtime or mutation authority. Reading it does not probe the gateway or read Cloudx runtime configuration.
 
+The source-ready migration bridge can be inspected without writing a file:
+
+```bash
+cloudx-remote legacy-health-bridge --source /run/cloudx/health.json
+```
+
+Supplying `--publish-to /var/lib/cloudx/health/v1.json` performs one bounded, validated, atomic mode-`0644` publication. The bridge preserves unknown process state, unobserved accounts, and unavailable-reason ambiguity instead of probing credentials, the old importer, or failure directories. Its packaged unit uses an exact immutable artifact selected by `/etc/cloudx/legacy-health-bridge.env`, not `/opt/cloudx/current`, so Cloudx endpoint rollback cannot silently remove the compatibility command. The command and templates do not install or start the unit and do not authorize replacement of the current legacy exporter.
+
 The adjacent credential policy is also read-only:
 
 ```bash

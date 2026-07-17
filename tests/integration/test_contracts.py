@@ -28,6 +28,17 @@ class ContractTests(unittest.TestCase):
         counts = document["accountCounts"]
         self.assertEqual(counts["total"], counts["available"] + counts["limited"] + counts["unavailable"])
 
+    def test_legacy_health_bridge_example_is_secret_free_and_fail_closed(self) -> None:
+        document = json.loads((CONTRACTS / "examples/legacy-health.json").read_text(encoding="utf-8"))
+        self.assertEqual(document["contract"], "cloudx.health")
+        self.assertEqual(document["schemaVersion"], 1)
+        self.assertEqual(document["gateway"]["processState"], "unknown")
+        self.assertEqual(document["imports"]["state"], "unknown")
+        self.assertEqual(document["imports"]["processState"], "unknown")
+        serialized = json.dumps(document).casefold()
+        for forbidden in ("api_key", "token", "email", "account_name", "taskid", "deviceid"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_capacity_example_is_aggregate_and_distinguishes_all_states(self) -> None:
         schema = json.loads((CONTRACTS / "cloudx.capacity.v1.schema.json").read_text(encoding="utf-8"))
         document = json.loads((CONTRACTS / "examples/capacity.json").read_text(encoding="utf-8"))
@@ -108,6 +119,9 @@ class ContractTests(unittest.TestCase):
         contracts = profile["contracts"]
         self.assertEqual(contracts["handshake"]["schema"], "cloudx.handshake.v1")
         self.assertEqual(contracts["health"]["schema"], "cloudx.health.v1")
+        self.assertEqual(contracts["legacyHealthBridge"]["contract"], "cloudx.health")
+        self.assertTrue(contracts["legacyHealthBridge"]["migrationOnly"])
+        self.assertFalse(contracts["legacyHealthBridge"]["automaticInstallation"])
         self.assertEqual(contracts["gateway"]["configurationSchema"], "cloudx.client-config.v1")
         self.assertEqual(contracts["credential"]["configurationSchema"], "cloudx.client-config.v1")
         self.assertEqual(contracts["release"]["manifestSchema"], "cloudx.release-manifest.v1")

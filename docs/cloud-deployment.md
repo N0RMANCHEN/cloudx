@@ -49,6 +49,12 @@ Source `0.1.9` replaced that compatibility import boundary with native standard-
 
 Signed `0.1.10` passed cloud-side read-only parity, candidate-verified staging, cloud-first/local-second activation, complete model canaries, and endpoint-only N-1 rollback rehearsals. Its native unit templates passed `systemd-analyze verify` and replaced only the CPA-health service/timer in a rollback-protected transaction. Two natural timer invocations returned aggregate-only healthy results and left anonymous auth/archive inventories unchanged. Cloudx CPA health no longer needs `/opt/codex-gateway/codexx_app`, but the active legacy HTTP importer still imports `codexx_app.cloud_import_server`; removing the runtime therefore remains gated on separate importer retirement and rollback acceptance.
 
+## Legacy Health Bridge Preparation
+
+Source `0.1.15` carries `legacy-health-bridge.v1` plus a strict `cloudx.legacy-health.v1` schema/example for the previous Phi consumer. The bridge reads only bounded regular-file `cloudx.health.v1`, maps aggregate counts without inventing login, process, failure-receipt, active-session, or recovery-time facts, and atomically writes the legacy document with mode `0644`. Missing freshness remains unobserved and unavailable accounts map to `other`, not guessed login failure.
+
+The packaged `cloudx-legacy-health-bridge.service` reads an operator-created `/etc/cloudx/legacy-health-bridge.env` whose sole value selects an exact `/opt/cloudx/releases/<version>/cloudx-cloud.pyz`. It deliberately does not follow `/opt/cloudx/current`, has no network address family beyond `AF_UNIX`, and can write only `/var/lib/cloudx/health`. Building, publishing, staging, or activating the artifact does not install, enable, start, or restart the bridge. The mutable-checkout legacy exporter remains in place until a separately confirmed side-by-side candidate, output comparison, Phi N-1 rollback, and restoration transaction pass.
+
 Repository `0.1.11` prepares that importer migration by carrying a signed `codex-gateway-import` compatibility adapter. Inspect it without installing anything:
 
 ```bash

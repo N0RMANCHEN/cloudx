@@ -1,0 +1,27 @@
+{
+  "schema": "cloudx.phi-legacy-health-bridge-evidence.v1",
+  "capturedAt": "2026-07-17T08:50:00Z",
+  "expectedStatus": "source-ready",
+  "cloudx": {
+    "version": "0.1.15",
+    "formalSchema": "cloudx.health.v1",
+    "legacyContract": "cloudx.health",
+    "legacySchemaVersion": 1,
+    "capability": "legacy-health-bridge.v1",
+    "command": "legacy-health-bridge",
+    "serviceTemplate": "cloudx-legacy-health-bridge.service",
+    "timerTemplate": "cloudx-legacy-health-bridge.timer",
+    "fixedArtifactSelection": true
+  },
+  "phiPrevious": {
+    "releaseRef": "17d3e42e61fb2d88bf47c25497c05f0b3bb47438",
+    "consumerFile": "deploy/cloud/phi_cloudx_health.py",
+    "consumerSha256": "6dea38ff43102a944027fe43f4419f19a8d931331d6dcc7d21827fa4d340123b",
+    "healthContract": "contract=cloudx.health;schemaVersion=1"
+  },
+  "runtimeAcceptance": {
+    "signedArtifactPublished": false,
+    "bridgeUnitInstalled": false,
+    "rollbackRehearsed": false
+  }
+}

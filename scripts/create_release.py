@@ -56,6 +56,7 @@ def main() -> int:
             "handshake": 1,
             "httpImporterStopGate": 1,
             "import": 1,
+            "legacyHealthBridge": 1,
             "phiCloudConsumerCredential": 1,
             "phiCloudConsumerTrafficPolicy": 1,
             "phiMeshCompatibilityProfile": 1,

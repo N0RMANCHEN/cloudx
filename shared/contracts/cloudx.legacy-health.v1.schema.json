@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.legacy-health.v1.schema.json",
+  "title": "Migration-only Cloudx legacy health bridge",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "schemaVersion", "generatedAt", "producer", "gateway", "capacity", "imports", "digest"],
+  "properties": {
+    "contract": {"const": "cloudx.health"},
+    "schemaVersion": {"const": 1},
+    "generatedAt": {"type": "string", "format": "date-time"},
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "revision"],
+      "properties": {
+        "name": {"const": "cloudx"},
+        "version": {"type": "string", "minLength": 1, "maxLength": 64},
+        "revision": {"type": "string", "pattern": "^(?:[a-f0-9]{7,64}|unknown)$"}
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "processState", "endpointState", "httpStatus", "observedAt"],
+      "properties": {
+        "state": {"enum": ["ready", "degraded", "offline", "unknown"]},
+        "processState": {"enum": ["active", "activating", "deactivating", "failed", "inactive", "unknown"]},
+        "endpointState": {"enum": ["ready", "degraded", "offline", "unknown"]},
+        "httpStatus": {"type": ["integer", "null"], "minimum": 100, "maximum": 599},
+        "observedAt": {"type": "string", "format": "date-time"}
+      }
+    },
+    "capacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "available", "accounts", "blockedReasons", "activeSessions", "observedAt", "earliestRecoveryAt"],
+      "properties": {
+        "state": {"enum": ["ready", "degraded", "unavailable", "unknown"]},
+        "available": {"type": "boolean"},
+        "accounts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["total", "ready", "warning", "blocked", "unknown"],
+          "properties": {
+            "total": {"type": "integer", "minimum": 0},
+            "ready": {"type": "integer", "minimum": 0},
+            "warning": {"type": "integer", "minimum": 0},
+            "blocked": {"type": "integer", "minimum": 0},
+            "unknown": {"type": "integer", "minimum": 0}
+          }
+        },
+        "blockedReasons": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["quota", "login", "cooldown", "other"],
+          "properties": {
+            "quota": {"type": "integer", "minimum": 0},
+            "login": {"type": "integer", "minimum": 0},
+            "cooldown": {"type": "integer", "minimum": 0},
+            "other": {"type": "integer", "minimum": 0}
+          }
+        },
+        "activeSessions": {"type": ["integer", "null"], "minimum": 0},
+        "observedAt": {"type": ["string", "null"], "format": "date-time"},
+        "earliestRecoveryAt": {"type": ["string", "null"], "format": "date-time"}
+      }
+    },
+    "imports": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "processState", "pendingFailures", "lastFailureAt"],
+      "properties": {
+        "state": {"enum": ["ready", "degraded", "offline", "unknown"]},
+        "processState": {"enum": ["active", "activating", "deactivating", "failed", "inactive", "unknown"]},
+        "pendingFailures": {"type": "integer", "minimum": 0},
+        "lastFailureAt": {"type": ["string", "null"], "format": "date-time"}
+      }
+    },
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  }
+}

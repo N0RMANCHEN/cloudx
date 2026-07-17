@@ -38,7 +38,7 @@
     "contracts": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["handshake", "health", "gateway", "credential", "release", "rollback"],
+      "required": ["handshake", "health", "legacyHealthBridge", "gateway", "credential", "release", "rollback"],
       "properties": {
         "handshake": {
           "type": "object",
@@ -64,6 +64,21 @@
             "schema": {"const": "cloudx.health.v1"},
             "command": {"const": "cloudx-remote health --json"},
             "publishedPath": {"const": "/run/cloudx/health.json"},
+            "secretFree": {"const": true}
+          }
+        },
+        "legacyHealthBridge": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["contract", "schemaVersion", "sourceSchema", "command", "publishedPath", "migrationOnly", "automaticInstallation", "secretFree"],
+          "properties": {
+            "contract": {"const": "cloudx.health"},
+            "schemaVersion": {"const": 1},
+            "sourceSchema": {"const": "cloudx.health.v1"},
+            "command": {"const": "cloudx-remote legacy-health-bridge"},
+            "publishedPath": {"const": "/var/lib/cloudx/health/v1.json"},
+            "migrationOnly": {"const": true},
+            "automaticInstallation": {"const": false},
             "secretFree": {"const": true}
           }
         },

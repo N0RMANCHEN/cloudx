@@ -126,7 +126,17 @@ python3 scripts/check_phi_cloudx_release_ordering.py --json
 python3 scripts/check_phi_cloudx_release_ordering.py --require-compatible
 ```
 
-The first command validates the strict evidence shape and evaluates all four release pairs, both upgrade orders, and both single-product rollback directions. Exit `0` means the recorded audit is internally valid, even when its truthful state is `blocked`. `--require-compatible` exits `2` until every required order is compatible. The current evidence is blocked because the recorded Phi N-1 release consumes the legacy `cloudx.health`/`schemaVersion=1` document, while Cloudx current/N-1 and Phi current use formal `cloudx.health.v1`; the unchecked M4A ordering item must remain open until a matching Phi N-1 fixture exists.
+The first command validates the strict evidence shape and evaluates all four release pairs, both upgrade orders, and both single-product rollback directions. Exit `0` means the recorded audit is internally valid, even when its truthful state is `blocked`. `--require-compatible` exits `2` until every required order is compatible. The current evidence identifies a direct formal-health path for Phi current and an explicit pending legacy bridge for Phi N-1; the ordering gate remains blocked until that bridge is published from a signed artifact, installed as its separate fixed-artifact unit, and accepted through rollback rehearsal.
+
+Inspect the bridge source and exact Phi N-1 compatibility separately with:
+
+```bash
+python3 scripts/check_phi_cloudx_legacy_health_bridge.py --json
+python3 scripts/check_phi_cloudx_legacy_health_bridge.py --phi-root <phi-checkout> --json
+python3 scripts/check_phi_cloudx_legacy_health_bridge.py --require-runtime-accepted
+```
+
+The default check validates the strict formal-to-legacy mapping, shared schema/example, advertised capability, compatibility profile, and release-packaged service/timer. The checkout-aware form verifies the recorded Phi release/file digest and executes that exact parser against the generated legacy example. `--require-runtime-accepted` remains exit `2` until signed publication, isolated unit installation, and independent rollback rehearsal are all recorded; none of those actions is authorized by the checker.
 
 Tunnel broker status includes `lastReconnectMilliseconds` after an SSH child exit. M2 evidence should record this field together with the stable `publicPort` and incremented `generation`; HTTP probe failures must leave all three unchanged.
 

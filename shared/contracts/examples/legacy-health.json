@@ -1,0 +1,44 @@
+{
+  "capacity": {
+    "accounts": {
+      "blocked": 25,
+      "ready": 40,
+      "total": 65,
+      "unknown": 0,
+      "warning": 0
+    },
+    "activeSessions": null,
+    "available": true,
+    "blockedReasons": {
+      "cooldown": 0,
+      "login": 0,
+      "other": 25,
+      "quota": 0
+    },
+    "earliestRecoveryAt": null,
+    "observedAt": "2026-07-14T09:00:00+00:00",
+    "state": "degraded"
+  },
+  "contract": "cloudx.health",
+  "digest": "sha256:f44eafb1b48151e8afcd4c6bafea57c0e9bb508d1a35eb77d9520e3085f7352a",
+  "gateway": {
+    "endpointState": "ready",
+    "httpStatus": null,
+    "observedAt": "2026-07-14T09:00:00+00:00",
+    "processState": "unknown",
+    "state": "ready"
+  },
+  "generatedAt": "2026-07-14T09:00:00+00:00",
+  "imports": {
+    "lastFailureAt": null,
+    "pendingFailures": 0,
+    "processState": "unknown",
+    "state": "unknown"
+  },
+  "producer": {
+    "name": "cloudx",
+    "revision": "0000000",
+    "version": "0.1.0"
+  },
+  "schemaVersion": 1
+}

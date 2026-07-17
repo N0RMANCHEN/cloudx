@@ -491,11 +491,16 @@ def validate_contract_bindings(evidence: Mapping[str, Any]) -> None:
         ROOT / "shared/contracts/examples/phi-mesh-compatibility-profile.json",
         "compatibility profile",
     )
+    legacy_bridge = compatibility.get("contracts", {}).get("legacyHealthBridge", {})
     if (
         compatibility.get("protocol") != evidence["cloudx"]["protocol"]
         or compatibility.get("compatibility", {}).get("independentReleaseOrdering") is not True
         or compatibility.get("compatibility", {}).get("synchronizedDeploymentRequired") is not False
         or compatibility.get("contracts", {}).get("rollback", {}).get("currentAndPreviousRequired") is not True
+        or legacy_bridge.get("contract") != "cloudx.health"
+        or legacy_bridge.get("sourceSchema") != "cloudx.health.v1"
+        or legacy_bridge.get("migrationOnly") is not True
+        or legacy_bridge.get("automaticInstallation") is not False
     ):
         raise EvidenceRejected("compatibility profile no longer provides independent rollback semantics")
 

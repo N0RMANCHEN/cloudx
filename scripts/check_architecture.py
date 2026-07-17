@@ -84,7 +84,11 @@ def check_cloud_public_output_guards() -> List[str]:
             ):
                 errors.append("cloud public output bypasses metadata guard: %s" % relative(path))
                 break
-    for name in ("cloud/cloudx_cloud/health.py", "cloud/cloudx_cloud/account_state.py"):
+    for name in (
+        "cloud/cloudx_cloud/health.py",
+        "cloud/cloudx_cloud/account_state.py",
+        "cloud/cloudx_cloud/legacy_health_bridge.py",
+    ):
         path = ROOT / name
         text = path.read_text(encoding="utf-8") if path.is_file() else ""
         if "validate_public_document" not in text:

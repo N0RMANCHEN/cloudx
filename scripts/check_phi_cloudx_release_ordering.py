@@ -11,6 +11,13 @@ import sys
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+from check_phi_cloudx_legacy_health_bridge import (
+    BridgeEvidenceRejected,
+    evaluate as evaluate_legacy_bridge,
+    load_evidence as load_legacy_bridge_evidence,
+    validate_cloudx_source as validate_legacy_bridge_source,
+)
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_EVIDENCE = ROOT / "config/governance/phi_cloudx_release_ordering.v1.json"
@@ -110,7 +117,11 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
         document = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise EvidenceRejected("release-ordering evidence is unavailable or invalid") from exc
-    root = _object(document, ("schema", "capturedAt", "expectedStatus", "cloudx", "phi"), "evidence")
+    root = _object(
+        document,
+        ("schema", "capturedAt", "expectedStatus", "legacyBridgeEvidence", "cloudx", "phi"),
+        "evidence",
+    )
     if root["schema"] != EVIDENCE_SCHEMA:
         raise EvidenceRejected("release-ordering evidence schema is unsupported")
     expected = _text(root["expectedStatus"], "expectedStatus", 16)
@@ -122,6 +133,7 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
         "schema": EVIDENCE_SCHEMA,
         "capturedAt": _timestamp(root["capturedAt"], "capturedAt"),
         "expectedStatus": expected,
+        "legacyBridgeEvidence": _text(root["legacyBridgeEvidence"], "legacyBridgeEvidence", 160),
         "cloudx": {
             name: _cloudx_release(cloudx_raw[name], "cloudx.%s" % name)
             for name in ("current", "previous")
@@ -146,7 +158,27 @@ def _overlap(producer: Mapping[str, int], consumer: Mapping[str, int]) -> bool:
     return max(producer["min"], consumer["min"]) <= min(producer["max"], consumer["max"])
 
 
-def evaluate(evidence: Mapping[str, Any]) -> Dict[str, Any]:
+def _bridge_evidence(evidence: Mapping[str, Any]) -> Dict[str, Any]:
+    relative = pathlib.PurePosixPath(str(evidence["legacyBridgeEvidence"]))
+    if relative.is_absolute() or ".." in relative.parts:
+        raise EvidenceRejected("legacy bridge evidence path is invalid")
+    expected = pathlib.PurePosixPath("config/governance/phi_cloudx_legacy_health_bridge.v1.json")
+    if relative != expected:
+        raise EvidenceRejected("release ordering must bind the canonical legacy bridge evidence")
+    try:
+        bridge = load_legacy_bridge_evidence(ROOT.joinpath(*relative.parts))
+        validate_legacy_bridge_source(bridge)
+    except BridgeEvidenceRejected as exc:
+        raise EvidenceRejected("canonical legacy bridge evidence is invalid") from exc
+    return bridge
+
+
+def evaluate(
+    evidence: Mapping[str, Any],
+    legacy_bridge: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, Any]:
+    bridge = dict(legacy_bridge or _bridge_evidence(evidence))
+    bridge_result = evaluate_legacy_bridge(bridge)
     matrix: List[Dict[str, Any]] = []
     by_pair: Dict[Tuple[str, str], bool] = {}
     blockers: List[str] = []
@@ -157,14 +189,29 @@ def evaluate(evidence: Mapping[str, Any]) -> Dict[str, Any]:
             reasons = []
             if not _overlap(cloudx["protocol"], phi["consumerProtocol"]):
                 reasons.append("protocol_range_mismatch")
+            health_path = "direct"
             if cloudx["healthContract"] != phi["healthContract"]:
-                reasons.append("health_contract_mismatch")
+                bridge_matches = (
+                    cloudx["healthContract"] == "schema=%s" % bridge["cloudx"]["formalSchema"]
+                    and phi["healthContract"]
+                    == "contract=%s;schemaVersion=%d"
+                    % (bridge["cloudx"]["legacyContract"], bridge["cloudx"]["legacySchemaVersion"])
+                )
+                if bridge_matches and bridge_result["status"] == "runtime-accepted":
+                    health_path = "legacy_bridge"
+                elif bridge_matches:
+                    health_path = "legacy_bridge_pending"
+                    reasons.append("legacy_bridge_not_runtime_accepted")
+                else:
+                    health_path = "none"
+                    reasons.append("health_contract_mismatch")
             compatible = not reasons
             by_pair[(cloudx_name, phi_name)] = compatible
             matrix.append({
                 "cloudxRelease": cloudx_name,
                 "phiRelease": phi_name,
                 "compatible": compatible,
+                "healthPath": health_path,
                 "reasons": reasons,
             })
             for reason in reasons:
@@ -187,6 +234,8 @@ def evaluate(evidence: Mapping[str, Any]) -> Dict[str, Any]:
         "schema": RESULT_SCHEMA,
         "status": status,
         "capturedAt": evidence["capturedAt"],
+        "legacyBridgeStatus": bridge_result["status"],
+        "legacyBridgeBlockers": bridge_result["blockers"],
         "matrix": matrix,
         "orders": orders,
         "blockers": blockers,

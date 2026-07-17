@@ -83,6 +83,21 @@ class ShadowSystemdTemplateTests(unittest.TestCase):
         self.assertIn("OnActiveSec=2min", timer)
         self.assertIn("OnUnitActiveSec=5min", timer)
 
+    def test_legacy_health_bridge_is_fixed_to_a_signed_artifact_and_off_network(self) -> None:
+        service = (ACTIVE_SYSTEMD / "cloudx-legacy-health-bridge.service").read_text(encoding="utf-8")
+        timer = (ACTIVE_SYSTEMD / "cloudx-legacy-health-bridge.timer").read_text(encoding="utf-8")
+        environment = (ACTIVE_SYSTEMD / "cloudx-legacy-health-bridge.env.example").read_text(encoding="utf-8")
+        self.assertIn("CLOUDX_LEGACY_HEALTH_BRIDGE_ARTIFACT=/opt/cloudx/releases/0.1.15/", environment)
+        self.assertIn("${CLOUDX_LEGACY_HEALTH_BRIDGE_ARTIFACT} legacy-health-bridge", service)
+        self.assertIn("ReadOnlyPaths=/opt/cloudx/releases /etc/cloudx /run/cloudx", service)
+        self.assertIn("ReadWritePaths=/var/lib/cloudx/health", service)
+        self.assertIn("RestrictAddressFamilies=AF_UNIX", service)
+        self.assertNotIn("/opt/cloudx/current", service)
+        self.assertNotIn("/home/", service)
+        self.assertIn("OnActiveSec=2min", timer)
+        self.assertIn("OnUnitActiveSec=1min", timer)
+        self.assertIn("Unit=cloudx-legacy-health-bridge.service", timer)
+
 
 if __name__ == "__main__":
     unittest.main()
