@@ -139,6 +139,8 @@ The evaluator checks the active/enabled service baseline, stable identity, port 
 
 The command reads at most 64 KiB and writes nothing. Unknown or duplicate fields are rejected so credentials cannot be smuggled into a nominal evidence record. A `preconditions-satisfied` result is bound to the exact evidence digest but explicitly reports `automaticAction=false` and `authorization.serviceStop=false`. Stopping or disabling `codex-import.service` still requires a separately approved transaction and the full rollback/canary sequence in the roadmap.
 
+The sanitized `2026-07-17` production snapshot in `docs/archive/` is the current reference decision. It validates the existing root-only runtime, unit, token-metadata, failure-receipt, and restore-plan snapshot; refreshes attributed traffic and zero-connection/lock/caller evidence; and evaluates to `preconditions-satisfied`. This is readiness evidence only. It does not authorize an operator, Agent, timer, installer, or release command to stop the service.
+
 ## Stage
 
 Local releases live under `~/.local/lib/cloudx/releases/<version>` and cloud releases under `/opt/cloudx/releases/<version>`. State, configuration, credentials, sessions, and logs live elsewhere.

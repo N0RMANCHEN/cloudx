@@ -1,0 +1,14 @@
+{
+  "authorization": {
+    "required": "separate-operator-confirmation",
+    "serviceStop": false
+  },
+  "automaticAction": false,
+  "blockers": [],
+  "capturedAt": "2026-07-17T06:37:43Z",
+  "evidenceDigest": "sha256:293a771af237fb55901267d1a37f86e994f7bd5b0a52d604dd3452a3535522ad",
+  "preconditionsSatisfied": true,
+  "schema": "cloudx.http-importer-stop-gate.v1",
+  "scope": "migration-only",
+  "status": "preconditions-satisfied"
+}
