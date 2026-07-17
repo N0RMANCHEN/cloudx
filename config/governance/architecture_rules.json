@@ -25,6 +25,8 @@
     "shared/contracts/cloudx.local-cpa-import.v1.schema.json",
     "shared/contracts/cloudx.legacy-health.v1.schema.json",
     "shared/contracts/cloudx.phi-cloud-consumer-credential.v1.schema.json",
+    "shared/contracts/cloudx.phi-consumer-key-install.v1.schema.json",
+    "shared/contracts/cloudx.phi-consumer-key-plan.v1.schema.json",
     "shared/contracts/cloudx.phi-cloud-consumer-traffic-policy.v1.schema.json",
     "shared/contracts/cloudx.phi-mesh-compatibility-profile.v1.schema.json",
     "docs/operations.md",
@@ -34,6 +36,7 @@
     "scripts/check_phi_cloudx_legacy_health_bridge.py",
     "scripts/check_phi_cloudx_privileged_boundary.py",
     "scripts/check_phi_cloudx_release_ordering.py",
+    "scripts/install_phi_consumer_gateway_key.py",
     "scripts/prepare_release_trust_recovery.py",
     "scripts/rehearse_legacy_health_bridge_rollback.py",
     "prompts/README.md"

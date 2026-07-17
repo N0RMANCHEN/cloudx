@@ -160,6 +160,17 @@ python3 scripts/install_scoped_gateway_key.py \
 
 The read-only plan derives the cloud artifact path from the exact staged version. The `--apply` path first requires that artifact's self-check to report the same version, then requires the exact printed confirmation. It preserves the existing YAML text, writes a mode-0600 backup, installs the restricted credential and version-matched shadow environment atomically, restarts only the declared gateway unit, verifies a real model-list request and both config/auth inotify watches, and restores all files plus the old service configuration if any check fails.
 
+Prepare the distinct Phi consumer key transaction separately:
+
+```bash
+python3 scripts/install_phi_consumer_gateway_key.py \
+  --release-version <staged-signed-version>
+```
+
+The default result is `cloudx.phi-consumer-key-plan.v1`, reads no credential or gateway file, and keeps every authorization false. Apply requires the exact printed `RESTART cliproxy.service FOR PHI CLOUDX CONSUMER KEY` confirmation, root, the exact staged artifact path, a pre-existing `phi-cloudx-consumer` group, a root-owned group-mode-`0750` credential directory, and the existing mode-private Cloudx client credential.
+
+The transaction appends a distinct key, atomically writes only `/etc/cloudx/consumers/phi-cloud/credential` as root/group mode `0640`, restarts only `cliproxy.service`, requires HTTP 200 plus at least two restored inotify watches, and verifies the original Cloudx client credential is byte-identical. Rotation retains the old key until a later separately approved revocation. Any failure restores the gateway config and prior Phi credential, restarts the old gateway configuration, and removes the failed backup. It never creates the Phi group, restarts a Phi service, exposes a key, or closes the privilege gate automatically.
+
 ## Import A Local File Over SSH
 
 Use the local Cloudx command when the source path exists on the local machine:

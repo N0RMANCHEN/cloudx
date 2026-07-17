@@ -16,6 +16,8 @@ Shadow units execute the exact signed artifact selected by `CLOUDX_CLOUD_ARTIFAC
 
 The scoped client credential file must be owned by the account that executes `cloudx-remote client-config` and have mode 0600 or stricter. It is never included in health, handshake, logs, Git, or a release bundle.
 
+The Phi consumer uses a different credential at `/etc/cloudx/consumers/phi-cloud/credential`. Source `0.1.15` provides a default-read-only exact-confirmation installer for that key, but it requires the Phi-owned group membership and root/group mode-0750 parent directory to exist first. The transaction preserves the Cloudx client credential exactly, retains the previous Phi key during rotation, restarts only the external gateway, and does not install or restart Phi. Running the plan, building a release, or staging an artifact performs no gateway or credential write.
+
 For the first canary, configure the existing gateway address explicitly. Do not change the gateway bind address, API key, CLIProxyAPI unit, mihomo, Tailscale, or SSH. `cloudx-remote self-check`, `handshake`, `health`, and a dry-run import must pass before any unit is enabled.
 
 ## Active Health Publisher Preparation

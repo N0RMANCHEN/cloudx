@@ -1,0 +1,27 @@
+{
+  "releaseArtifact": "/opt/cloudx/releases/0.1.15/cloudx-cloud.pyz",
+  "authorization": {
+    "credentialWrite": false,
+    "gatewayConfigWrite": false,
+    "gatewayRestart": false,
+    "phiServiceRestart": false,
+    "previousCredentialRevocation": false
+  },
+  "automaticAction": false,
+  "confirmation": "RESTART cliproxy.service FOR PHI CLOUDX CONSUMER KEY",
+  "credentialClass": "scoped_phi_consumer",
+  "credentialGroup": "phi-cloudx-consumer",
+  "credentialPath": "/etc/cloudx/consumers/phi-cloud/credential",
+  "gatewayRestartRequired": true,
+  "phiServiceRestartRequired": false,
+  "preconditions": [
+    "signed_cloud_artifact_staged",
+    "phi_consumer_group_exists",
+    "credential_directory_root_group_0750",
+    "cloudx_client_credential_private"
+  ],
+  "releaseVersion": "0.1.15",
+  "schema": "cloudx.phi-consumer-key-plan.v1",
+  "status": "confirmation-required",
+  "unit": "cliproxy.service"
+}

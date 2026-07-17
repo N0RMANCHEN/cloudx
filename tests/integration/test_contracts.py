@@ -156,6 +156,26 @@ class ContractTests(unittest.TestCase):
         for forbidden in ("api_key", "apikey", "bearer ", "token-"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_phi_consumer_key_transaction_is_secret_free_and_non_authorizing(self) -> None:
+        plan = json.loads(
+            (CONTRACTS / "examples/phi-consumer-key-plan.json").read_text(encoding="utf-8")
+        )
+        receipt = json.loads(
+            (CONTRACTS / "examples/phi-consumer-key-install.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(plan["schema"], "cloudx.phi-consumer-key-plan.v1")
+        self.assertEqual(receipt["schema"], "cloudx.phi-consumer-key-install.v1")
+        self.assertFalse(plan["automaticAction"])
+        self.assertFalse(any(plan["authorization"].values()))
+        self.assertTrue(plan["gatewayRestartRequired"])
+        self.assertFalse(plan["phiServiceRestartRequired"])
+        self.assertTrue(receipt["cloudxClientCredentialUnchanged"])
+        self.assertFalse(receipt["previousCredentialRevoked"])
+        self.assertFalse(receipt["phiServiceRestarted"])
+        serialized = json.dumps({"plan": plan, "receipt": receipt}).casefold()
+        for forbidden in ("api_key", "bearer ", "token-", "secret-value"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_phi_cloud_consumer_traffic_is_bounded_without_control_plane_fields(self) -> None:
         policy = json.loads(
             (CONTRACTS / "examples/phi-cloud-consumer-traffic-policy.json").read_text(encoding="utf-8")

@@ -1,0 +1,20 @@
+{
+  "backup": "/etc/cliproxy/backups/config.yaml.before-phi-consumer-123456789",
+  "cloudxClientCredentialUnchanged": true,
+  "credentialClass": "scoped_phi_consumer",
+  "credentialGroup": "phi-cloudx-consumer",
+  "credentialMode": "0640",
+  "gatewayHttpStatus": 200,
+  "gatewayKeyCountAfter": 2,
+  "gatewayKeyCountBefore": 1,
+  "inotifyWatches": 2,
+  "newPid": 200,
+  "oldPid": 100,
+  "phiServiceRestarted": false,
+  "previousCredentialRetained": false,
+  "previousCredentialRevoked": false,
+  "releaseVersion": "0.1.15",
+  "schema": "cloudx.phi-consumer-key-install.v1",
+  "status": "installed",
+  "unit": "cliproxy.service"
+}
