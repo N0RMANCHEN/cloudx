@@ -2,5 +2,6 @@
 set -euo pipefail
 
 python3 scripts/check_architecture.py
+python3 scripts/check_phi_cloudx_release_ordering.py
 python3 -m unittest discover -s tests -p 'test_*.py'
 python3 scripts/build.py --check

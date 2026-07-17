@@ -1,0 +1,31 @@
+{
+  "schema": "cloudx.phi-release-ordering-evidence.v1",
+  "capturedAt": "2026-07-17T05:10:00Z",
+  "expectedStatus": "blocked",
+  "cloudx": {
+    "current": {
+      "version": "0.1.13",
+      "sourceRef": "d50c7d7b3d1cc390dde7e443fdff05f317a65e54",
+      "protocol": {"min": 1, "max": 1},
+      "healthContract": "schema=cloudx.health.v1"
+    },
+    "previous": {
+      "version": "0.1.12",
+      "sourceRef": "1f94816d7effc62bb3199158066c1ed0b6ef38a6",
+      "protocol": {"min": 1, "max": 1},
+      "healthContract": "schema=cloudx.health.v1"
+    }
+  },
+  "phi": {
+    "current": {
+      "releaseRef": "b9f668444ebc8f0258b152d3225df14e113860bf",
+      "consumerProtocol": {"min": 1, "max": 1},
+      "healthContract": "schema=cloudx.health.v1"
+    },
+    "previous": {
+      "releaseRef": "17d3e42e61fb2d88bf47c25497c05f0b3bb47438",
+      "consumerProtocol": {"min": 1, "max": 1},
+      "healthContract": "contract=cloudx.health;schemaVersion=1"
+    }
+  }
+}

@@ -11,6 +11,7 @@
     "cloud/__main__.py",
     "cloud/cloudx_cloud/http_importer_gate.py",
     "cloud/cloudx_cloud/public_metadata.py",
+    "config/governance/phi_cloudx_release_ordering.v1.json",
     "shared/contracts/cloudx.capacity.v1.schema.json",
     "shared/contracts/cloudx.health.v1.schema.json",
     "shared/contracts/cloudx.handshake.v1.schema.json",
@@ -22,6 +23,7 @@
     "shared/contracts/cloudx.phi-mesh-compatibility-profile.v1.schema.json",
     "docs/operations.md",
     "docs/phi-boundary.md",
+    "scripts/check_phi_cloudx_release_ordering.py",
     "prompts/README.md"
   ],
   "forbidden_runtime_fragments": [
