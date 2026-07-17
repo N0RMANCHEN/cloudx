@@ -13,6 +13,20 @@ Never use a build, test, or update command against the active legacy local port 
 
 Artifacts are written to `dist/`. Building has no install or activation side effects.
 
+## Prepare Release Trust Recovery
+
+When an immutable failed tag has no published artifact and the matching private release key is unavailable, inspect the non-mutating recovery plan:
+
+```bash
+python3 scripts/prepare_release_trust_recovery.py \
+  --version 0.1.15 \
+  --private-key /absolute/repository-external/path/to/key
+```
+
+The plan contains no private path or key material and grants no action. After a separate explicit trust-rotation decision, use its exact confirmation with `--apply`. The transaction generates a mode-`0600` Ed25519 key outside the repository, requires its parent directory to be mode `0700`, atomically replaces the repository/local/cloud `allowed_signers` files, verifies their shared replacement fingerprint, and restores the old roots plus removes generated key files on failure.
+
+Do not combine this preparation with commit, tag, publication, stable selection, staging, activation, service restart, or legacy removal. Each later step keeps its own evidence and authorization gate.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:

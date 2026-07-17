@@ -30,6 +30,7 @@
     "scripts/check_phi_cloudx_failure_semantics.py",
     "scripts/check_phi_cloudx_privileged_boundary.py",
     "scripts/check_phi_cloudx_release_ordering.py",
+    "scripts/prepare_release_trust_recovery.py",
     "prompts/README.md"
   ],
   "forbidden_runtime_fragments": [

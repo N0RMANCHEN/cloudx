@@ -23,6 +23,18 @@ The signing private key remains outside Git and release directories with mode 06
 
 If the active endpoint no longer possesses the private key for its embedded trust root, the operator may perform a one-time out-of-band trust recovery from a clean committed source: verify the replacement public root, build and sign with the repository-external replacement key, publish an immutable artifact ref, run the signed candidate's normal stage operation beside the active release, and verify the result before activation. The next release must then pass the ordinary endpoint-to-endpoint signed update path. This recovery cannot overwrite an existing version, alter a failed tag, place the private key in Git, or restart a service.
 
+Prepare only the key and source trust roots with:
+
+```bash
+python3 scripts/prepare_release_trust_recovery.py \
+  --version <new-patch-version> \
+  --private-key /absolute/repository-external/path/to/key
+```
+
+The default command is read-only and prints the exact `ROTATE CLOUDX RELEASE TRUST <version>` confirmation. After separate operator approval, repeat it with `--apply --confirm <exact-confirmation>`. Apply refuses a dirty repository, an existing key, a relative or repository-contained key path, a non-private existing key directory, mismatched repository/local/cloud roots, or a same-fingerprint replacement. It rolls all public roots back and removes a partially generated key if any step fails.
+
+Successful preparation still performs no commit, tag, build, signature, publication, stable-ref move, endpoint staging, activation, or service restart. Review the three public-root diffs and commit them before using the external private key in the separately accepted signed-release workflow.
+
 An operator stages and activates a release. The compatible cloud endpoint is activated before the local endpoint. A failed canary restores both previous symlinks. Production hosts never run `git pull` to update deployed code.
 
 Activation and rollback commands target exactly one endpoint. The remote helper exposes a secret-free `cloudx.release-status.v1` document so the operator can verify the selected `current` and `previous` versions plus the current artifact hash before moving to the next endpoint.
