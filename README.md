@@ -36,6 +36,12 @@ codexx cloud import credentials.json --dry-run
 codexx cloud import credentials.json
 codexx cloud import credentials.json --json
 
+# Explain the most recent retained local/cloud API failure without exposing raw requests or credentials.
+codexx diagnose
+codexx api diagnose
+codexx cloud diagnose
+codexx diagnose --json
+
 # Return to the native profile.
 codexx exit
 
@@ -43,9 +49,11 @@ codexx exit
 ./install
 ```
 
-`codexx` deliberately has only account selection and account lifecycle commands. Pool management, task governance, agents, remote clients, and the former control plane are outside this product.
+`codexx` deliberately stays small: account selection/lifecycle, explicit local/cloud import, and read-only API failure diagnosis. Pool management, task governance, agents, remote clients, and the former control plane are outside this product.
 
 Interactive local and cloud imports share one readable result summary with explicit status, destination, counts, verification scope, and safe failure reasons. Cloud `--json` exposes the underlying versioned import contract for automation.
+
+API diagnosis distinguishes explicit deactivation, exhausted allowance, transient rate limiting, relogin, access denial, gateway failures, and unknown evidence. It never rewrites the official Codex command or gateway response, and a later generic `no auth available` response does not erase a recent definitive root cause.
 
 ## Repository Layout
 

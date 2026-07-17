@@ -13,8 +13,14 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
+from .api_failure import (
+    CAUSE_NO_USABLE_ACCOUNTS,
+    DEFINITIVE_ACCOUNT_CAUSES,
+    ROOT_CAUSE_WINDOW_SECONDS,
+    ApiResponseObserver,
+)
 from .config import LocalConfig
 from .files import atomic_json, ensure_private_directory
 
@@ -60,10 +66,11 @@ def choose_backend_port() -> int:
 class TcpRelay:
     """Keep a stable local listener while the SSH backend may restart."""
 
-    def __init__(self) -> None:
+    def __init__(self, failure_callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> None:
         self.listener = choose_public_listener()
         self.public_port = int(self.listener.getsockname()[1])
         self.backend_port: Optional[int] = None
+        self.failure_callback = failure_callback
         self.lock = threading.Lock()
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self._accept_loop, name="cloudx-tunnel-relay", daemon=True)
@@ -102,16 +109,24 @@ class TcpRelay:
         return None
 
     @staticmethod
-    def _pump(source: socket.socket, target: socket.socket) -> None:
+    def _pump(
+        source: socket.socket,
+        target: socket.socket,
+        observer: Optional[ApiResponseObserver] = None,
+    ) -> None:
         try:
             while True:
                 data = source.recv(64 * 1024)
                 if not data:
                     break
                 target.sendall(data)
+                if observer is not None:
+                    observer.feed(data)
         except OSError:
             pass
         finally:
+            if observer is not None:
+                observer.close()
             try:
                 target.shutdown(socket.SHUT_WR)
             except OSError:
@@ -126,7 +141,8 @@ class TcpRelay:
         backend.settimeout(None)
         outward = threading.Thread(target=self._pump, args=(client, backend), daemon=True)
         outward.start()
-        self._pump(backend, client)
+        observer = ApiResponseObserver(self.failure_callback) if self.failure_callback is not None else None
+        self._pump(backend, client, observer)
         outward.join(timeout=1.0)
         client.close()
         backend.close()
@@ -167,6 +183,9 @@ class BrokerServer:
         self.restart_delay = 1.0
         self.backend_unavailable_since: Optional[float] = None
         self.last_reconnect_milliseconds: Optional[int] = None
+        self.last_api_failure: Optional[Dict[str, Any]] = None
+        self.last_api_failure_monotonic: Optional[float] = None
+        self.failure_lock = threading.Lock()
 
     def _acquire_singleton(self) -> None:
         ensure_private_directory(self.directory)
@@ -213,7 +232,7 @@ class BrokerServer:
         if self.spec is None:
             raise RuntimeError("tunnel specification is missing")
         if self.relay is None:
-            self.relay = TcpRelay()
+            self.relay = TcpRelay(self._record_api_failure)
             self.relay.start()
         backend_port = choose_backend_port()
         self.relay.set_backend(None)
@@ -292,6 +311,32 @@ class BrokerServer:
             },
         )
 
+    def _record_api_failure(self, observation: Dict[str, Any]) -> None:
+        cause = str(observation.get("cause") or "")
+        if not cause:
+            return
+        now = time.monotonic()
+        with self.failure_lock:
+            previous = self.last_api_failure
+            previous_at = self.last_api_failure_monotonic
+            if (
+                cause == CAUSE_NO_USABLE_ACCOUNTS
+                and isinstance(previous, dict)
+                and previous.get("cause") in DEFINITIVE_ACCOUNT_CAUSES
+                and previous_at is not None
+                and now - previous_at <= ROOT_CAUSE_WINDOW_SECONDS
+            ):
+                retained = dict(previous)
+                retained["maskedBy"] = CAUSE_NO_USABLE_ACCOUNTS
+                self.last_api_failure = retained
+                return
+            self.last_api_failure = dict(observation)
+            self.last_api_failure_monotonic = now
+
+    def _last_api_failure(self) -> Optional[Dict[str, Any]]:
+        with self.failure_lock:
+            return dict(self.last_api_failure) if isinstance(self.last_api_failure, dict) else None
+
     def _reap_leases(self) -> None:
         stale = [lease_id for lease_id, lease in self.leases.items() if not pid_alive(int(lease.get("ownerPid", 0)))]
         for lease_id in stale:
@@ -333,6 +378,7 @@ class BrokerServer:
                 "generation": self.generation,
                 "lastReconnectMilliseconds": self.last_reconnect_milliseconds,
                 "leases": len(self.leases),
+                "lastApiFailure": self._last_api_failure(),
             }
         if command == "acquire":
             lease_id = str(request.get("leaseId") or "")

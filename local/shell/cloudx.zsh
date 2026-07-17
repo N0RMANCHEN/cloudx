@@ -99,7 +99,7 @@ codexx() {
   local bin="${CLOUDX_CODEXX_BIN:-$HOME/.local/bin/codexx}"
   local command="${1:-}"
   case "$command" in
-    add|login|status|logout|list|current|remove|rename|import|--help|-h|'')
+    add|login|status|logout|list|current|remove|rename|import|diagnose|--help|-h|'')
       "$bin" "$@"
       ;;
     exit)
@@ -115,10 +115,22 @@ codexx() {
     cloud)
       if [ "$#" -eq 1 ]; then
         __cloudx_apply_mode "$bin" _mode cloud --shell-pid "$$"
-      elif [ "${2:-}" = "import" ]; then
+      elif [ "${2:-}" = "import" ] || [ "${2:-}" = "diagnose" ]; then
         "$bin" "$@"
       else
-        echo 'codexx: cloud supports mode selection or cloud import <source>' >&2
+        echo 'codexx: cloud supports mode selection, cloud import <source>, or cloud diagnose' >&2
+        return 2
+      fi
+      ;;
+    api|cpa)
+      if [ "$#" -eq 1 ]; then
+        __cloudx_apply_mode "$bin" _mode account "$command" --shell-pid "$$"
+      elif [ "$#" -eq 2 ] && [ "${2:-}" = "diagnose" ]; then
+        "$bin" "$@"
+      elif [ "$#" -eq 3 ] && [ "${2:-}" = "diagnose" ] && [ "${3:-}" = "--json" ]; then
+        "$bin" "$@"
+      else
+        echo "codexx: $command supports mode selection or $command diagnose [--json]" >&2
         return 2
       fi
       ;;

@@ -12,6 +12,7 @@ A release candidate is not ready when any of these are true:
 
 - build or tests modify an active tunnel, gateway, auth directory, service, or release symlink
 - a failure path logs raw import content, tokens, API keys, or account identities in health output
+- local or cloud diagnosis reads request content, exposes raw upstream messages, or treats generic 429/403/503 status alone as proof of quota exhaustion or account deactivation
 - update checking stages, activates, or restarts anything implicitly
 - local and cloud protocol compatibility is unknown
 - rollback depends on GitHub, the model API, or a mutable source checkout

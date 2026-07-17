@@ -172,6 +172,8 @@ def parser() -> argparse.ArgumentParser:
     codex = sub.add_parser("codex")
     codex.add_argument("--check", action="store_true")
     codex.add_argument("codex_args", nargs=argparse.REMAINDER)
+    diagnose = sub.add_parser("diagnose")
+    diagnose.add_argument("--json", action="store_true", help="print cloudx.api-diagnosis.v1 JSON")
     import_parser = sub.add_parser("import")
     import_parser.add_argument("source")
     import_parser.add_argument("--dry-run", action="store_true")
@@ -192,6 +194,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 raise RuntimeError("cloud codex --check does not accept Codex arguments")
             return check_connection(config)
         return run_codex(config, codex_args)
+    if args.command == "diagnose":
+        from . import api_diagnosis
+
+        return api_diagnosis.run(
+            config,
+            ["--json"] if args.json else [],
+            forced_target="cloud",
+        )
     if args.command == "import":
         return run_import(config, args.source, args.dry_run, args.force, args.json)
     return 2

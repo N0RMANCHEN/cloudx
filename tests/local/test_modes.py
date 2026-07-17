@@ -48,6 +48,16 @@ class ModeTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
+    def test_top_level_help_exposes_modes_import_and_diagnosis(self) -> None:
+        output = StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(codexx_cli.main(["--help"]), 0)
+        rendered = output.getvalue()
+        self.assertIn("codexx cloud", rendered)
+        self.assertIn("codexx import <source>", rendered)
+        self.assertIn("codexx diagnose [api|cpa|cloud] [--json]", rendered)
+        self.assertIn("official executable", rendered)
+
     @mock.patch("cloudx_local.modes.prepare_cloud_mode")
     @mock.patch("cloudx_local.modes.probe_endpoint", return_value=200)
     @mock.patch("cloudx_local.modes.BrokerClient")
@@ -86,6 +96,20 @@ class ModeTests(unittest.TestCase):
     def test_cloud_import_routes_to_remote_importer(self, remote_import: mock.Mock) -> None:
         self.assertEqual(codexx_cli.main(["cloud", "import", "fixture.json", "--dry-run"]), 0)
         remote_import.assert_called_once_with(["import", "fixture.json", "--dry-run"])
+
+    @mock.patch("cloudx_local.codexx_cli.api_diagnosis.run", return_value=0)
+    @mock.patch("cloudx_local.codexx_cli.LocalConfig.load")
+    def test_api_and_cloud_diagnosis_route_without_changing_mode(
+        self,
+        load: mock.Mock,
+        diagnose: mock.Mock,
+    ) -> None:
+        load.return_value = self.config
+        self.assertEqual(codexx_cli.main(["api", "diagnose", "--json"]), 0)
+        diagnose.assert_called_once_with(self.config, ["--json"], forced_target="api")
+        diagnose.reset_mock()
+        self.assertEqual(codexx_cli.main(["cloud", "diagnose"]), 0)
+        diagnose.assert_called_once_with(self.config, [], forced_target="cloud")
 
     @mock.patch("cloudx_local.codexx_cli.local_cpa.import_local", return_value=0)
     @mock.patch("cloudx_local.codexx_cli.LocalConfig.load")

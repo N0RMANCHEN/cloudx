@@ -14,7 +14,7 @@ from unittest import mock
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "local"))
 
-from cloudx_local.cloud_cli import import_source, run_import  # noqa: E402
+from cloudx_local.cloud_cli import import_source, main, run_import  # noqa: E402
 
 
 class LocalImportSourceTests(unittest.TestCase):
@@ -24,6 +24,21 @@ class LocalImportSourceTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temp.cleanup()
+
+    @mock.patch("cloudx_local.api_diagnosis.run", return_value=0)
+    @mock.patch("cloudx_local.cloud_cli.LocalConfig.load")
+    def test_cloud_compatibility_entrypoint_supports_diagnosis(
+        self,
+        load: mock.Mock,
+        diagnose: mock.Mock,
+    ) -> None:
+        load.return_value = mock.sentinel.config
+        self.assertEqual(main(["diagnose", "--json"]), 0)
+        diagnose.assert_called_once_with(
+            mock.sentinel.config,
+            ["--json"],
+            forced_target="cloud",
+        )
 
     def test_local_file_bytes_are_the_ssh_payload(self) -> None:
         source = self.root / "credentials.json"

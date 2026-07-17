@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.api-diagnosis.v1.schema.json",
+  "title": "Cloudx secret-free API failure diagnosis",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "target", "status", "cause", "confidence", "gateway", "evidence"],
+  "properties": {
+    "schema": {"const": "cloudx.api-diagnosis.v1"},
+    "target": {"enum": ["local_api", "cloud_gateway"]},
+    "status": {"enum": ["failure_classified", "gateway_failure", "no_recent_failure"]},
+    "cause": {
+      "enum": [
+        "none",
+        "account_deactivated",
+        "quota_exhausted",
+        "rate_limited",
+        "login_required",
+        "access_denied",
+        "no_usable_accounts",
+        "gateway_authentication_failed",
+        "gateway_unreachable",
+        "gateway_failure",
+        "upstream_failure",
+        "unknown"
+      ]
+    },
+    "confidence": {"enum": ["exact", "inferred", "unknown"]},
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "httpStatus"],
+      "properties": {
+        "state": {
+          "enum": ["reachable", "authentication_failed", "unreachable", "server_failure", "client_failure"]
+        },
+        "httpStatus": {
+          "anyOf": [
+            {"type": "integer", "minimum": 100, "maximum": 599},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "httpStatus", "signal", "observedAt", "retryAt", "maskedBy"],
+      "properties": {
+        "source": {"enum": ["gateway_error_log", "tunnel_observation", "gateway_probe"]},
+        "httpStatus": {
+          "anyOf": [
+            {"type": "integer", "minimum": 100, "maximum": 599},
+            {"type": "null"}
+          ]
+        },
+        "signal": {
+          "enum": [
+            "none",
+            "other",
+            "account_deactivated",
+            "account_disabled",
+            "account_suspended",
+            "usage_limit_reached",
+            "insufficient_quota",
+            "quota_exceeded",
+            "billing_hard_limit_reached",
+            "credits_exhausted",
+            "rate_limit_error",
+            "rate_limit_exceeded",
+            "too_many_requests",
+            "refresh_token_reused",
+            "invalid_grant",
+            "invalid_token",
+            "token_expired",
+            "invalid_api_key",
+            "authentication_error",
+            "unauthorized",
+            "permission_denied",
+            "forbidden",
+            "model_not_found",
+            "auth_unavailable",
+            "internal_server_error",
+            "http_401",
+            "http_403",
+            "http_429",
+            "http_500",
+            "http_502",
+            "http_503",
+            "http_504",
+            "http_5xx"
+          ]
+        },
+        "observedAt": {
+          "anyOf": [
+            {"type": "string", "format": "date-time"},
+            {"type": "null"}
+          ]
+        },
+        "retryAt": {
+          "anyOf": [
+            {"type": "string", "format": "date-time"},
+            {"type": "null"}
+          ]
+        },
+        "maskedBy": {
+          "anyOf": [
+            {"const": "no_usable_accounts"},
+            {"type": "null"}
+          ]
+        }
+      }
+    }
+  }
+}

@@ -46,6 +46,23 @@ In an interactive terminal, local and cloud imports use the same user-facing sum
 
 For pipeline compatibility, redirected cloud-import stdout remains the raw `cloudx.import.v1` JSON document and redirected local-import output remains the legacy adapter's count output. `--json` forces the raw cloud contract even when stdout is an interactive terminal.
 
+## API Failure Diagnosis
+
+```bash
+codexx diagnose
+codexx diagnose api --json
+codexx api diagnose
+codexx cpa diagnose
+codexx cloud diagnose
+cloud diagnose
+```
+
+The active-mode form chooses local API/CPA or cloud automatically. Every form uses the same user vocabulary and the secret-free `cloudx.api-diagnosis.v1` JSON contract. Causes include `account_deactivated`, `quota_exhausted`, `rate_limited`, `login_required`, `access_denied`, `no_usable_accounts`, gateway authentication/network/server failures, upstream failure, and `unknown`.
+
+Local diagnosis reads only the bounded response portion of recent CLIProxyAPI error logs. Cloud diagnosis uses a passive observer in the existing tunnel relay. Neither path reads a Codex request body into its result, exposes a credential or account identity, changes the response delivered to Codex, wraps the official executable, restarts CLIProxyAPI, or changes account routing. If a definitive 429/401/deactivation/permission response is followed by generic `503 auth_unavailable`, the definitive cause remains primary and the later response appears as `maskedBy=no_usable_accounts`.
+
+This is a post-failure diagnostic surface, not an in-band rewrite of the external gateway's OpenAI-compatible response. When no retained structured failure exists, Cloudx reports that the cause is undetermined; `/v1/models` success proves gateway reachability only.
+
 In zsh, the active selection is shown at the right edge as `[cx:api]`, `[cx:cloud]`, or `[cx:<account>]`. Cloudx appends only its own segment, preserves existing `RPROMPT` content, and removes its segment after `codexx exit`.
 
 The low-level single-file equivalent is:

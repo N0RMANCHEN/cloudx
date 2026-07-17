@@ -10,6 +10,7 @@ Cloudx 0.x supports these durable behaviors:
 4. Import local CPA credentials through the explicit migration adapter with `codexx import`.
 5. Import cloud gateway credentials over SSH with `codexx cloud import`.
 6. Install signed endpoint artifacts and the local shell source with `./install`.
+7. Diagnose retained local or cloud API failure evidence without replacing `codex`, changing the gateway response, or exposing a credential or account identity.
 
 `cloud codex` and `cloud import` remain supported compatibility commands during the migration window.
 
@@ -26,6 +27,7 @@ The migration-only HTTP importer stop-gate evaluator accepts a bounded sanitized
 - The default local Codex profile and named profiles have independent authentication files.
 - A single local broker owns the cloud SSH tunnel. Sessions acquire leases; they never monitor, kill, or rebuild the shared SSH process themselves.
 - The broker uses a Cloudx-owned port distinct from the legacy bridge and never treats a transient HTTP probe failure as authority to kill an SSH tunnel.
+- The broker may passively classify response bytes already crossing the cloud relay, but it stores only the secret-free diagnosis fields and never changes forwarded bytes. Local CPA diagnosis reads only bounded response sections from external gateway logs. A generic no-usable-account response cannot overwrite a recent definitive upstream cause, and insufficient evidence is never guessed to be quota exhaustion or deactivation.
 - The existing legacy bridge remains a supported migration fallback until its removal has a separate, accepted roadmap item.
 - Import and health code cannot require Phi.
 - In the initial Personal Agent Mesh, trusted devices terminate at Phi cloud and only the Phi cloud runtime is a normal Cloudx gateway consumer. Cloudx never stores Phi device, Task, lease, approval, local-path, transfer-content, or Artifact metadata.
@@ -33,6 +35,7 @@ The migration-only HTTP importer stop-gate evaluator accepts a bounded sanitized
 - Direct endpoint-to-Cloudx access for future local inference requires a separate accepted milestone and credential contract; Mesh membership alone never grants gateway access.
 - Local CPA import may delegate to the explicitly labeled legacy recovery adapter only while codex-plus retirement is incomplete; that dependency must not be hidden.
 - Interactive local and cloud imports use one outcome vocabulary that identifies the destination, imported and skipped counts, verification scope, and safe failure reasons. Cloud write acceptance must never be presented as proof of live account usability.
+- Local and cloud API diagnosis use one outcome vocabulary that separates account deactivation, exhausted allowance, transient rate limiting, relogin, permission denial, gateway failure, and unknown evidence. A successful model-list probe must never be presented as proof of remaining upstream quota.
 - Cloud helper JSON, static text, health publication, receipts, release state, logs, and public errors pass through one fail-closed metadata boundary. Phi Task, session, device, lease, approval, local-path, transfer-content, ContextRequest, LocalAction, and Phi Artifact fields are rejected; the scoped credential policy may only state `device`, `task`, and `session` as literal `false` representation constraints.
 - Unsupported or shadow-only behavior must be labeled as such in command output and documentation.
 

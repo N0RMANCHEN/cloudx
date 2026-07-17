@@ -12,6 +12,7 @@
     "cloud/cloudx_cloud/http_importer_gate.py",
     "cloud/cloudx_cloud/public_metadata.py",
     "config/governance/phi_cloudx_release_ordering.v1.json",
+    "shared/contracts/cloudx.api-diagnosis.v1.schema.json",
     "shared/contracts/cloudx.capacity.v1.schema.json",
     "shared/contracts/cloudx.health.v1.schema.json",
     "shared/contracts/cloudx.handshake.v1.schema.json",

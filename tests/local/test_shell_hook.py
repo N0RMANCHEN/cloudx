@@ -91,6 +91,47 @@ print -r -- "hooks:${(j:,:)precmd_functions}"
             ],
         )
 
+    def test_diagnosis_commands_are_forwarded_without_mode_eval(self) -> None:
+        zsh = pathlib.Path("/bin/zsh")
+        if not zsh.is_file():
+            self.skipTest("zsh is not available")
+
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            calls = root / "calls"
+            fake = root / "codexx"
+            fake.write_text(
+                "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$CALLS\"\n",
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+            environment = dict(os.environ)
+            environment.update(
+                {
+                    "CALLS": str(calls),
+                    "CLOUDX_CODEXX_BIN": str(fake),
+                    "HOOK": str(PACKAGED_HOOK),
+                }
+            )
+            completed = subprocess.run(
+                [
+                    str(zsh),
+                    "-dfc",
+                    'source "$HOOK"; codexx api diagnose --json; codexx cloud diagnose; codexx diagnose api --json',
+                ],
+                env=environment,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(completed.returncode, 0, msg=completed.stderr or completed.stdout)
+            self.assertEqual(
+                calls.read_text(encoding="utf-8").splitlines(),
+                ["api diagnose --json", "cloud diagnose", "diagnose api --json"],
+            )
+
     def test_hook_removes_only_legacy_account_bin_from_path(self) -> None:
         zsh = pathlib.Path("/bin/zsh")
         if not zsh.is_file():

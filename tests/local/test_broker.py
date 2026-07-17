@@ -118,6 +118,33 @@ class BrokerTests(unittest.TestCase):
         self.thread.join(timeout=5.0)
         self.temp.cleanup()
 
+    def test_generic_no_auth_preserves_recent_definitive_root_cause(self) -> None:
+        root = {
+            "cause": "quota_exhausted",
+            "httpStatus": 429,
+            "signal": "usage_limit_reached",
+            "observedAt": "2026-07-17T05:00:00Z",
+            "retryAt": None,
+            "definitive": True,
+            "source": "tunnel_observation",
+            "maskedBy": None,
+        }
+        generic = {
+            "cause": "no_usable_accounts",
+            "httpStatus": 503,
+            "signal": "auth_unavailable",
+            "observedAt": "2026-07-17T05:01:00Z",
+            "retryAt": None,
+            "definitive": False,
+            "source": "tunnel_observation",
+            "maskedBy": None,
+        }
+        self.server._record_api_failure(root)
+        self.server._record_api_failure(generic)
+        retained = self.server._last_api_failure()
+        self.assertEqual(retained["cause"], "quota_exhausted")
+        self.assertEqual(retained["maskedBy"], "no_usable_accounts")
+
     def test_shared_leases_have_one_owner_and_stable_port(self) -> None:
         first = self.client.acquire("cloud", "gateway", 8317)
         second = self.client.acquire("cloud", "gateway", 8317)

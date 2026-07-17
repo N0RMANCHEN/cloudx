@@ -5,8 +5,35 @@ import os
 import sys
 from typing import Optional, Sequence
 
-from . import accounts, cloud_cli, import_ui, local_cpa, modes
+from . import accounts, api_diagnosis, cloud_cli, import_ui, local_cpa, modes
 from .config import LocalConfig
+
+
+def _print_help() -> None:
+    print(
+        """usage: codexx <command> [arguments]
+
+Modes (current shell):
+  codexx api                       select the local API/CPA profile
+  codexx cpa                       select the local CPA compatibility profile
+  codexx cloud                     select the cloud gateway profile
+  codexx <account>                 select a named local Codex account
+  codexx exit                      return to the native profile
+
+Account lifecycle:
+  codexx add|login|status|logout|list|current|remove|rename ...
+
+Credential import:
+  codexx import <source>            import through the local CPA adapter
+  codexx cloud import <source>      import through SSH to the cloud gateway
+
+API failure diagnosis (read-only):
+  codexx diagnose [api|cpa|cloud] [--json]
+  codexx api diagnose [--json]
+  codexx cloud diagnose [--json]
+
+After selecting a mode, run plain `codex`; it remains the installed official executable."""
+    )
 
 
 def _mode(arguments: Sequence[str]) -> int:
@@ -33,10 +60,19 @@ def _mode(arguments: Sequence[str]) -> int:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     arguments = list(argv or [])
+    if not arguments or arguments in (["-h"], ["--help"]):
+        _print_help()
+        return 0
     if arguments[:1] == ["_mode"]:
         return _mode(arguments[1:])
     if arguments[:2] == ["cloud", "import"]:
         return cloud_cli.main(["import", *arguments[2:]])
+    if arguments[:2] == ["cloud", "diagnose"]:
+        return api_diagnosis.run(LocalConfig.load(), arguments[2:], forced_target="cloud")
+    if len(arguments) >= 2 and arguments[0] in ("api", "cpa") and arguments[1] == "diagnose":
+        return api_diagnosis.run(LocalConfig.load(), arguments[2:], forced_target=arguments[0])
+    if arguments[:1] == ["diagnose"]:
+        return api_diagnosis.run(LocalConfig.load(), arguments[1:])
     if arguments[:1] == ["cloud"]:
         return _mode(["cloud", "--shell-pid", str(os.getppid())])
     if arguments[:1] == ["import"]:

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add secret-free `cloudx.api-diagnosis.v1` and consistent `codexx diagnose`, `codexx api diagnose`, and `codexx cloud diagnose` UX; classify explicit account deactivation, exhausted allowance, transient rate limiting, stale login credentials, access denial, gateway auth/network/server failures, and unknown evidence while retaining a definitive upstream root cause when later requests collapse to generic `no auth available`.
 - Add a strict, secret-free Phi/Cloudx current-and-N-1 release-ordering evidence fixture and executable matrix audit covering all four release pairs, both upgrade orders, and each single-product rollback; current evidence remains explicitly blocked because Phi N-1 consumes the legacy health contract while Cloudx current/N-1 and Phi current use formal `cloudx.health.v1`.
 - Enforce the Phi metadata boundary across every cloud-helper JSON/text/error output, health and account-state publication, and signed cloud release-manifest staging; fail closed on Phi Task/session/device/lease/approval/local-path/transfer/ContextRequest/LocalAction/Artifact fields, retain only literal-false credential non-representation declarations, and add an architecture gate against bypass output paths.
 - Unify interactive `codexx import` and `codexx cloud import` UX around explicit status, destination, imported/skipped counts, verification scope, sanitized failure reasons, and nonzero failure exits; preserve redirected legacy/raw output and add cloud `--json` forcing for automation.

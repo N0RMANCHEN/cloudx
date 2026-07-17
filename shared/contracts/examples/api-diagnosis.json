@@ -1,0 +1,19 @@
+{
+  "cause": "quota_exhausted",
+  "confidence": "inferred",
+  "evidence": {
+    "httpStatus": 429,
+    "maskedBy": "no_usable_accounts",
+    "observedAt": "2026-07-17T05:09:59Z",
+    "retryAt": "2026-07-17T09:06:39Z",
+    "signal": "usage_limit_reached",
+    "source": "gateway_error_log"
+  },
+  "gateway": {
+    "httpStatus": 200,
+    "state": "reachable"
+  },
+  "schema": "cloudx.api-diagnosis.v1",
+  "status": "failure_classified",
+  "target": "local_api"
+}

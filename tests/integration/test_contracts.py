@@ -46,6 +46,25 @@ class ContractTests(unittest.TestCase):
         for forbidden in ("api_key", "token", "email", "account_name", "deviceid", "taskid"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_api_diagnosis_is_secret_free_and_distinguishes_user_causes(self) -> None:
+        schema = json.loads((CONTRACTS / "cloudx.api-diagnosis.v1.schema.json").read_text(encoding="utf-8"))
+        document = json.loads((CONTRACTS / "examples/api-diagnosis.json").read_text(encoding="utf-8"))
+        self.assertEqual(document["schema"], "cloudx.api-diagnosis.v1")
+        causes = set(schema["properties"]["cause"]["enum"])
+        self.assertTrue({
+            "account_deactivated",
+            "quota_exhausted",
+            "rate_limited",
+            "login_required",
+            "access_denied",
+            "no_usable_accounts",
+        }.issubset(causes))
+        self.assertEqual(document["cause"], "quota_exhausted")
+        self.assertEqual(document["evidence"]["maskedBy"], "no_usable_accounts")
+        serialized = json.dumps(document).casefold()
+        for forbidden in ("api_key", "token", "email", "account_name", "message"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_manifest_forbids_automatic_activation(self) -> None:
         schema = json.loads((CONTRACTS / "cloudx.release-manifest.v1.schema.json").read_text(encoding="utf-8"))
         automatic = schema["properties"]["activation"]["properties"]["automatic"]

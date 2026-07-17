@@ -13,6 +13,26 @@ Never use a build, test, or update command against the active legacy local port 
 
 Artifacts are written to `dist/`. Building has no install or activation side effects.
 
+## Diagnose API Failures
+
+Run diagnosis immediately after a failed Codex turn:
+
+```bash
+codexx diagnose
+codexx api diagnose
+codexx cpa diagnose
+codexx cloud diagnose
+codexx diagnose --json
+```
+
+`codexx diagnose` selects the active `api`, `cpa`, or cloud mode; an explicit target works outside an active selection. The JSON form is `cloudx.api-diagnosis.v1`. A successfully formed diagnosis exits zero even when it describes a failure; command/configuration errors remain nonzero.
+
+For local CPA, Cloudx reads only bounded `=== API RESPONSE ===` and response-status sections from recent external CLIProxyAPI error logs. It does not emit request bodies, headers, account identities, API keys, or raw upstream messages. For cloud mode, the tunnel broker observes plaintext response bytes already crossing its relay and retains only the enumerated cause, HTTP status, normalized signal, observation time, optional reset time, and masking relationship. It neither changes forwarded bytes nor restarts or reconfigures the tunnel or gateway.
+
+The result distinguishes explicit account deactivation, exhausted allowance or credits, transient request/token rate limits, invalid/expired/reused login credentials, access/model denial, client-to-gateway authentication, network reachability, gateway/server failure, and insufficient evidence. A generic `503` `auth_unavailable`/`no auth available` is never guessed to mean quota or deactivation; when it follows a definitive upstream failure within the bounded retention window, the earlier root cause is retained and the later masking response is reported separately. A reachable `/v1/models` probe with no recent failure evidence is not presented as proof that an upstream account has quota.
+
+Cloud observation begins when a broker process from the updated local artifact starts naturally. Verification, staging, and activation do not stop an older active broker, and diagnosis never terminates one.
+
 Inspect the exact signed Phi Mesh compatibility profile without reading a credential, probing the gateway, or changing runtime state:
 
 ```bash
