@@ -24,6 +24,8 @@ Forbidden directions:
 
 The initial Mesh direction is frozen in `config/governance/phi_mesh_topology.v1.json`. The architecture gate rejects direct device-to-Cloudx access, any additional normal Mesh consumer, Cloudx control-plane ownership, synchronized release coupling, or removal of the separate approval requirements for future direct endpoint access.
 
+The Phi privilege boundary is recorded separately in `config/governance/phi_cloudx_privileged_boundary.v1.json` and evaluated by `scripts/check_phi_cloudx_privileged_boundary.py`. The audit binds deployed Phi source refs to a secret-free credential class, identity elevation model, and the effective capabilities of each normal Agent instruction surface. A syntactically valid `blocked` result preserves an observed external gap without weakening verification; only `--require-secure` accepts the M4A boundary.
+
 Cloud runtime stdout, stderr, and published public state must use `cloudx_cloud.public_metadata`; direct `print` or `sys.stdout`/`sys.stderr` writes outside that module fail the architecture gate.
 
 ## Runtime Separation

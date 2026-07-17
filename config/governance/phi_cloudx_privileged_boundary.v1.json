@@ -1,0 +1,73 @@
+{
+  "schema": "cloudx.phi-privileged-boundary-evidence.v1",
+  "capturedAt": "2026-07-17T06:23:50Z",
+  "expectedStatus": "blocked",
+  "deployedRefs": {
+    "agentRuntime": "06c8720298dc0f05dcec847f7a427e4eb08554c0",
+    "mailCommand": "80e349fc1ba590f321e8e8f576d3371bfcb172a1",
+    "orchestrator": "06c8720298dc0f05dcec847f7a427e4eb08554c0"
+  },
+  "consumerCredential": {
+    "class": "cloudx_admin_gateway_key",
+    "privilegeElevation": true
+  },
+  "identities": [
+    {
+      "name": "operator",
+      "elevation": "unrestricted_root",
+      "elevatedCapabilities": {
+        "authRead": true,
+        "importInvoke": true,
+        "gatewayMutate": true,
+        "releaseMutate": true
+      }
+    }
+  ],
+  "agentSurfaces": [
+    {
+      "name": "interactive_cli",
+      "available": true,
+      "agentControlsCommands": true,
+      "arbitraryCommandExecution": true,
+      "identity": "operator",
+      "noNewPrivileges": false,
+      "cloudxSensitivePathsMasked": false,
+      "directCapabilities": {
+        "authRead": false,
+        "importInvoke": false,
+        "gatewayMutate": false,
+        "releaseMutate": false
+      }
+    },
+    {
+      "name": "mail_command",
+      "available": true,
+      "agentControlsCommands": true,
+      "arbitraryCommandExecution": true,
+      "identity": "operator",
+      "noNewPrivileges": false,
+      "cloudxSensitivePathsMasked": true,
+      "directCapabilities": {
+        "authRead": false,
+        "importInvoke": false,
+        "gatewayMutate": false,
+        "releaseMutate": false
+      }
+    },
+    {
+      "name": "orchestrator",
+      "available": true,
+      "agentControlsCommands": true,
+      "arbitraryCommandExecution": true,
+      "identity": "operator",
+      "noNewPrivileges": true,
+      "cloudxSensitivePathsMasked": true,
+      "directCapabilities": {
+        "authRead": false,
+        "importInvoke": false,
+        "gatewayMutate": false,
+        "releaseMutate": false
+      }
+    }
+  ]
+}

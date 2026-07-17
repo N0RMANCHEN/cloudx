@@ -11,6 +11,7 @@
     "cloud/__main__.py",
     "cloud/cloudx_cloud/http_importer_gate.py",
     "cloud/cloudx_cloud/public_metadata.py",
+    "config/governance/phi_cloudx_privileged_boundary.v1.json",
     "config/governance/phi_cloudx_release_ordering.v1.json",
     "shared/contracts/cloudx.api-diagnosis.v1.schema.json",
     "shared/contracts/cloudx.capacity.v1.schema.json",
@@ -24,6 +25,7 @@
     "shared/contracts/cloudx.phi-mesh-compatibility-profile.v1.schema.json",
     "docs/operations.md",
     "docs/phi-boundary.md",
+    "scripts/check_phi_cloudx_privileged_boundary.py",
     "scripts/check_phi_cloudx_release_ordering.py",
     "prompts/README.md"
   ],

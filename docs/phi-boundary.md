@@ -69,6 +69,16 @@ Phi and Cloudx keep independent release trains and N/N-1 rollback. Their compati
 
 `config/governance/phi_cloudx_release_ordering.v1.json` records the current sanitized cross-repository ordering evidence. Its executable audit currently proves that Phi current can consume both Cloudx current and N-1 and therefore permits a Cloudx-only rollback, but it also proves that the recorded Phi N-1 still expects the legacy health document. Phi rollback and both upgrade-order sequences therefore remain blocked for M4A rather than being inferred compatible from protocol number `1` alone.
 
+`config/governance/phi_cloudx_privileged_boundary.v1.json` records a separate sanitized production permission snapshot. `scripts/check_phi_cloudx_privileged_boundary.py` evaluates the normal interactive CLI, mail-command, and orchestrator Agent instruction surfaces without storing usernames, host addresses, filesystem paths, credential values, or command text. It combines direct Cloudx capabilities with the surface's command tool, runtime identity, privilege-elevation class, `NoNewPrivileges`, and sensitive-path masking.
+
+The current snapshot is `blocked`. Phi's configured Cloudx consumer is still sourced from an administrative gateway key through privilege elevation instead of the dedicated scoped consumer credential. The interactive CLI and authenticated mail-command path expose arbitrary Agent command execution under an identity with unrestricted root elevation, making auth read, import, gateway mutation, and Cloudx release mutation reachable. The active orchestrator does not inherit that effective authority because its unit masks Cloudx-sensitive paths and enforces `NoNewPrivileges=true`. This audit made no credential, sudoers, unit, service, release, or runtime change; remediation and activation remain Phi-owned operator actions.
+
+The normal verifier accepts a truthful `blocked` evidence file so the known external gap stays continuously visible. The M4A acceptance command is stricter:
+
+```bash
+python3 scripts/check_phi_cloudx_privileged_boundary.py --require-secure
+```
+
 Cloudx publishes the initial reference set as `cloudx.phi-mesh-compatibility-profile.v1` from the signed cloud artifact. The profile reuses `cloudx.handshake.v1`, `cloudx.health.v1`, `legacy-gateway.v1`, `cloudx.client-config.v1`, and the existing signed release/status/rollback contracts; it creates no new runtime state and grants no credential or mutation authority.
 
 The companion `cloudx.phi-cloud-consumer-credential.v1` policy defines a separate gateway bearer stored outside release directories at `/etc/cloudx/consumers/phi-cloud/credential`, owned by root and readable only by the dedicated `phi-cloudx-consumer` group. It represents the Phi cloud service only, has no SSH or `cloudx-remote` authority, and cannot import, mutate gateway configuration, change releases, or assert Device, Task, or session identity. Rotation installs and canaries a new key before revoking the previous key; the policy itself authorizes no install, rotation, revocation, or restart.
