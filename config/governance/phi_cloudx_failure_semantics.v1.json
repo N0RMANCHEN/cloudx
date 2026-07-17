@@ -1,0 +1,202 @@
+{
+  "schema": "cloudx.phi-failure-semantics-evidence.v1",
+  "capturedAt": "2026-07-17T07:23:58Z",
+  "expectedStatus": "blocked",
+  "phiSnapshot": {
+    "sourceRef": "3f125abf16fec1e7c17d2ccff0f6ce0a2414193e",
+    "requirements": [
+      "ACCEPT-MESH-CLOUDX-001",
+      "QA-MESH-CLOUDX-DEGRADE-001"
+    ],
+    "roadmapItems": [
+      "INT/P1-1",
+      "CT/P1-3"
+    ],
+    "roadmapStatuses": {
+      "INT/P1-1": "blocked",
+      "CT/P1-3": "blocked"
+    },
+    "files": [
+      {
+        "path": "docs/architecture/personal-agent-mesh.md",
+        "sha256": "70f3db6475959fc67f0f97e7e71a2e263c05dc24193cf44fd21bfbbca7ea9fa1"
+      },
+      {
+        "path": "docs/standards/product-acceptance.md",
+        "sha256": "2780f4ff342586f08effa836d5753d9dcade2158488c44b3f4714b945ab014be"
+      },
+      {
+        "path": "docs/roadmap/roadmap.json",
+        "sha256": "2a3e69c023039b0412d38fb1fdd07c52c78c3809598d9ec94ef4bb727cedf13d"
+      }
+    ]
+  },
+  "cloudx": {
+    "version": "0.1.15",
+    "protocol": {
+      "min": 1,
+      "max": 1
+    },
+    "contracts": {
+      "capacity": "cloudx.capacity.v1",
+      "credential": "cloudx.phi-cloud-consumer-credential.v1",
+      "traffic": "cloudx.phi-cloud-consumer-traffic-policy.v1",
+      "compatibility": "cloudx.phi-mesh-compatibility-profile.v1"
+    },
+    "governance": {
+      "releaseOrdering": "cloudx.phi-release-ordering-evidence.v1",
+      "privilegedBoundary": "cloudx.phi-privileged-boundary-evidence.v1"
+    }
+  },
+  "invariants": {
+    "ownerMatrix": {
+      "phiOwned": [
+        "device",
+        "task",
+        "session",
+        "route",
+        "lease",
+        "approval",
+        "local_action",
+        "transfer",
+        "model_request_semantics",
+        "result_use"
+      ],
+      "cloudxOwned": [
+        "gateway",
+        "provider_accounts",
+        "account_import",
+        "capacity",
+        "health",
+        "consumer_credential",
+        "release",
+        "rollback"
+      ],
+      "cloudxNoVisibility": [
+        "phi_task",
+        "phi_session",
+        "phi_device",
+        "phi_lease",
+        "phi_approval",
+        "local_path",
+        "transfer_content",
+        "artifact_metadata"
+      ]
+    },
+    "preservedPhiTruth": [
+      "device_registry",
+      "task",
+      "writer_lease",
+      "execution_lease",
+      "approval",
+      "revocation",
+      "notification",
+      "completed_local_action_receipt"
+    ],
+    "allowedProviderPhaseOutcomes": [
+      "continue",
+      "wait",
+      "degrade",
+      "fail"
+    ],
+    "cloudxOwnsPhiTruth": false,
+    "synchronizedReleaseRequired": false,
+    "runtimeMutationAuthorized": false,
+    "secretFree": true
+  },
+  "scenarios": [
+    {
+      "id": "gateway_unavailable",
+      "contracts": ["cloudx.capacity.v1"],
+      "trigger": "gateway_network_failure",
+      "disposition": "probe_failure",
+      "permittedPhiPhaseOutcomes": ["wait", "degrade", "fail"],
+      "compatibilityGateRequired": false,
+      "phiTruthMutationAllowed": false,
+      "cloudxRuntimeMutationAuthorized": false
+    },
+    {
+      "id": "capacity_unknown",
+      "contracts": ["cloudx.capacity.v1"],
+      "trigger": "missing_health_observation",
+      "disposition": "unknown_observation",
+      "permittedPhiPhaseOutcomes": ["wait", "degrade", "fail"],
+      "compatibilityGateRequired": false,
+      "phiTruthMutationAllowed": false,
+      "cloudxRuntimeMutationAuthorized": false
+    },
+    {
+      "id": "capacity_exhausted",
+      "contracts": ["cloudx.capacity.v1"],
+      "trigger": "no_available_accounts",
+      "disposition": "exhausted_capacity",
+      "permittedPhiPhaseOutcomes": ["wait", "fail"],
+      "compatibilityGateRequired": false,
+      "phiTruthMutationAllowed": false,
+      "cloudxRuntimeMutationAuthorized": false
+    },
+    {
+      "id": "stale_health",
+      "contracts": ["cloudx.capacity.v1"],
+      "trigger": "stale_health_observation",
+      "disposition": "stale_contract",
+      "permittedPhiPhaseOutcomes": ["wait", "degrade", "fail"],
+      "compatibilityGateRequired": false,
+      "phiTruthMutationAllowed": false,
+      "cloudxRuntimeMutationAuthorized": false
+    },
+    {
+      "id": "incompatible_protocol",
+      "contracts": ["cloudx.capacity.v1", "cloudx.phi-mesh-compatibility-profile.v1"],
+      "trigger": "protocol_range_mismatch",
+      "disposition": "incompatible_producer",
+      "permittedPhiPhaseOutcomes": ["fail"],
+      "compatibilityGateRequired": true,
+      "phiTruthMutationAllowed": false,
+      "cloudxRuntimeMutationAuthorized": false
+    },
+    {
+      "id": "revoked_credential",
+      "contracts": ["cloudx.phi-cloud-consumer-credential.v1", "cloudx.capacity.v1"],
+      "trigger": "gateway_credential_invalid",
+      "disposition": "probe_failure",
+      "permittedPhiPhaseOutcomes": ["fail"],
+      "compatibilityGateRequired": false,
+      "phiTruthMutationAllowed": false,
+      "cloudxRuntimeMutationAuthorized": false
+    },
+    {
+      "id": "rate_limit",
+      "contracts": ["cloudx.phi-cloud-consumer-traffic-policy.v1"],
+      "trigger": "http_429",
+      "disposition": "consumer_rate_limited",
+      "permittedPhiPhaseOutcomes": ["wait", "fail"],
+      "compatibilityGateRequired": false,
+      "phiTruthMutationAllowed": false,
+      "cloudxRuntimeMutationAuthorized": false
+    },
+    {
+      "id": "cloudx_rollback",
+      "contracts": ["cloudx.phi-mesh-compatibility-profile.v1"],
+      "trigger": "cloudx_release_rollback",
+      "disposition": "revalidate_current_previous_compatibility",
+      "permittedPhiPhaseOutcomes": ["continue", "wait", "degrade", "fail"],
+      "compatibilityGateRequired": true,
+      "phiTruthMutationAllowed": false,
+      "cloudxRuntimeMutationAuthorized": false
+    },
+    {
+      "id": "independent_release_ordering",
+      "contracts": ["cloudx.phi-mesh-compatibility-profile.v1"],
+      "trigger": "independent_release_change",
+      "disposition": "revalidate_before_use",
+      "permittedPhiPhaseOutcomes": ["continue", "wait", "degrade", "fail"],
+      "compatibilityGateRequired": true,
+      "phiTruthMutationAllowed": false,
+      "cloudxRuntimeMutationAuthorized": false
+    }
+  ],
+  "acceptance": {
+    "phiRuntimeFixturesAccepted": false
+  }
+}

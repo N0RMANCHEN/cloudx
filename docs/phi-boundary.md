@@ -87,4 +87,14 @@ The companion `cloudx.phi-cloud-consumer-credential.v1` policy defines a separat
 
 The live `cloudx.capacity.v1` result preserves six distinct states: healthy capacity, exhausted capacity, unknown observation, stale contract, probe failure, and incompatible producer. It includes only producer/consumer protocol ranges, gateway probe class, freshness, and aggregate account counts. Phi must not collapse unknown, stale, failed, or incompatible states into exhausted capacity.
 
+`config/governance/phi_cloudx_failure_semantics.v1.json` binds those public contracts to a strict nine-case dependency matrix: gateway unavailable, capacity unknown, exhausted capacity, stale health, incompatible protocol, revoked credential, rate limit, Cloudx rollback, and independent release ordering. Every case permits only an explicit provider-phase outcome and forbids mutation of Phi Device, Task, lease, approval, revocation, notification, or completed local-action truth. It also freezes the matching owner matrix and records exact digests for the relevant Phi canonical architecture, acceptance, and Roadmap files.
+
+The normal verifier accepts the truthful blocked snapshot while checking that the Cloudx matrix remains complete and contract-backed. A checkout-aware audit can additionally verify the exact Phi commit and file digests:
+
+```bash
+python3 scripts/check_phi_cloudx_failure_semantics.py --phi-root <phi-checkout>
+```
+
+The stricter `--require-accepted` exit remains nonzero until current/N-1 release ordering is compatible, the privileged boundary is secure, Phi `INT/P1-1` and `CT/P1-3` are complete, and Phi runtime fixtures are accepted. The fixture grants no credential, deployment, restart, release, or runtime mutation authority.
+
 Direct endpoint-to-Cloudx connectivity for future local inference is outside the initial Mesh boundary and requires its own threat model, credential contract, roadmap gate, and operator approval.
