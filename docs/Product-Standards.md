@@ -33,6 +33,7 @@ The migration-only HTTP importer stop-gate evaluator accepts a bounded sanitized
 - Direct endpoint-to-Cloudx access for future local inference requires a separate accepted milestone and credential contract; Mesh membership alone never grants gateway access.
 - Local CPA import may delegate to the explicitly labeled legacy recovery adapter only while codex-plus retirement is incomplete; that dependency must not be hidden.
 - Interactive local and cloud imports use one outcome vocabulary that identifies the destination, imported and skipped counts, verification scope, and safe failure reasons. Cloud write acceptance must never be presented as proof of live account usability.
+- Cloud helper JSON, static text, health publication, receipts, release state, logs, and public errors pass through one fail-closed metadata boundary. Phi Task, session, device, lease, approval, local-path, transfer-content, ContextRequest, LocalAction, and Phi Artifact fields are rejected; the scoped credential policy may only state `device`, `task`, and `session` as literal `false` representation constraints.
 - Unsupported or shadow-only behavior must be labeled as such in command output and documentation.
 
 ## Explicit Non-Goals

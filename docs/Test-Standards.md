@@ -3,6 +3,7 @@
 ## Required Layers
 
 - Unit tests cover command parsing, profile state, tunnel lifecycle, import normalization, atomic writes, health redaction, and release verification.
+- Governance and unit tests require every cloud-runtime stdout/stderr path and published public document to pass the Phi metadata boundary, including negative fixtures for Task, session, device, lease, approval, local path, transfer content, ContextRequest, LocalAction, and Phi Artifact fields.
 - Contract tests validate every example against the versioned shared schema.
 - Integration tests exercise local and cloud entrypoints with fake SSH, gateway, Codex, and filesystem boundaries.
 - Live canaries are manual and use a non-production local port and shadow cloud paths.

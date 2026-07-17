@@ -16,5 +16,6 @@ A release candidate is not ready when any of these are true:
 - local and cloud protocol compatibility is unknown
 - rollback depends on GitHub, the model API, or a mutable source checkout
 - a Phi workflow can write Cloudx production state
+- a Cloudx cloud-runtime output path can bypass the public metadata guard or emit Phi control-plane identifiers, local paths, transfer content, or Phi Artifact metadata
 
 Repository evidence consists of fresh test output, artifact hashes, a signed manifest for releases, and an operator-visible canary result. Historical notes are useful context but not fresh release evidence.

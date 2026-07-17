@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import pathlib
 import re
@@ -56,6 +57,41 @@ def check_phi_mesh_topology(document: object) -> List[str]:
     return []
 
 
+def check_cloud_public_output_guards() -> List[str]:
+    errors: List[str] = []
+    guard = ROOT / "cloud/cloudx_cloud/public_metadata.py"
+    for path in ROOT.glob("cloud/**/*.py"):
+        if path == guard:
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        except (OSError, SyntaxError) as exc:
+            errors.append("could not inspect cloud public output path %s: %s" % (relative(path), exc))
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if isinstance(node.func, ast.Name) and node.func.id == "print":
+                errors.append("cloud public output bypasses metadata guard: %s" % relative(path))
+                break
+            if (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr == "write"
+                and isinstance(node.func.value, ast.Attribute)
+                and isinstance(node.func.value.value, ast.Name)
+                and node.func.value.value.id == "sys"
+                and node.func.value.attr in {"stdout", "stderr"}
+            ):
+                errors.append("cloud public output bypasses metadata guard: %s" % relative(path))
+                break
+    for name in ("cloud/cloudx_cloud/health.py", "cloud/cloudx_cloud/account_state.py"):
+        path = ROOT / name
+        text = path.read_text(encoding="utf-8") if path.is_file() else ""
+        if "validate_public_document" not in text:
+            errors.append("published Cloudx state lacks metadata guard: %s" % name)
+    return errors
+
+
 def check() -> List[str]:
     rules = json.loads(RULES_PATH.read_text(encoding="utf-8"))
     errors: List[str] = []
@@ -68,6 +104,7 @@ def check() -> List[str]:
     if topology_path.is_file():
         topology = json.loads(topology_path.read_text(encoding="utf-8"))
         errors.extend(check_phi_mesh_topology(topology))
+    errors.extend(check_cloud_public_output_guards())
 
     version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     for path in (ROOT / "local/cloudx_local/version.py", ROOT / "cloud/cloudx_cloud/version.py"):

@@ -14,6 +14,8 @@ import tarfile
 import tempfile
 from typing import Any, Dict, Optional, Tuple
 
+from .public_metadata import validate_public_document
+
 
 MAX_BUNDLE_BYTES = 64 * 1024 * 1024
 SIGNING_IDENTITY = "cloudx-release"
@@ -120,6 +122,7 @@ def _release_files(extracted: pathlib.Path) -> Tuple[pathlib.Path, pathlib.Path,
         raise RuntimeError("release manifest is invalid") from exc
     if not isinstance(manifest, dict) or manifest.get("schema") != "cloudx.release-manifest.v1":
         raise RuntimeError("release manifest schema is unsupported")
+    validate_public_document(manifest, "cloudx.release-manifest.v1")
     if manifest.get("product") != "cloudx" or not isinstance(manifest.get("version"), str):
         raise RuntimeError("release manifest product or version is invalid")
     activation = manifest.get("activation")

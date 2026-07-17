@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT / "cloud"))
 
 from build import build_all  # noqa: E402
 from cloudx_cloud import release as cloud_release  # noqa: E402
+from cloudx_cloud.public_metadata import validate_public_document  # noqa: E402
 from cloudx_local import updater  # noqa: E402
 from cloudx_local.config import LocalConfig  # noqa: E402
 
@@ -284,6 +285,7 @@ class ReleaseFlowTests(unittest.TestCase):
             "artifactRef": "refs/heads/release-artifacts/v0.2.0",
             "publishedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
+        validate_public_document(index, "cloudx.release-index.v1")
         index_path = index_dir / "index.json"
         index_path.write_text(json.dumps(index, sort_keys=True) + "\n", encoding="utf-8")
         subprocess.run(
@@ -322,6 +324,7 @@ class ReleaseFlowTests(unittest.TestCase):
 
         release = output / CURRENT_VERSION
         manifest = json.loads((release / "manifest.json").read_text(encoding="utf-8"))
+        validate_public_document(manifest, "cloudx.release-manifest.v1")
         self.assertEqual(manifest["contracts"]["capacity"], 1)
         self.assertEqual(manifest["contracts"]["httpImporterStopGate"], 1)
         self.assertEqual(manifest["contracts"]["phiCloudConsumerCredential"], 1)

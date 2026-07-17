@@ -10,6 +10,7 @@ from typing import Any, Dict, Tuple
 
 from .config import Config
 from .gateway import GatewayProbe, probe_gateway
+from .public_metadata import validate_public_document
 from .version import PROTOCOL_MAX, VERSION
 
 
@@ -100,6 +101,7 @@ def build_health(config: Config) -> Dict[str, Any]:
 
 
 def publish(path: pathlib.Path, document: Dict[str, Any]) -> None:
+    validate_public_document(document, "cloudx.health.v1 publication")
     path.parent.mkdir(parents=True, exist_ok=True)
     data = (json.dumps(document, indent=2, sort_keys=True) + "\n").encode("utf-8")
     descriptor, temp_name = tempfile.mkstemp(prefix=".cloudx-health-", dir=str(path.parent))

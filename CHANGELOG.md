@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Enforce the Phi metadata boundary across every cloud-helper JSON/text/error output, health and account-state publication, and signed cloud release-manifest staging; fail closed on Phi Task/session/device/lease/approval/local-path/transfer/ContextRequest/LocalAction/Artifact fields, retain only literal-false credential non-representation declarations, and add an architecture gate against bypass output paths.
 - Unify interactive `codexx import` and `codexx cloud import` UX around explicit status, destination, imported/skipped counts, verification scope, sanitized failure reasons, and nonzero failure exits; preserve redirected legacy/raw output and add cloud `--json` forcing for automation.
 - Add secret-free `cloudx.capacity.v1` runtime classification with distinct healthy, exhausted, unknown, stale, probe-failure, and incompatible-producer states, aggregate-only counts, explicit consumer protocol ranges, and no write or publication side effect.
 - Define `cloudx.phi-cloud-consumer-traffic-policy.v1` with four in-flight logical requests, sixteen FIFO waiters, a thirty-per-minute/burst-four attempt budget, separated bounded timeouts, capped three-attempt retry semantics, fail-fast backpressure, and no Task, device, scheduler, or Cloudx queue ownership.

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from typing import Any, Dict, Optional, Sequence
 
@@ -13,6 +12,7 @@ from .config import Config
 from .gateway import probe_gateway, read_credential
 from .health import build_health, publish
 from .importer import ImportRejected, ImportResult, import_records, read_limited, request_identity
+from .public_metadata import emit_error, emit_json, emit_text
 from .release import activate as activate_release
 from .release import read_bundle, rollback as rollback_release, stage as stage_release
 from .release import status as release_status
@@ -21,7 +21,7 @@ from .version import IMPORT_CONTRACT_VERSION, PROTOCOL_MAX, PROTOCOL_MIN, VERSIO
 
 
 def emit(document: Dict[str, Any]) -> None:
-    print(json.dumps(document, sort_keys=True, separators=(",", ":")))
+    emit_json(document)
 
 
 def handshake(config: Config) -> Dict[str, Any]:
@@ -122,37 +122,37 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser().parse_args(argv)
     if args.command == "systemd-template":
-        sys.stdout.write(read_template(args.name))
+        emit_text(read_template(args.name))
         return 0
     if args.command == "compatibility-script":
-        sys.stdout.write(read_compatibility_script(args.name))
+        emit_text(read_compatibility_script(args.name))
         return 0
     if args.command == "compatibility-profile":
         try:
             emit(compatibility_profile.read_profile())
         except RuntimeError as exc:
-            print("compatibility-profile: %s" % exc, file=sys.stderr)
+            emit_error("compatibility-profile", exc)
             return 1
         return 0
     if args.command == "phi-consumer-credential-policy":
         try:
             emit(consumer_credential.read_policy())
         except RuntimeError as exc:
-            print("phi-consumer-credential-policy: %s" % exc, file=sys.stderr)
+            emit_error("phi-consumer-credential-policy", exc)
             return 1
         return 0
     if args.command == "phi-consumer-traffic-policy":
         try:
             emit(consumer_traffic.read_policy())
         except RuntimeError as exc:
-            print("phi-consumer-traffic-policy: %s" % exc, file=sys.stderr)
+            emit_error("phi-consumer-traffic-policy", exc)
             return 1
         return 0
     if args.command == "http-importer-stop-gate":
         try:
             document = http_importer_gate.evaluate_stream(sys.stdin.buffer)
         except http_importer_gate.EvidenceRejected as exc:
-            print("http-importer-stop-gate: %s" % exc, file=sys.stderr)
+            emit_error("http-importer-stop-gate", exc)
             return 1
         emit(document)
         return 0 if document["preconditionsSatisfied"] else 2
@@ -160,13 +160,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         try:
             return cpa_health.run(args)
         except (cpa_auth.CpaAuthRejected, cpa_health.CpaHealthUnavailable, OSError) as exc:
-            print("cpa-health: %s" % exc, file=sys.stderr)
+            emit_error("cpa-health", exc)
             return 1
     if args.command == "cpa-health-restore":
         try:
             return cpa_health.restore_run(args)
         except (cpa_auth.CpaAuthRejected, cpa_health.CpaHealthUnavailable, OSError) as exc:
-            print("cpa-health-restore: %s" % exc, file=sys.stderr)
+            emit_error("cpa-health-restore", exc)
             return 1
     config = Config.from_environment()
     if args.command == "handshake":
@@ -176,7 +176,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         try:
             emit(client_config(config))
         except (OSError, ValueError, RuntimeError) as exc:
-            print("client-config unavailable: %s" % exc, file=sys.stderr)
+            emit_error("client-config unavailable", exc)
             return 1
         return 0
     if args.command in ("health", "publish-health"):
@@ -189,14 +189,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         try:
             emit(capacity.build_capacity(config, args.consumer_protocol_min, args.consumer_protocol_max))
         except (OSError, ValueError, RuntimeError) as exc:
-            print("capacity: %s" % exc, file=sys.stderr)
+            emit_error("capacity", exc)
             return 1
         return 0
     if args.command == "adapt-account-state":
         try:
             emit(adapt_file(config.account_state_source_path, config.account_state_path))
         except (AccountStateRejected, OSError) as exc:
-            print("adapt-account-state: %s" % exc, file=sys.stderr)
+            emit_error("adapt-account-state", exc)
             return 1
         return 0
     if args.command == "import":
@@ -222,28 +222,28 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         try:
             emit(stage_release(read_bundle(sys.stdin.buffer)))
         except (OSError, ValueError, RuntimeError) as exc:
-            print("release-stage: %s" % exc, file=sys.stderr)
+            emit_error("release-stage", exc)
             return 1
         return 0
     if args.command == "release-status":
         try:
             emit(release_status())
         except (OSError, RuntimeError) as exc:
-            print("release-status: %s" % exc, file=sys.stderr)
+            emit_error("release-status", exc)
             return 1
         return 0
     if args.command == "release-activate":
         try:
             emit(activate_release(args.version, args.confirm))
         except (OSError, RuntimeError) as exc:
-            print("release-activate: %s" % exc, file=sys.stderr)
+            emit_error("release-activate", exc)
             return 1
         return 0
     if args.command == "release-rollback":
         try:
             emit(rollback_release(args.confirm))
         except (OSError, RuntimeError) as exc:
-            print("release-rollback: %s" % exc, file=sys.stderr)
+            emit_error("release-rollback", exc)
             return 1
         return 0
     if args.command == "self-check":

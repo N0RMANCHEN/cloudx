@@ -5,7 +5,7 @@ import json
 import pathlib
 import unittest
 
-from scripts.check_architecture import check_phi_mesh_topology
+from scripts.check_architecture import check_cloud_public_output_guards, check_phi_mesh_topology
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -32,6 +32,9 @@ class GovernanceTests(unittest.TestCase):
         topology = copy.deepcopy(self.topology())
         topology["normal_cloudx_consumers"] = ["phi_cloud", "trusted_device"]
         self.assertTrue(check_phi_mesh_topology(topology))
+
+    def test_cloud_public_output_paths_are_guarded(self) -> None:
+        self.assertEqual(check_cloud_public_output_guards(), [])
 
 
 if __name__ == "__main__":

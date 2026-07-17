@@ -61,6 +61,8 @@ Trusted devices do not register with Cloudx. The Phi cloud runtime is the only n
 
 Cloudx public contracts and logs must not contain Phi Task/session IDs, device identities, local paths, approvals, transfer content, or Artifact metadata. Phi must not read Cloudx auth, account identity, importer state, private release directories, or gateway credentials beyond its scoped consumer secret.
 
+The signed cloud runtime enforces the first half of that boundary before every helper stdout/stderr emission and before health or account-state publication. The architecture gate rejects any new direct cloud-runtime output path. The only `device`, `task`, or `session` fields allowed in a Cloudx public contract are literal `false` values inside the scoped consumer credential policy's non-representation declaration; Cloudx signed release `artifacts` are a distinct product-owned release record.
+
 A Cloudx outage, stale health document, unknown capacity, incompatible protocol, revoked consumer credential, or Cloudx rollback may only make provider-dependent Phi phases wait, degrade, or fail. It must not corrupt Phi Device, Task, lease, approval, revocation, notification, or completed local-action truth.
 
 Phi and Cloudx keep independent release trains and N/N-1 rollback. Their compatibility gate binds only public protocol range, health schema, gateway capability, consumer credential revision, capacity/backpressure semantics, and secret-free evidence. No synchronized deployment is required.

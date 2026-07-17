@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from . import cpa_auth, cpa_quota
+from .public_metadata import emit_json, validate_public_document
 
 
 DEFAULT_AUTH_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth")
@@ -274,7 +275,7 @@ def public_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
     candidates = summary.get("archive_candidates")
     result["archived_count"] = len(archived) if isinstance(archived, list) else 0
     result["pending_archive_candidates"] = len(candidates) if isinstance(candidates, dict) else 0
-    return result
+    return validate_public_document(result, "cloudx.cpa-health.v1 summary")
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:
@@ -321,7 +322,7 @@ def run(args: argparse.Namespace, runtime: Optional[CpaRuntime] = None) -> int:
             config,
             warning_available_accounts=args.warning_available_accounts,
         )
-        print(json.dumps(public_summary(summary), ensure_ascii=False, sort_keys=True))
+        emit_json(public_summary(summary), ensure_ascii=False)
         return 0
 
     args.state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -348,7 +349,7 @@ def run(args: argparse.Namespace, runtime: Optional[CpaRuntime] = None) -> int:
         summary["archived_files"] = sorted(set(static_archived + live_archived))
         summary["archive_candidates"] = archive_candidates
         save_state(state_path, summary)
-        print(json.dumps(public_summary(summary), ensure_ascii=False, sort_keys=True))
+        emit_json(public_summary(summary), ensure_ascii=False)
     return 0
 
 
@@ -357,9 +358,9 @@ def restore_run(args: argparse.Namespace) -> int:
         raise CpaHealthUnavailable("CPA restore confirmation does not match")
     config = cloudx_config(args.auth_dir, args.archive_dir, failure_confirmations=1)
     cpa_auth.restore_quarantined_auth(config, args.selector)
-    print(json.dumps({
+    emit_json({
         "schema": "cloudx.cpa-quarantine-restore.v1",
         "status": "restored",
         "restored_count": 1,
-    }, ensure_ascii=False, sort_keys=True))
+    }, ensure_ascii=False)
     return 0

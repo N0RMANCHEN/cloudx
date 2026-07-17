@@ -8,6 +8,8 @@ import tempfile
 from datetime import datetime, timezone
 from typing import Any, Dict
 
+from .public_metadata import validate_public_document
+
 
 MAX_STATE_BYTES = 1024 * 1024
 COUNT_KEYS = ("total", "ready", "warning", "limited", "failed")
@@ -90,6 +92,7 @@ def adapt_legacy_quota_state(raw: bytes) -> Dict[str, Any]:
 
 
 def publish(path: pathlib.Path, document: Dict[str, Any]) -> None:
+    validate_public_document(document, "cloudx.account-state.v1 publication")
     path.parent.mkdir(parents=True, exist_ok=True)
     data = (json.dumps(document, indent=2, sort_keys=True) + "\n").encode("utf-8")
     descriptor, temp_name = tempfile.mkstemp(prefix=".cloudx-account-state-", dir=str(path.parent))

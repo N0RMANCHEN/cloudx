@@ -5,6 +5,8 @@ import json
 import pkgutil
 from typing import Any, Dict
 
+from .public_metadata import validate_public_document
+
 
 RESOURCE = "data/contracts/phi-cloud-consumer-credential.v1.json"
 SCHEMA = "cloudx.phi-cloud-consumer-credential.v1"
@@ -23,4 +25,4 @@ def read_policy() -> Dict[str, Any]:
         raise RuntimeError("Phi cloud consumer credential policy is invalid") from exc
     if not isinstance(document, dict) or document.get("schema") != SCHEMA:
         raise RuntimeError("Phi cloud consumer credential policy schema is unsupported")
-    return document
+    return validate_public_document(document, SCHEMA)

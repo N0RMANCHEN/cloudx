@@ -24,6 +24,8 @@ Forbidden directions:
 
 The initial Mesh direction is frozen in `config/governance/phi_mesh_topology.v1.json`. The architecture gate rejects direct device-to-Cloudx access, any additional normal Mesh consumer, Cloudx control-plane ownership, synchronized release coupling, or removal of the separate approval requirements for future direct endpoint access.
 
+Cloud runtime stdout, stderr, and published public state must use `cloudx_cloud.public_metadata`; direct `print` or `sys.stdout`/`sys.stderr` writes outside that module fail the architecture gate.
+
 ## Runtime Separation
 
 Release directories are immutable code. Configuration and state live outside them. Activation changes an atomic `current` symlink only after explicit confirmation. Existing processes continue using the release from which they started.

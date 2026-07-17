@@ -102,6 +102,8 @@ cloudx-remote capacity --consumer-protocol-min 1 --consumer-protocol-max 1 --jso
 
 `cloudx.capacity.v1` returns exactly one of `healthy_capacity`, `exhausted_capacity`, `unknown_observation`, `stale_contract`, `probe_failure`, or `incompatible_producer`. It probes the gateway and reads the existing aggregate account-state input without writing either. Missing or unobserved accounts remain unknown rather than being guessed exhausted; output contains no account identity or credential.
 
+All cloud-helper JSON, static text, and stderr messages pass through the same fail-closed public metadata guard. A document containing Phi Task/session/device/lease/approval identifiers, a local user path, transfer content, ContextRequest, LocalAction, or Phi Artifact metadata is rejected before output. Cloudx release `artifacts` remain allowed because they are signed Cloudx release records, not Phi user Artifacts.
+
 ## Local CPA Compatibility
 
 The existing local CLIProxyAPI remains an external launchd service on `127.0.0.1:8317`. Cloudx preserves its use through the existing `api` and `cpa` profiles:

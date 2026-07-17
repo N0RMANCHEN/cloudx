@@ -88,6 +88,7 @@ class ReleaseVerificationMatrixTests(unittest.TestCase):
         version: str,
         artifact_version: Optional[str] = None,
         manifest_protocol: Optional[dict] = None,
+        manifest_extra: Optional[dict] = None,
     ) -> Tuple[pathlib.Path, pathlib.Path]:
         release_dir = self.root / "release" / ("%s-from-%s" % (version, artifact_version or version))
         release_dir.mkdir(parents=True)
@@ -103,6 +104,7 @@ class ReleaseVerificationMatrixTests(unittest.TestCase):
             "artifacts": [self._record(local_artifact, "local"), self._record(cloud_artifact, "cloud")],
             "activation": {"automatic": False, "serviceRestartRequired": False},
         }
+        manifest.update(manifest_extra or {})
         manifest_path = release_dir / "manifest.json"
         manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         subprocess.run(
@@ -188,6 +190,15 @@ class ReleaseVerificationMatrixTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "protocol self-check"):
                 updater.stage(self.config, bundle, local_only=True)
             with self.assertRaisesRegex(RuntimeError, "protocol self-check"):
+                cloud_release.stage(self._bundle_bytes(bundle))
+
+    def test_signed_cloud_manifest_rejects_phi_control_plane_metadata(self) -> None:
+        unused_release, bundle = self._release("0.4.0", manifest_extra={"taskId": "task-1"})
+        with mock.patch(
+            "cloudx_cloud.release._allowed_signers",
+            return_value=self.signers,
+        ), mock.patch.dict(os.environ, {"CLOUDX_RELEASE_ROOT": str(self.root / "metadata-cloud-root")}):
+            with self.assertRaisesRegex(RuntimeError, "prohibited Phi metadata"):
                 cloud_release.stage(self._bundle_bytes(bundle))
 
 

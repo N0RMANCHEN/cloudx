@@ -10,6 +10,7 @@
     "local/__main__.py",
     "cloud/__main__.py",
     "cloud/cloudx_cloud/http_importer_gate.py",
+    "cloud/cloudx_cloud/public_metadata.py",
     "shared/contracts/cloudx.capacity.v1.schema.json",
     "shared/contracts/cloudx.health.v1.schema.json",
     "shared/contracts/cloudx.handshake.v1.schema.json",
