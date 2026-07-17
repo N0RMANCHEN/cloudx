@@ -10,6 +10,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, Optional, Sequence, Tuple
 
+from . import import_ui
 from .broker import BrokerClient
 from .config import LocalConfig
 from .profile import cloud_codex_environment
@@ -140,10 +141,28 @@ def import_source(source: str) -> bytes:
     return raw
 
 
-def run_import(config: LocalConfig, source: str, dry_run: bool, force: bool) -> int:
-    raw = import_source(source)
-    document = RemoteClient(config).import_payload(raw, dry_run=dry_run, force=force)
-    print(json.dumps(document, indent=2, sort_keys=True))
+def run_import(config: LocalConfig, source: str, dry_run: bool, force: bool, json_output: bool = False) -> int:
+    human = import_ui.human_output() and not json_output
+    try:
+        raw = import_source(source)
+        document = RemoteClient(config).import_payload(raw, dry_run=dry_run, force=force)
+        report = import_ui.cloud_report(document) if human else None
+    except (OSError, RuntimeError) as exc:
+        reason = str(exc) or exc.__class__.__name__
+        if not human:
+            if isinstance(exc, RuntimeError):
+                raise
+            raise RuntimeError(reason) from exc
+        import_ui.render(
+            import_ui.failure_report(import_ui.CLOUD_DESTINATION, reason),
+            stream=sys.stderr,
+        )
+        return 1
+    if human:
+        stream = sys.stdout if document.get("status") == "accepted" else sys.stderr
+        import_ui.render(report, stream=stream)
+    else:
+        print(json.dumps(document, indent=2, sort_keys=True))
     return 0 if document.get("status") == "accepted" else 1
 
 
@@ -157,6 +176,7 @@ def parser() -> argparse.ArgumentParser:
     import_parser.add_argument("source")
     import_parser.add_argument("--dry-run", action="store_true")
     import_parser.add_argument("--force", action="store_true")
+    import_parser.add_argument("--json", action="store_true", help="print the raw cloudx.import.v1 response")
     return root
 
 
@@ -173,7 +193,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return check_connection(config)
         return run_codex(config, codex_args)
     if args.command == "import":
-        return run_import(config, args.source, args.dry_run, args.force)
+        return run_import(config, args.source, args.dry_run, args.force, args.json)
     return 2
 
 

@@ -37,9 +37,14 @@ codexx cloud
 codex
 codexx cloud import <local-file-or-directory> --dry-run
 codexx cloud import <local-file-or-directory>
+codexx cloud import <local-file-or-directory> --json
 ```
 
 `codexx cloud` acquires a broker lease owned by the current shell and configures an isolated Cloudx `CODEX_HOME`; the following `codex` remains the official local binary. `codexx cloud import` reads a local path and sends its bytes through SSH stdin to the cloud importer. `cloud codex` and `cloud import` remain compatibility entrypoints.
+
+In an interactive terminal, local and cloud imports use the same user-facing summary: `Status`, `Destination`, `Imported`, `Skipped`, `Verification`, and, on failure, one or more safe `Reason` fields. Local CPA success reports its completed post-write verification and labels the migration adapter. Cloud success states that import-time verification was not performed because `accepted` means the credential was stored transactionally, not that its live login or quota is healthy. Rejected and partial results return nonzero and write their summary to stderr.
+
+For pipeline compatibility, redirected cloud-import stdout remains the raw `cloudx.import.v1` JSON document and redirected local-import output remains the legacy adapter's count output. `--json` forces the raw cloud contract even when stdout is an interactive terminal.
 
 In zsh, the active selection is shown at the right edge as `[cx:api]`, `[cx:cloud]`, or `[cx:<account>]`. Cloudx appends only its own segment, preserves existing `RPROMPT` content, and removes its segment after `codexx exit`.
 
@@ -121,6 +126,8 @@ codexx-legacy api refresh --dry-run
 `codexx-legacy` is a rollback tool, not a supported Cloudx command. It is removed only after the local CPA dependency has a separately accepted replacement or ownership decision.
 
 During this migration stage, `codexx import` explicitly delegates local CPA normalization to that recovery runtime. The delegation is temporary and reported in product documentation; it does not grant Cloudx ownership of the local CPA service.
+
+Interactive `codexx import` captures the adapter's bounded count result and renders it through the same summary used by cloud import. Adapter failures retain their exit status, are reported on stderr with a sanitized reason, and do not echo raw credential snippets.
 
 The legacy local adapter has no Cloudx dry-run contract. A real local import therefore requires an operator-selected source and is not used as a synthetic write canary. Cloud import has the explicit `--dry-run` path shown above.
 

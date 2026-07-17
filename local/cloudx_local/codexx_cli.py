@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 from typing import Optional, Sequence
 
-from . import accounts, cloud_cli, local_cpa, modes
+from . import accounts, cloud_cli, import_ui, local_cpa, modes
 from .config import LocalConfig
 
 
@@ -40,6 +41,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return _mode(["cloud", "--shell-pid", str(os.getppid())])
     if arguments[:1] == ["import"]:
         if len(arguments) < 2:
+            if import_ui.human_output():
+                import_ui.render(
+                    import_ui.failure_report(
+                        import_ui.LOCAL_CPA_DESTINATION,
+                        "a local file or directory is required; usage: codexx import <source>",
+                    ),
+                    stream=sys.stderr,
+                )
+                return 2
             raise RuntimeError("local CPA import requires a local file or directory")
         return local_cpa.import_local(LocalConfig.load(), arguments[1], arguments[2:])
     if arguments == ["exit"]:

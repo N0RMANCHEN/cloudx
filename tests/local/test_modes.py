@@ -5,6 +5,8 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from unittest import mock
 
 
@@ -100,6 +102,135 @@ class ModeTests(unittest.TestCase):
         run.return_value.returncode = 0
         self.assertEqual(local_cpa.import_local(self.config, "fixture.json", []), 0)
         run.assert_called_once_with([str(command), "import", "fixture.json"], check=False)
+
+    @mock.patch("cloudx_local.local_cpa.import_ui.human_output", return_value=True)
+    @mock.patch("cloudx_local.local_cpa.subprocess.run")
+    def test_interactive_local_import_matches_cloud_summary_shape(
+        self,
+        run: mock.Mock,
+        unused_human: mock.Mock,
+    ) -> None:
+        command = self.home / ".local/bin/codexx-legacy"
+        command.parent.mkdir(parents=True)
+        command.write_text("fixture", encoding="utf-8")
+        run.return_value = mock.Mock(
+            returncode=0,
+            stdout=(
+                b"discovered: 1\n"
+                b"skipped: 0\n"
+                b"parsed: 1\n"
+                b"duplicates: 0\n"
+                b"imported: 1\n"
+                b"verified: 1\n"
+            ),
+            stderr=b"",
+        )
+        output = StringIO()
+
+        with redirect_stdout(output):
+            result = local_cpa.import_local(self.config, "fixture.json", [])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(
+            output.getvalue().splitlines(),
+            [
+                "Credential import",
+                "  Status: succeeded",
+                "  Destination: local CPA",
+                "  Imported: 1",
+                "  Skipped: 0",
+                "  Verification: complete (1 verified)",
+                "  Source files: 1 discovered, 0 ignored",
+                "  Credentials: 1 parsed, 0 duplicates",
+                "  Adapter: migration compatibility (codexx-legacy)",
+            ],
+        )
+        run.assert_called_once_with(
+            [str(command), "import", "fixture.json"],
+            stdout=local_cpa.subprocess.PIPE,
+            stderr=local_cpa.subprocess.PIPE,
+            check=False,
+        )
+
+    @mock.patch("cloudx_local.local_cpa.import_ui.human_output", return_value=True)
+    @mock.patch("cloudx_local.local_cpa.subprocess.run")
+    def test_interactive_local_failure_is_clear_and_redacts_input_snippet(
+        self,
+        run: mock.Mock,
+        unused_human: mock.Mock,
+    ) -> None:
+        command = self.home / ".local/bin/codexx-legacy"
+        command.parent.mkdir(parents=True)
+        command.write_text("fixture", encoding="utf-8")
+        run.return_value = mock.Mock(
+            returncode=1,
+            stdout=b"",
+            stderr=(
+                "codexx: 无法解析 JSON near `"
+                '{"access_token":"sk-sensitive-token-value"}`\n'
+            ).encode("utf-8"),
+        )
+        errors = StringIO()
+
+        with redirect_stderr(errors):
+            result = local_cpa.import_local(self.config, "fixture.json", [])
+
+        self.assertEqual(result, 1)
+        self.assertIn("Status: failed", errors.getvalue())
+        self.assertIn("Reason: 无法解析 JSON near <redacted input>", errors.getvalue())
+        self.assertNotIn("sk-sensitive-token-value", errors.getvalue())
+
+    @mock.patch("cloudx_local.local_cpa.import_ui.human_output", return_value=True)
+    @mock.patch("cloudx_local.local_cpa.subprocess.run")
+    def test_interactive_local_no_change_explains_ignored_and_duplicate_items(
+        self,
+        run: mock.Mock,
+        unused_human: mock.Mock,
+    ) -> None:
+        command = self.home / ".local/bin/codexx-legacy"
+        command.parent.mkdir(parents=True)
+        command.write_text("fixture", encoding="utf-8")
+        run.return_value = mock.Mock(
+            returncode=0,
+            stdout=(
+                b"discovered: 2\n"
+                b"skipped: 1\n"
+                b"parsed: 2\n"
+                b"duplicates: 1\n"
+                b"imported: 0\n"
+                b"verified: 0\n"
+            ),
+            stderr=b"",
+        )
+        output = StringIO()
+
+        with redirect_stdout(output):
+            result = local_cpa.import_local(self.config, "fixtures", [])
+
+        self.assertEqual(result, 0)
+        self.assertIn("Status: succeeded (no changes)", output.getvalue())
+        self.assertIn("Skipped: 2", output.getvalue())
+        self.assertIn("Skip reason: 1 ignored source file, 1 duplicate credential", output.getvalue())
+        self.assertIn("Verification: complete (no new credentials to verify)", output.getvalue())
+
+    @mock.patch("cloudx_local.local_cpa.import_ui.human_output", return_value=True)
+    @mock.patch("cloudx_local.local_cpa.subprocess.run", side_effect=PermissionError("denied"))
+    def test_interactive_local_adapter_start_failure_is_reported(
+        self,
+        unused_run: mock.Mock,
+        unused_human: mock.Mock,
+    ) -> None:
+        command = self.home / ".local/bin/codexx-legacy"
+        command.parent.mkdir(parents=True)
+        command.write_text("fixture", encoding="utf-8")
+        errors = StringIO()
+
+        with redirect_stderr(errors):
+            result = local_cpa.import_local(self.config, "fixture.json", [])
+
+        self.assertEqual(result, 1)
+        self.assertIn("Status: failed", errors.getvalue())
+        self.assertIn("Reason: local CPA migration adapter could not be started: denied", errors.getvalue())
 
 
 if __name__ == "__main__":

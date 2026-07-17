@@ -146,13 +146,32 @@ class RemoteClient:
             try:
                 value = json.loads(completed.stdout.decode("utf-8"))
             except (UnicodeDecodeError, json.JSONDecodeError):
-                raise RuntimeError("remote import failed without a structured result")
+                raise RuntimeError(self._import_failure_reason(completed))
             if not isinstance(value, dict):
-                raise RuntimeError("remote import failed without a structured result")
+                raise RuntimeError(self._import_failure_reason(completed))
             document = value
         if document.get("schema") != "cloudx.import.v1":
             raise RuntimeError("remote import schema is unsupported")
         return document
+
+    @staticmethod
+    def _import_failure_reason(completed: subprocess.CompletedProcess) -> str:
+        stderr = (completed.stderr or b"").decode("utf-8", errors="replace").casefold()
+        if "could not resolve hostname" in stderr or "name or service not known" in stderr:
+            return "cloud importer SSH host could not be resolved; check the configured SSH host"
+        if "permission denied" in stderr:
+            return "cloud importer SSH authentication was rejected"
+        if "connection refused" in stderr:
+            return "cloud importer SSH connection was refused"
+        if "connection timed out" in stderr or "operation timed out" in stderr:
+            return "cloud importer SSH connection timed out"
+        if "no route to host" in stderr or "network is unreachable" in stderr:
+            return "cloud importer SSH host is unreachable"
+        if "cloudx-remote" in stderr and ("not found" in stderr or "command not found" in stderr):
+            return "remote Cloudx importer is unavailable"
+        if completed.returncode == 255:
+            return "cloud importer could not be reached over SSH; check network and SSH configuration"
+        return "cloud importer failed before returning a structured result (exit %d)" % completed.returncode
 
     def stage_release(self, bundle: bytes) -> Dict[str, Any]:
         completed = self._helper(["release-stage"], input_bytes=bundle, timeout=120.0)

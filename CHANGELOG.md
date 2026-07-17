@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Unify interactive `codexx import` and `codexx cloud import` UX around explicit status, destination, imported/skipped counts, verification scope, sanitized failure reasons, and nonzero failure exits; preserve redirected legacy/raw output and add cloud `--json` forcing for automation.
 - Add secret-free `cloudx.capacity.v1` runtime classification with distinct healthy, exhausted, unknown, stale, probe-failure, and incompatible-producer states, aggregate-only counts, explicit consumer protocol ranges, and no write or publication side effect.
 - Define `cloudx.phi-cloud-consumer-traffic-policy.v1` with four in-flight logical requests, sixteen FIFO waiters, a thirty-per-minute/burst-four attempt budget, separated bounded timeouts, capped three-attempt retry semantics, fail-fast backpressure, and no Task, device, scheduler, or Cloudx queue ownership.
 - Define `cloudx.phi-cloud-consumer-credential.v1` as a secret-free, gateway-inference-only Phi cloud credential policy with a distinct private path, no device representation or Cloudx administrative authority, overlap-first rotation, explicit revocation, and no implied install or restart authorization.

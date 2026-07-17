@@ -118,6 +118,36 @@ class RemoteTests(unittest.TestCase):
         self.assertEqual(payload["input"], b"payload")
         self.assertNotIn("stdin", payload)
 
+    def test_import_attributes_ssh_authentication_failure(self) -> None:
+        remote = RemoteClient(self.config)
+        response = subprocess.CompletedProcess(
+            [],
+            255,
+            stdout=b"",
+            stderr=b"cloud: Permission denied (publickey).\n",
+        )
+
+        with mock.patch.object(remote, "_helper", return_value=response):
+            with self.assertRaisesRegex(RuntimeError, "SSH authentication was rejected"):
+                remote.import_payload(b"payload", dry_run=False, force=False)
+
+    def test_import_preserves_structured_remote_rejection(self) -> None:
+        remote = RemoteClient(self.config)
+        document = {
+            "schema": "cloudx.import.v1",
+            "requestId": "deadbeefdeadbeef",
+            "requestHash": "0" * 64,
+            "status": "rejected",
+            "dryRun": False,
+            "written": 0,
+            "skipped": 0,
+            "errors": [{"code": "invalid_json", "message": "import source contains invalid JSON"}],
+        }
+        response = completed(2, document)
+
+        with mock.patch.object(remote, "_helper", return_value=response):
+            self.assertEqual(remote.import_payload(b"payload", dry_run=False, force=False), document)
+
 
 if __name__ == "__main__":
     unittest.main()

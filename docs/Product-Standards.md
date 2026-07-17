@@ -32,6 +32,7 @@ The migration-only HTTP importer stop-gate evaluator accepts a bounded sanitized
 - Phi uses a revocable least-privilege Cloudx consumer credential that cannot import accounts, mutate gateway or release state, or represent a Phi device identity.
 - Direct endpoint-to-Cloudx access for future local inference requires a separate accepted milestone and credential contract; Mesh membership alone never grants gateway access.
 - Local CPA import may delegate to the explicitly labeled legacy recovery adapter only while codex-plus retirement is incomplete; that dependency must not be hidden.
+- Interactive local and cloud imports use one outcome vocabulary that identifies the destination, imported and skipped counts, verification scope, and safe failure reasons. Cloud write acceptance must never be presented as proof of live account usability.
 - Unsupported or shadow-only behavior must be labeled as such in command output and documentation.
 
 ## Explicit Non-Goals

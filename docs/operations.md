@@ -89,9 +89,12 @@ Use the local Cloudx command when the source path exists on the local machine:
 ```bash
 cloud import ~/Downloads/credentials.json --dry-run
 cloud import ~/Downloads/credentials.json
+cloud import ~/Downloads/credentials.json --json
 ```
 
 `cloud import` reads the local file or supported directory, applies the 16 MiB limit, and sends the bytes to `cloudx-remote import` over SSH stdin. The remote importer validates and normalizes the content under its configured auth directory with locking and atomic replacement.
+
+An interactive success is summarized as `Status`, `Destination`, `Imported`, `Skipped`, and `Verification`. Cloud verification explicitly says that live account validity is checked separately; a successful write is not a quota or login canary. A rejection or transport failure reports a safe `Reason` on stderr and returns nonzero. Redirect stdout to retain the raw `cloudx.import.v1` response, or pass `--json` to force it in a terminal.
 
 Do not use `ssh cloud import ~/Downloads/credentials.json` for a local path. OpenSSH runs everything after the host on the remote machine, so that path would be resolved on the cloud host and no local file bytes would be transferred. The low-level equivalent for a single file is `ssh cloud cloudx-remote import < ~/Downloads/credentials.json`; `cloud import` is the supported interface and also handles directories safely.
 

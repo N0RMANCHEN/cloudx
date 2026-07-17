@@ -34,6 +34,7 @@ codex
 codexx import credentials.json
 codexx cloud import credentials.json --dry-run
 codexx cloud import credentials.json
+codexx cloud import credentials.json --json
 
 # Return to the native profile.
 codexx exit
@@ -43,6 +44,8 @@ codexx exit
 ```
 
 `codexx` deliberately has only account selection and account lifecycle commands. Pool management, task governance, agents, remote clients, and the former control plane are outside this product.
+
+Interactive local and cloud imports share one readable result summary with explicit status, destination, counts, verification scope, and safe failure reasons. Cloud `--json` exposes the underlying versioned import contract for automation.
 
 ## Repository Layout
 
