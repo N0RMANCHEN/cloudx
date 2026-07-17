@@ -45,6 +45,10 @@ The transaction validates that `workflow_dispatch` runs verification/build/signa
 
 GitHub secret values cannot be read back, so this transaction cannot restore the previous value after a successful write. All reversible checks happen first. Any later metadata, dispatch, run, or ref failure returns nonzero and explicitly says not to create the release tag. Reauthenticate or resolve the GitHub run, then repeat the separately confirmed canary with the same matching key; never guess that a failed client response means the old secret was restored.
 
+The separately confirmed `0.1.15` synchronization is complete. The `release` environment secret did not exist before the transaction and was created at `2026-07-17T12:09:03Z`. Workflow-dispatch run `29579236303` completed successfully on commit `f245186f62f298dba015f7a122a63eb2db177b33`: repository verification, key loading, signed build, and release-evidence verification passed; tag verification, signed-ref publication, and GitHub Release publication were skipped. Stable remained at its prior ref, and neither `v0.1.15` nor `release-artifacts/v0.1.15` was created.
+
+Recording this receipt creates a later documentation commit. Before tagging, dispatch `release.yml` once more on the final pushed `main` and require a successful run whose `headSha` equals that exact tag target; this verification-only dispatch must again leave all release refs unchanged. It does not rewrite the secret and does not itself authorize tag creation.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:
