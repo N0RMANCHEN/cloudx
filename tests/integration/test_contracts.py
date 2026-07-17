@@ -205,6 +205,40 @@ class ContractTests(unittest.TestCase):
         for forbidden in ("api_key", "bearer ", "access_token", "refresh_token", "secret-value"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_legacy_local_removal_is_quarantine_first_and_preserves_owned_boundaries(self) -> None:
+        plan = json.loads(
+            (CONTRACTS / "examples/legacy-local-removal-plan.json").read_text(encoding="utf-8")
+        )
+        receipt = json.loads(
+            (CONTRACTS / "examples/legacy-local-removal.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(plan["schema"], "cloudx.legacy-local-removal-plan.v1")
+        self.assertEqual(receipt["schema"], "cloudx.legacy-local-removal.v1")
+        self.assertFalse(plan["automaticAction"])
+        self.assertFalse(any(plan["authorization"].values()))
+        self.assertEqual(
+            plan["targets"],
+            ["legacyRuntime", "legacyLauncher", "recoveryEntrypoint"],
+        )
+        self.assertTrue(receipt["cloudxEntrypointsUnchanged"])
+        self.assertTrue(receipt["shellHookUnchanged"])
+        self.assertTrue(receipt["externalLocalCpaUnchanged"])
+        self.assertTrue(receipt["accountProfilesRetained"])
+        self.assertTrue(receipt["privateRecoveryBundleRetained"])
+        self.assertFalse(receipt["processTerminated"])
+        self.assertFalse(receipt["serviceRestarted"])
+        self.assertTrue(receipt["quarantineRetained"])
+        serialized = json.dumps({"plan": plan, "receipt": receipt}).casefold()
+        for forbidden in (
+            "api_key",
+            "bearer ",
+            "access_token",
+            "refresh_token",
+            "email",
+            "/users/",
+        ):
+            self.assertNotIn(forbidden, serialized)
+
     def test_phi_mesh_compatibility_profile_references_existing_contracts(self) -> None:
         profile = json.loads(
             (CONTRACTS / "examples/phi-mesh-compatibility-profile.json").read_text(encoding="utf-8")

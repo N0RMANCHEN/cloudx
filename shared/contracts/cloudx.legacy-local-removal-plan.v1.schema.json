@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.legacy-local-removal-plan.v1.schema.json",
+  "title": "Cloudx legacy local codex-plus quarantine plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "confirmation",
+    "releaseVersion",
+    "endpointScope",
+    "targets",
+    "preserved",
+    "automaticAction",
+    "preconditions",
+    "authorization"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.legacy-local-removal-plan.v1"},
+    "status": {"const": "confirmation-required"},
+    "confirmation": {"const": "QUARANTINE LOCAL CODEX-PLUS PACKAGE WITH AUTOMATIC RESTORE"},
+    "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "endpointScope": {"const": "current_user_home"},
+    "targets": {
+      "const": ["legacyRuntime", "legacyLauncher", "recoveryEntrypoint"]
+    },
+    "preserved": {
+      "const": [
+        "cloudx_entrypoints",
+        "cloudx_shell_hook",
+        "official_codex",
+        "official_git",
+        "external_local_cpa",
+        "local_cpa_launch_agent",
+        "local_cpa_configuration",
+        "account_profiles",
+        "private_recovery_bundle"
+      ]
+    },
+    "automaticAction": {"const": false},
+    "preconditions": {
+      "const": [
+        "native_import_release_active",
+        "private_recovery_bundle_verified",
+        "no_legacy_processes",
+        "legacy_port_18317_closed",
+        "external_local_cpa_healthy",
+        "fresh_shell_acceptance"
+      ]
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "legacyRuntimeQuarantine",
+        "legacyLauncherQuarantine",
+        "recoveryEntrypointQuarantine",
+        "shellHookWrite",
+        "cloudxEntrypointWrite",
+        "accountProfileMutation",
+        "localCpaMutation",
+        "processTermination",
+        "serviceRestart",
+        "recoveryBundleRemoval",
+        "quarantineRemoval"
+      ],
+      "properties": {
+        "legacyRuntimeQuarantine": {"const": false},
+        "legacyLauncherQuarantine": {"const": false},
+        "recoveryEntrypointQuarantine": {"const": false},
+        "shellHookWrite": {"const": false},
+        "cloudxEntrypointWrite": {"const": false},
+        "accountProfileMutation": {"const": false},
+        "localCpaMutation": {"const": false},
+        "processTermination": {"const": false},
+        "serviceRestart": {"const": false},
+        "recoveryBundleRemoval": {"const": false},
+        "quarantineRemoval": {"const": false}
+      }
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "authorization": {
+    "accountProfileMutation": false,
+    "cloudxEntrypointWrite": false,
+    "legacyLauncherQuarantine": false,
+    "legacyRuntimeQuarantine": false,
+    "localCpaMutation": false,
+    "processTermination": false,
+    "quarantineRemoval": false,
+    "recoveryBundleRemoval": false,
+    "recoveryEntrypointQuarantine": false,
+    "serviceRestart": false,
+    "shellHookWrite": false
+  },
+  "automaticAction": false,
+  "confirmation": "QUARANTINE LOCAL CODEX-PLUS PACKAGE WITH AUTOMATIC RESTORE",
+  "endpointScope": "current_user_home",
+  "preconditions": [
+    "native_import_release_active",
+    "private_recovery_bundle_verified",
+    "no_legacy_processes",
+    "legacy_port_18317_closed",
+    "external_local_cpa_healthy",
+    "fresh_shell_acceptance"
+  ],
+  "preserved": [
+    "cloudx_entrypoints",
+    "cloudx_shell_hook",
+    "official_codex",
+    "official_git",
+    "external_local_cpa",
+    "local_cpa_launch_agent",
+    "local_cpa_configuration",
+    "account_profiles",
+    "private_recovery_bundle"
+  ],
+  "releaseVersion": "0.1.15",
+  "schema": "cloudx.legacy-local-removal-plan.v1",
+  "status": "confirmation-required",
+  "targets": [
+    "legacyRuntime",
+    "legacyLauncher",
+    "recoveryEntrypoint"
+  ]
+}

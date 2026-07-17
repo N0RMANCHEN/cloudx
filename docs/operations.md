@@ -63,6 +63,21 @@ The default target is `~/.cli-proxy-api`. Configure a different external auth di
 
 `codexx-legacy` remains a private rollback command for older installed releases. Do not remove its recovery bundle until a signed release containing the native adapter has been activated, a real local import and rollback have passed, and the separate M5 deletion decision is approved.
 
+## Prepare Legacy Local Package Quarantine
+
+Inspect the local retirement transaction without reading the home directory, process table, listener state, package, or recovery data:
+
+```bash
+python3 scripts/remove_legacy_local_package.py \
+  --release-version <active-signed-native-import-version>
+```
+
+The default `cloudx.legacy-local-removal-plan.v1` document keeps every authorization field false. Do not use `--apply` until the exact signed native-import release is active on this endpoint and a separately approved real import/rollback acceptance window exists. A staged release, source checkout, successful test, or printed plan grants no authority.
+
+Exact-confirmation apply takes a user-private lock, verifies the active artifact and current/previous selectors, requires one Cloudx shell hook with no old hook, inventories a bounded non-symlink live runtime, and matches the launcher/runtime hashes to the retained private recovery manifest. It refuses a legacy process, an open port `18317`, an unavailable or changed external CPA on port `8317`, or a failed native-import/fresh-shell check.
+
+The transaction then moves only `~/.local/bin/codexx_app`, `~/.local/bin/codexx.py`, and `~/.local/bin/codexx-legacy` into a private retained quarantine on the same filesystem. It repeats native import, fresh-shell mode selection, selector/hook/entrypoint checks, and external CPA continuity after the move. Any failure restores every moved target before returning nonzero. Success is a quarantine receipt, not deletion: accounts, CPA binary/configuration/LaunchAgent, Cloudx entrypoints and hook, official Codex/Git, the original recovery bundle, and the quarantine all remain; no process is terminated and no service is restarted.
+
 Inspect the exact signed Phi Mesh compatibility profile without reading a credential, probing the gateway, or changing runtime state:
 
 ```bash
