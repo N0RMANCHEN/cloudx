@@ -65,6 +65,19 @@ class ContractTests(unittest.TestCase):
         for forbidden in ("api_key", "token", "email", "account_name", "message"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_local_cpa_import_contract_is_explicit_and_does_not_manage_the_external_service(self) -> None:
+        schema = json.loads((CONTRACTS / "cloudx.local-cpa-import.v1.schema.json").read_text(encoding="utf-8"))
+        document = json.loads((CONTRACTS / "examples/local-cpa-import.json").read_text(encoding="utf-8"))
+        self.assertEqual(document["schema"], "cloudx.local-cpa-import.v1")
+        self.assertEqual(document["destination"], "local_cpa")
+        self.assertEqual(document["status"], "accepted")
+        self.assertFalse(document["externalService"]["managed"])
+        self.assertFalse(document["externalService"]["restarted"])
+        self.assertEqual(schema["properties"]["status"]["enum"], ["accepted", "preview", "rejected"])
+        serialized = json.dumps(document).casefold()
+        for forbidden in ("access_token", "refresh_token", "id_token", "api_key", "email"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_manifest_forbids_automatic_activation(self) -> None:
         schema = json.loads((CONTRACTS / "cloudx.release-manifest.v1.schema.json").read_text(encoding="utf-8"))
         automatic = schema["properties"]["activation"]["properties"]["automatic"]

@@ -1,0 +1,23 @@
+{
+  "schema": "cloudx.local-cpa-import.v1",
+  "status": "accepted",
+  "destination": "local_cpa",
+  "dryRun": false,
+  "counts": {
+    "discovered": 1,
+    "ignored": 0,
+    "parsed": 1,
+    "duplicates": 0,
+    "written": 1,
+    "unchanged": 0,
+    "skipped": 0,
+    "verified": 1
+  },
+  "verification": "complete",
+  "adapter": "cloudx_native_compatibility",
+  "externalService": {
+    "managed": false,
+    "restarted": false
+  },
+  "errors": []
+}

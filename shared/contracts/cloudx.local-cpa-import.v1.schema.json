@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.local-cpa-import.v1.schema.json",
+  "title": "Cloudx local CPA import result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "destination",
+    "dryRun",
+    "counts",
+    "verification",
+    "adapter",
+    "externalService",
+    "errors"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.local-cpa-import.v1"},
+    "status": {"enum": ["accepted", "preview", "rejected"]},
+    "destination": {"const": "local_cpa"},
+    "dryRun": {"type": "boolean"},
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "discovered",
+        "ignored",
+        "parsed",
+        "duplicates",
+        "written",
+        "unchanged",
+        "skipped",
+        "verified"
+      ],
+      "properties": {
+        "discovered": {"type": "integer", "minimum": 0},
+        "ignored": {"type": "integer", "minimum": 0},
+        "parsed": {"type": "integer", "minimum": 0},
+        "duplicates": {"type": "integer", "minimum": 0},
+        "written": {"type": "integer", "minimum": 0},
+        "unchanged": {"type": "integer", "minimum": 0},
+        "skipped": {"type": "integer", "minimum": 0},
+        "verified": {"type": "integer", "minimum": 0}
+      }
+    },
+    "verification": {"enum": ["complete", "preview_only", "not_performed"]},
+    "adapter": {"const": "cloudx_native_compatibility"},
+    "externalService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["managed", "restarted"],
+      "properties": {
+        "managed": {"const": false},
+        "restarted": {"const": false}
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+          "code": {"type": "string", "minLength": 1, "maxLength": 64},
+          "message": {"type": "string", "minLength": 1, "maxLength": 300}
+        }
+      }
+    }
+  }
+}

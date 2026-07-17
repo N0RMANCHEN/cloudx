@@ -8,8 +8,7 @@ from typing import Any, Dict, Optional, Sequence, TextIO, Tuple
 
 LOCAL_CPA_DESTINATION = "local CPA"
 CLOUD_DESTINATION = "cloud gateway"
-LEGACY_ADAPTER = "migration compatibility (codexx-legacy)"
-_LEGACY_COUNT_KEYS = {"discovered", "skipped", "parsed", "duplicates", "imported", "verified"}
+NATIVE_LOCAL_ADAPTER = "Cloudx native compatibility (external local CPA)"
 _ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 _INPUT_SNIPPET = re.compile(r"(?i)\s+near\s+`[^`]*`")
 _JWT = re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\b")
@@ -164,59 +163,52 @@ def cloud_report(document: Dict[str, Any]) -> ImportReport:
     )
 
 
-def _legacy_counts(raw: bytes) -> Optional[Dict[str, int]]:
-    text = raw.decode("utf-8", errors="replace")
-    counts: Dict[str, int] = {}
-    for line in text.splitlines():
-        match = re.fullmatch(r"\s*([a-z]+)\s*:\s*([0-9]+)\s*", line)
-        if match and match.group(1) in _LEGACY_COUNT_KEYS:
-            counts[match.group(1)] = int(match.group(2))
-    if not {"parsed", "duplicates", "imported", "verified"}.issubset(counts):
-        return None
-    return counts
-
-
-def legacy_success_report(stdout: bytes) -> ImportReport:
-    counts = _legacy_counts(stdout)
-    if counts is None:
-        return ImportReport(
-            status="succeeded",
-            destination=LOCAL_CPA_DESTINATION,
-            verification="reported by the migration compatibility adapter",
-            details=(("Details", "adapter completed without standard import counts"),),
-            adapter=LEGACY_ADAPTER,
+def local_report(document: Dict[str, Any]) -> ImportReport:
+    status = str(document.get("status") or "")
+    dry_run = document.get("dryRun")
+    counts = document.get("counts")
+    if status not in {"accepted", "preview"} or not isinstance(dry_run, bool) or not isinstance(counts, dict):
+        raise RuntimeError("local import result is invalid")
+    values = {name: _count(counts, name) for name in (
+        "discovered", "ignored", "parsed", "duplicates", "written", "unchanged", "skipped", "verified"
+    )}
+    if values["skipped"] != values["ignored"] + values["duplicates"] + values["unchanged"]:
+        raise RuntimeError("local import result has inconsistent skipped counts")
+    if dry_run:
+        display_status = "preview succeeded (no changes written)"
+        imported_label = "Would import"
+        verification = "not performed for a preview"
+    else:
+        display_status = "succeeded" if values["written"] else "succeeded (no changes)"
+        imported_label = "Imported"
+        verification = (
+            "complete (%d verified)" % values["verified"]
+            if values["written"]
+            else "complete (no new credentials to verify)"
         )
-    discovered = counts.get("discovered", 0)
-    ignored = counts.get("skipped", 0)
-    parsed = counts["parsed"]
-    duplicates = counts["duplicates"]
-    imported = counts["imported"]
-    verified = counts["verified"]
-    status = "succeeded" if imported else "succeeded (no changes)"
-    details = []
-    if "discovered" in counts or "skipped" in counts:
-        details.append(("Source files", "%d discovered, %d ignored" % (discovered, ignored)))
-    details.append(("Credentials", "%d parsed, %d duplicates" % (parsed, duplicates)))
-    if ignored or duplicates:
-        details.append(
-            (
-                "Skip reason",
-                "%s, %s"
-                % (
-                    _counted(ignored, "ignored source file"),
-                    _counted(duplicates, "duplicate credential"),
-                ),
-            )
-        )
-    verification = "complete (%d verified)" % verified if imported else "complete (no new credentials to verify)"
+    details = [
+        ("Source files", "%d discovered, %d ignored" % (values["discovered"], values["ignored"])),
+        ("Credentials", "%d parsed, %d duplicates" % (values["parsed"], values["duplicates"])),
+    ]
+    if values["skipped"]:
+        details.append((
+            "Skip reason",
+            "%s, %s, %s"
+            % (
+                _counted(values["ignored"], "ignored source file"),
+                _counted(values["duplicates"], "duplicate credential"),
+                _counted(values["unchanged"], "unchanged credential"),
+            ),
+        ))
     return ImportReport(
-        status=status,
+        status=display_status,
         destination=LOCAL_CPA_DESTINATION,
-        imported=imported,
-        skipped=ignored + duplicates,
+        imported=values["written"],
+        skipped=values["skipped"],
+        imported_label=imported_label,
         verification=verification,
         details=tuple(details),
-        adapter=LEGACY_ADAPTER,
+        adapter=NATIVE_LOCAL_ADAPTER,
     )
 
 
@@ -233,22 +225,3 @@ def sanitize_reason(value: str) -> str:
     if len(reason) > 300:
         reason = reason[:297].rstrip() + "..."
     return reason or "import failed without a reported reason"
-
-
-def legacy_failure_report(returncode: int, stdout: bytes, stderr: bytes) -> ImportReport:
-    raw = stderr.decode("utf-8", errors="replace") or stdout.decode("utf-8", errors="replace")
-    reasons = []
-    for line in raw.splitlines():
-        message = sanitize_reason(line)
-        if message and message not in {item.message for item in reasons}:
-            reasons.append(ImportReason("", message))
-        if len(reasons) == 3:
-            break
-    if not reasons:
-        reasons.append(ImportReason("", "migration compatibility adapter exited with status %d" % returncode))
-    return ImportReport(
-        status="cancelled" if returncode == 130 else "failed",
-        destination=LOCAL_CPA_DESTINATION,
-        reasons=tuple(reasons),
-        adapter=LEGACY_ADAPTER,
-    )

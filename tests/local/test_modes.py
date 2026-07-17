@@ -14,7 +14,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "local"))
 
 from cloudx_local import codexx_cli, modes  # noqa: E402
-from cloudx_local import local_cpa  # noqa: E402
+from cloudx_local import local_cpa, local_cpa_import  # noqa: E402
 from cloudx_local.config import LocalConfig  # noqa: E402
 from cloudx_local.remote import RemoteEndpoint  # noqa: E402
 
@@ -118,37 +118,40 @@ class ModeTests(unittest.TestCase):
         self.assertEqual(codexx_cli.main(["import", "fixture.json"]), 0)
         local_import.assert_called_once_with(self.config, "fixture.json", [])
 
-    @mock.patch("cloudx_local.local_cpa.subprocess.run")
-    def test_local_cpa_adapter_is_explicitly_legacy(self, run: mock.Mock) -> None:
-        command = self.home / ".local/bin/codexx-legacy"
-        command.parent.mkdir(parents=True)
-        command.write_text("fixture", encoding="utf-8")
-        run.return_value.returncode = 0
-        self.assertEqual(local_cpa.import_local(self.config, "fixture.json", []), 0)
-        run.assert_called_once_with([str(command), "import", "fixture.json"], check=False)
+    @mock.patch("cloudx_local.local_cpa.local_cpa_import.import_path")
+    def test_local_cpa_adapter_is_native_and_preserves_raw_counts(self, import_path: mock.Mock) -> None:
+        import_path.return_value = local_cpa_import.LocalImportResult(False, 1, 0, 1, 0, 1, 0, 1)
+        output = StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(local_cpa.import_local(self.config, "fixture.json", []), 0)
+        self.assertEqual(
+            output.getvalue().splitlines(),
+            [
+                "discovered: 1",
+                "skipped: 0",
+                "parsed: 1",
+                "duplicates: 0",
+                "unchanged: 0",
+                "imported: 1",
+                "verified: 1",
+            ],
+        )
+        import_path.assert_called_once_with(
+            self.config,
+            pathlib.Path("fixture.json"),
+            force=True,
+            dry_run=False,
+            name_prefix="codexx-import",
+        )
 
     @mock.patch("cloudx_local.local_cpa.import_ui.human_output", return_value=True)
-    @mock.patch("cloudx_local.local_cpa.subprocess.run")
+    @mock.patch("cloudx_local.local_cpa.local_cpa_import.import_path")
     def test_interactive_local_import_matches_cloud_summary_shape(
         self,
-        run: mock.Mock,
+        import_path: mock.Mock,
         unused_human: mock.Mock,
     ) -> None:
-        command = self.home / ".local/bin/codexx-legacy"
-        command.parent.mkdir(parents=True)
-        command.write_text("fixture", encoding="utf-8")
-        run.return_value = mock.Mock(
-            returncode=0,
-            stdout=(
-                b"discovered: 1\n"
-                b"skipped: 0\n"
-                b"parsed: 1\n"
-                b"duplicates: 0\n"
-                b"imported: 1\n"
-                b"verified: 1\n"
-            ),
-            stderr=b"",
-        )
+        import_path.return_value = local_cpa_import.LocalImportResult(False, 1, 0, 1, 0, 1, 0, 1)
         output = StringIO()
 
         with redirect_stdout(output):
@@ -166,33 +169,21 @@ class ModeTests(unittest.TestCase):
                 "  Verification: complete (1 verified)",
                 "  Source files: 1 discovered, 0 ignored",
                 "  Credentials: 1 parsed, 0 duplicates",
-                "  Adapter: migration compatibility (codexx-legacy)",
+                "  Adapter: Cloudx native compatibility (external local CPA)",
             ],
-        )
-        run.assert_called_once_with(
-            [str(command), "import", "fixture.json"],
-            stdout=local_cpa.subprocess.PIPE,
-            stderr=local_cpa.subprocess.PIPE,
-            check=False,
         )
 
     @mock.patch("cloudx_local.local_cpa.import_ui.human_output", return_value=True)
-    @mock.patch("cloudx_local.local_cpa.subprocess.run")
+    @mock.patch("cloudx_local.local_cpa.local_cpa_import.import_path")
     def test_interactive_local_failure_is_clear_and_redacts_input_snippet(
         self,
-        run: mock.Mock,
+        import_path: mock.Mock,
         unused_human: mock.Mock,
     ) -> None:
-        command = self.home / ".local/bin/codexx-legacy"
-        command.parent.mkdir(parents=True)
-        command.write_text("fixture", encoding="utf-8")
-        run.return_value = mock.Mock(
-            returncode=1,
-            stdout=b"",
-            stderr=(
-                "codexx: 无法解析 JSON near `"
-                '{"access_token":"sk-sensitive-token-value"}`\n'
-            ).encode("utf-8"),
+        import_path.side_effect = local_cpa_import.LocalImportError(
+            "invalid_json",
+            "unable to parse JSON near `"
+            '{"access_token":"sk-sensitive-token-value"}`',
         )
         errors = StringIO()
 
@@ -201,31 +192,17 @@ class ModeTests(unittest.TestCase):
 
         self.assertEqual(result, 1)
         self.assertIn("Status: failed", errors.getvalue())
-        self.assertIn("Reason: 无法解析 JSON near <redacted input>", errors.getvalue())
+        self.assertIn("Reason (invalid_json): unable to parse JSON near <redacted input>", errors.getvalue())
         self.assertNotIn("sk-sensitive-token-value", errors.getvalue())
 
     @mock.patch("cloudx_local.local_cpa.import_ui.human_output", return_value=True)
-    @mock.patch("cloudx_local.local_cpa.subprocess.run")
+    @mock.patch("cloudx_local.local_cpa.local_cpa_import.import_path")
     def test_interactive_local_no_change_explains_ignored_and_duplicate_items(
         self,
-        run: mock.Mock,
+        import_path: mock.Mock,
         unused_human: mock.Mock,
     ) -> None:
-        command = self.home / ".local/bin/codexx-legacy"
-        command.parent.mkdir(parents=True)
-        command.write_text("fixture", encoding="utf-8")
-        run.return_value = mock.Mock(
-            returncode=0,
-            stdout=(
-                b"discovered: 2\n"
-                b"skipped: 1\n"
-                b"parsed: 2\n"
-                b"duplicates: 1\n"
-                b"imported: 0\n"
-                b"verified: 0\n"
-            ),
-            stderr=b"",
-        )
+        import_path.return_value = local_cpa_import.LocalImportResult(False, 2, 1, 3, 1, 0, 1, 0)
         output = StringIO()
 
         with redirect_stdout(output):
@@ -233,28 +210,47 @@ class ModeTests(unittest.TestCase):
 
         self.assertEqual(result, 0)
         self.assertIn("Status: succeeded (no changes)", output.getvalue())
-        self.assertIn("Skipped: 2", output.getvalue())
-        self.assertIn("Skip reason: 1 ignored source file, 1 duplicate credential", output.getvalue())
+        self.assertIn("Skipped: 3", output.getvalue())
+        self.assertIn(
+            "Skip reason: 1 ignored source file, 1 duplicate credential, 1 unchanged credential",
+            output.getvalue(),
+        )
         self.assertIn("Verification: complete (no new credentials to verify)", output.getvalue())
 
-    @mock.patch("cloudx_local.local_cpa.import_ui.human_output", return_value=True)
-    @mock.patch("cloudx_local.local_cpa.subprocess.run", side_effect=PermissionError("denied"))
-    def test_interactive_local_adapter_start_failure_is_reported(
+    @mock.patch("cloudx_local.local_cpa.local_cpa_import.import_path")
+    def test_local_import_json_preview_is_structured_and_nonzero_failure_is_structured(
         self,
-        unused_run: mock.Mock,
-        unused_human: mock.Mock,
+        import_path: mock.Mock,
     ) -> None:
-        command = self.home / ".local/bin/codexx-legacy"
-        command.parent.mkdir(parents=True)
-        command.write_text("fixture", encoding="utf-8")
-        errors = StringIO()
+        import_path.return_value = local_cpa_import.LocalImportResult(True, 1, 0, 1, 0, 1, 0, 0)
+        output = StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(local_cpa.import_local(self.config, "fixture.json", ["--dry-run", "--json"]), 0)
+        document = __import__("json").loads(output.getvalue())
+        self.assertEqual(document["schema"], "cloudx.local-cpa-import.v1")
+        self.assertEqual(document["status"], "preview")
+        self.assertFalse(document["externalService"]["managed"])
+        import_path.side_effect = local_cpa_import.LocalImportError("source_missing", "source is missing")
+        output = StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(local_cpa.import_local(self.config, "missing.json", ["--json"]), 1)
+        failure = __import__("json").loads(output.getvalue())
+        self.assertEqual(failure["status"], "rejected")
+        self.assertEqual(failure["errors"][0]["code"], "source_missing")
 
-        with redirect_stderr(errors):
-            result = local_cpa.import_local(self.config, "fixture.json", [])
-
-        self.assertEqual(result, 1)
-        self.assertIn("Status: failed", errors.getvalue())
-        self.assertIn("Reason: local CPA migration adapter could not be started: denied", errors.getvalue())
+    def test_local_import_reads_redirected_stdin_without_writing_on_preview(self) -> None:
+        raw = __import__("json").dumps({
+            "type": "codex",
+            "email": "stdin@example.com",
+            "access_token": "header.stdin.signature",
+        })
+        output = StringIO()
+        with mock.patch("cloudx_local.local_cpa.sys.stdin", StringIO(raw)), redirect_stdout(output):
+            self.assertEqual(local_cpa.import_local(self.config, "-", ["--dry-run", "--json"]), 0)
+        document = __import__("json").loads(output.getvalue())
+        self.assertEqual(document["status"], "preview")
+        self.assertEqual(document["counts"]["parsed"], 1)
+        self.assertFalse((self.home / ".cli-proxy-api").exists())
 
 
 if __name__ == "__main__":

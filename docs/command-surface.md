@@ -132,7 +132,7 @@ codex
 codexx api
 codex
 
-codexx import <local-file-or-directory>
+codexx import <local-file-or-directory|-> [--dry-run] [--json]
 ```
 
 Cloudx does not own the local CLIProxyAPI process, binary upgrades, launchd lifecycle, credential refresh, or provider pool. During the observation period, the private recovery bundle exposes the old management surface explicitly as:
@@ -142,13 +142,13 @@ codexx-legacy api status
 codexx-legacy api refresh --dry-run
 ```
 
-`codexx-legacy` is a rollback tool, not a supported Cloudx command. It is removed only after the local CPA dependency has a separately accepted replacement or ownership decision.
+`codexx-legacy` is a rollback tool, not a supported Cloudx command. Source `0.1.15` no longer invokes it for normal imports, but the installed older release and private recovery bundle remain intact until the native adapter passes signed production acceptance.
 
-During this migration stage, `codexx import` explicitly delegates local CPA normalization to that recovery runtime. The delegation is temporary and reported in product documentation; it does not grant Cloudx ownership of the local CPA service.
+Source `0.1.15` performs local CPA normalization inside the signed Cloudx artifact. It supports flat CPA JSON, sub2api exports or account entries, cliproxy auth bundles, JSON arrays, JSONL/NDJSON/concatenated objects, bounded directory discovery, stdin, and the existing raw-card refresh format. The adapter writes only to `localCpa.authDir`, `CLOUDX_LOCAL_CPA_AUTH_DIR`, or the default `~/.cli-proxy-api`; that path must be absolute and cannot be inside Cloudx release or state directories.
 
-Interactive `codexx import` captures the adapter's bounded count result and renders it through the same summary used by cloud import. Adapter failures retain their exit status, are reported on stderr with a sanitized reason, and do not echo raw credential snippets.
+Each candidate is bounded to 16 MiB, each directory to 1,024 candidates and 64 MiB total. Apply uses a bounded exclusive lock, rejects symlink sources/targets, writes mode-`0600` JSON through atomic replacement, verifies exact bytes and token presence, and restores every changed target if a later write fails. Existing identical normalized files are reported as unchanged. The adapter does not restart, configure, or otherwise manage CLIProxyAPI.
 
-The legacy local adapter has no Cloudx dry-run contract. A real local import therefore requires an operator-selected source and is not used as a synthetic write canary. Cloud import has the explicit `--dry-run` path shown above.
+Interactive output uses the same status/destination/count/verification/failure vocabulary as cloud import. Redirected output retains stable count lines; `skipped` is the total of ignored sources, duplicate credentials, and unchanged targets, while those component counts remain separately visible. `--json` emits `cloudx.local-cpa-import.v1`. `--dry-run` parses, normalizes, deduplicates, checks target conflicts, and reports prospective writes without creating the auth directory, lock, or credential file. Raw-card dry-run validates the card shape without sending its refresh token.
 
 ## Installation
 

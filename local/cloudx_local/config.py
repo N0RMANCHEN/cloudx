@@ -6,7 +6,7 @@ import pathlib
 import pwd
 import shutil
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 LEGACY_API_KEY_COMMAND = (
@@ -59,6 +59,7 @@ class LocalConfig:
     endpoint_timeout_seconds: float
     endpoint_attempts: int
     release_repository: str
+    local_cpa_auth_dir: Optional[pathlib.Path] = None
 
     @classmethod
     def load(cls) -> "LocalConfig":
@@ -69,6 +70,7 @@ class LocalConfig:
         data = _load_json(config_path)
         broker = data.get("broker") if isinstance(data.get("broker"), dict) else {}
         legacy = data.get("legacy") if isinstance(data.get("legacy"), dict) else {}
+        local_cpa = data.get("localCpa") if isinstance(data.get("localCpa"), dict) else {}
         codex_binary = str(
             os.environ.get("CLOUDX_CODEX_BINARY")
             or data.get("codexBinary")
@@ -92,6 +94,11 @@ class LocalConfig:
             endpoint_timeout_seconds=max(2.0, float(broker.get("healthTimeoutSeconds") or 5.0)),
             endpoint_attempts=max(1, int(broker.get("healthAttempts") or 3)),
             release_repository=str(data.get("releaseRepository") or "git@github.com:N0RMANCHEN/cloudx.git"),
+            local_cpa_auth_dir=pathlib.Path(str(
+                os.environ.get("CLOUDX_LOCAL_CPA_AUTH_DIR")
+                or local_cpa.get("authDir")
+                or home / ".cli-proxy-api"
+            )).expanduser(),
         )
 
     @property

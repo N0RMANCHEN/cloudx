@@ -33,6 +33,22 @@ The result distinguishes explicit account deactivation, exhausted allowance or c
 
 Cloud observation begins when a broker process from the updated local artifact starts naturally. Verification, staging, and activation do not stop an older active broker, and diagnosis never terminates one.
 
+## Import Into The External Local CPA
+
+Preview or apply an operator-selected local source with:
+
+```bash
+codexx import ~/Downloads/credentials.json --dry-run
+codexx import ~/Downloads/credentials.json
+codexx import ~/Downloads/credentials.json --json
+```
+
+The source may also be a bounded directory or `-` for redirected stdin. `--name-prefix` controls filenames only when the normalized credential has no email or source hint. The compatibility default permits replacement of a different same-name target, but writes are locked, atomic, mode `0600`, verified, and rolled back as one transaction if any later write fails. Identical normalized targets are unchanged rather than rewritten.
+
+The default target is `~/.cli-proxy-api`. Configure a different external auth directory with `localCpa.authDir` in the local Cloudx config or `CLOUDX_LOCAL_CPA_AUTH_DIR`; the path must be absolute and outside Cloudx release/state roots. Cloudx never starts, stops, restarts, upgrades, or reconfigures the external CPA as part of import. A preview performs no filesystem or token-refresh write side effect.
+
+`codexx-legacy` remains a private rollback command for older installed releases. Do not remove its recovery bundle until a signed release containing the native adapter has been activated, a real local import and rollback have passed, and the separate M5 deletion decision is approved.
+
 Inspect the exact signed Phi Mesh compatibility profile without reading a credential, probing the gateway, or changing runtime state:
 
 ```bash

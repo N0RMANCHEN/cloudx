@@ -24,7 +24,9 @@ Account lifecycle:
   codexx add|login|status|logout|list|current|remove|rename ...
 
 Credential import:
-  codexx import <source>            import through the local CPA adapter
+  codexx import <source> [options]  import through the external local CPA adapter
+    --dry-run                       validate and preview without writing
+    --json                          emit cloudx.local-cpa-import.v1
   codexx cloud import <source>      import through SSH to the cloud gateway
 
 API failure diagnosis (read-only):
