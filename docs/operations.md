@@ -29,6 +29,22 @@ Do not combine this preparation with commit, tag, publication, stable selection,
 
 The separately approved `0.1.15` rotation is complete. The current public signer fingerprint is `SHA256:oEhvhqj9U4wM8zLz8w43A/fvMN+BRNXO1k5/3eVPh9o`; its private key remains outside the repository with mode `0600`. Do not rerun recovery against the same path or copy that private key into Git, a release directory, an endpoint bundle, logs, or operator notes. Creating the release tag, signing/publishing artifacts, moving stable, staging endpoints, and activation are still later independent steps.
 
+## Synchronize The Release Workflow Key
+
+Before creating `v0.1.15`, inspect the GitHub Actions key synchronization plan without reading the private key, Git state, remote refs, GitHub authentication, environment, secret metadata, or workflow runs:
+
+```bash
+python3 scripts/synchronize_release_workflow_key.py \
+  --version 0.1.15 \
+  --private-key /absolute/repository-external/path/to/key
+```
+
+The `cloudx.release-workflow-key-plan.v1` output contains no private path or material and keeps all authorization fields false. Apply requires the exact printed confirmation, a clean `main` whose `HEAD` equals `origin/main`, a mode-`0700` key directory and mode-`0600` non-symlink Ed25519 key outside the repository, byte-identical committed public roots with the same fingerprint, authenticated `gh` access, and the fixed `N0RMANCHEN/cloudx` repository, `release` environment, `release.yml` workflow, and `CLOUDX_RELEASE_SIGNING_KEY` secret name.
+
+The transaction validates that `workflow_dispatch` runs verification/build/signature checks but both publication steps remain tag-only. It snapshots stable, `v0.1.15`, and `release-artifacts/v0.1.15` refs; sends the private bytes only through GitHub CLI stdin; dispatches the pushed `main`; requires the signed release canary to succeed; and requires every release ref unchanged. It creates no tag, artifact ref, stable move, endpoint stage/activation, or service restart.
+
+GitHub secret values cannot be read back, so this transaction cannot restore the previous value after a successful write. All reversible checks happen first. Any later metadata, dispatch, run, or ref failure returns nonzero and explicitly says not to create the release tag. Reauthenticate or resolve the GitHub run, then repeat the separately confirmed canary with the same matching key; never guess that a failed client response means the old secret was restored.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:

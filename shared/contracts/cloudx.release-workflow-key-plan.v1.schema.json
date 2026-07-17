@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.release-workflow-key-plan.v1.schema.json",
+  "title": "Cloudx GitHub release workflow key synchronization plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "version",
+    "repository",
+    "branch",
+    "workflow",
+    "environment",
+    "secret",
+    "privateKeyConfigured",
+    "confirmation",
+    "automaticAction",
+    "preconditions",
+    "authorization"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.release-workflow-key-plan.v1"},
+    "status": {"const": "confirmation-required"},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "repository": {"const": "N0RMANCHEN/cloudx"},
+    "branch": {"const": "main"},
+    "workflow": {"const": "release.yml"},
+    "environment": {"const": "release"},
+    "secret": {"const": "CLOUDX_RELEASE_SIGNING_KEY"},
+    "privateKeyConfigured": {"type": "boolean"},
+    "confirmation": {"type": "string", "pattern": "^SYNCHRONIZE CLOUDX RELEASE WORKFLOW KEY [0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "automaticAction": {"const": false},
+    "preconditions": {
+      "const": [
+        "clean_pushed_main",
+        "private_key_matches_committed_public_root",
+        "github_cli_authenticated",
+        "release_environment_exists",
+        "workflow_dispatch_is_non_publishing",
+        "release_refs_absent_or_unchanged"
+      ]
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "environmentSecretWrite",
+        "workflowDispatch",
+        "tagCreate",
+        "artifactPublication",
+        "stableMove",
+        "endpointStage",
+        "endpointActivation",
+        "serviceRestart"
+      ],
+      "properties": {
+        "environmentSecretWrite": {"const": false},
+        "workflowDispatch": {"const": false},
+        "tagCreate": {"const": false},
+        "artifactPublication": {"const": false},
+        "stableMove": {"const": false},
+        "endpointStage": {"const": false},
+        "endpointActivation": {"const": false},
+        "serviceRestart": {"const": false}
+      }
+    }
+  }
+}

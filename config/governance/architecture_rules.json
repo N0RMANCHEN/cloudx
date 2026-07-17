@@ -39,6 +39,8 @@
     "shared/contracts/cloudx.phi-consumer-key-plan.v1.schema.json",
     "shared/contracts/cloudx.phi-cloud-consumer-traffic-policy.v1.schema.json",
     "shared/contracts/cloudx.phi-mesh-compatibility-profile.v1.schema.json",
+    "shared/contracts/cloudx.release-workflow-key-plan.v1.schema.json",
+    "shared/contracts/cloudx.release-workflow-key.v1.schema.json",
     "docs/operations.md",
     "docs/phi-boundary.md",
     "cloud/cloudx_cloud/legacy_health_bridge.py",
@@ -54,6 +56,7 @@
     "scripts/rehearse_legacy_health_bridge_cutover.py",
     "scripts/run_legacy_health_bridge_canary.py",
     "scripts/stop_http_importer.py",
+    "scripts/synchronize_release_workflow_key.py",
     "prompts/README.md"
   ],
   "forbidden_runtime_fragments": [

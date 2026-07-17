@@ -1,0 +1,31 @@
+{
+  "authorization": {
+    "artifactPublication": false,
+    "endpointActivation": false,
+    "endpointStage": false,
+    "environmentSecretWrite": false,
+    "serviceRestart": false,
+    "stableMove": false,
+    "tagCreate": false,
+    "workflowDispatch": false
+  },
+  "automaticAction": false,
+  "branch": "main",
+  "confirmation": "SYNCHRONIZE CLOUDX RELEASE WORKFLOW KEY 0.1.15",
+  "environment": "release",
+  "preconditions": [
+    "clean_pushed_main",
+    "private_key_matches_committed_public_root",
+    "github_cli_authenticated",
+    "release_environment_exists",
+    "workflow_dispatch_is_non_publishing",
+    "release_refs_absent_or_unchanged"
+  ],
+  "privateKeyConfigured": true,
+  "repository": "N0RMANCHEN/cloudx",
+  "schema": "cloudx.release-workflow-key-plan.v1",
+  "secret": "CLOUDX_RELEASE_SIGNING_KEY",
+  "status": "confirmation-required",
+  "version": "0.1.15",
+  "workflow": "release.yml"
+}

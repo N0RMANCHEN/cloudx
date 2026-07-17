@@ -163,6 +163,38 @@ class ContractTests(unittest.TestCase):
         automatic = schema["properties"]["activation"]["properties"]["automatic"]
         self.assertEqual(automatic, {"const": False})
 
+    def test_release_workflow_key_transaction_is_non_publishing_and_secret_free(self) -> None:
+        plan = json.loads(
+            (CONTRACTS / "examples/release-workflow-key-plan.json").read_text(encoding="utf-8")
+        )
+        receipt = json.loads(
+            (CONTRACTS / "examples/release-workflow-key.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(plan["schema"], "cloudx.release-workflow-key-plan.v1")
+        self.assertEqual(receipt["schema"], "cloudx.release-workflow-key.v1")
+        self.assertFalse(plan["automaticAction"])
+        self.assertFalse(any(plan["authorization"].values()))
+        self.assertEqual(plan["environment"], "release")
+        self.assertTrue(receipt["environmentSecretUpdated"])
+        self.assertTrue(receipt["workflowDispatched"])
+        self.assertTrue(receipt["signedReleaseVerified"])
+        self.assertTrue(receipt["releaseRefsUnchanged"])
+        self.assertFalse(receipt["tagCreated"])
+        self.assertFalse(receipt["artifactRefPublished"])
+        self.assertFalse(receipt["stableMoved"])
+        self.assertFalse(receipt["endpointStaged"])
+        self.assertFalse(receipt["endpointActivated"])
+        self.assertFalse(receipt["serviceRestarted"])
+        serialized = json.dumps({"plan": plan, "receipt": receipt}).casefold()
+        for forbidden in (
+            "begin openssh private key",
+            "private-key",
+            "/users/",
+            "gh_token",
+            "github_token",
+        ):
+            self.assertNotIn(forbidden, serialized)
+
     def test_http_importer_stop_gate_is_secret_free_and_non_authorizing(self) -> None:
         evidence = json.loads(
             (CONTRACTS / "examples/http-importer-stop-gate-evidence.json").read_text(encoding="utf-8")
