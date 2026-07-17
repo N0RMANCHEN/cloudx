@@ -99,6 +99,10 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
             "command",
             "serviceTemplate",
             "timerTemplate",
+            "unitInstaller",
+            "unitPlanSchema",
+            "unitInstallSchema",
+            "inactiveInstallOnly",
             "fixedArtifactSelection",
         ),
         "cloudx",
@@ -120,7 +124,7 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
     runtime = _object(root["runtimeAcceptance"], RUNTIME_BLOCKERS, "runtimeAcceptance")
     source_acceptance = _object(
         root["sourceAcceptance"],
-        ("exactPhiPreviousParser", "isolatedSelectorRollback"),
+        ("exactPhiPreviousParser", "isolatedSelectorRollback", "inactiveUnitInstaller"),
         "sourceAcceptance",
     )
     evidence = {
@@ -136,6 +140,10 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
             "command": _text(cloudx["command"], "cloudx.command"),
             "serviceTemplate": _text(cloudx["serviceTemplate"], "cloudx.serviceTemplate"),
             "timerTemplate": _text(cloudx["timerTemplate"], "cloudx.timerTemplate"),
+            "unitInstaller": _text(cloudx["unitInstaller"], "cloudx.unitInstaller", 160),
+            "unitPlanSchema": _text(cloudx["unitPlanSchema"], "cloudx.unitPlanSchema"),
+            "unitInstallSchema": _text(cloudx["unitInstallSchema"], "cloudx.unitInstallSchema"),
+            "inactiveInstallOnly": _boolean(cloudx["inactiveInstallOnly"], "cloudx.inactiveInstallOnly"),
             "fixedArtifactSelection": _boolean(cloudx["fixedArtifactSelection"], "cloudx.fixedArtifactSelection"),
         },
         "phiPrevious": {
@@ -152,6 +160,10 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
             "isolatedSelectorRollback": _boolean(
                 source_acceptance["isolatedSelectorRollback"],
                 "sourceAcceptance.isolatedSelectorRollback",
+            ),
+            "inactiveUnitInstaller": _boolean(
+                source_acceptance["inactiveUnitInstaller"],
+                "sourceAcceptance.inactiveUnitInstaller",
             ),
         },
         "runtimeAcceptance": {
@@ -176,6 +188,9 @@ def validate_cloudx_source(evidence: Mapping[str, Any]) -> Dict[str, Any]:
         or cloudx["legacySchemaVersion"] != 1
         or cloudx["capability"] != "legacy-health-bridge.v1"
         or cloudx["command"] != "legacy-health-bridge"
+        or cloudx["unitPlanSchema"] != "cloudx.legacy-health-bridge-unit-plan.v1"
+        or cloudx["unitInstallSchema"] != "cloudx.legacy-health-bridge-unit-install.v1"
+        or cloudx["inactiveInstallOnly"] is not True
         or cloudx["fixedArtifactSelection"] is not True
     ):
         raise BridgeEvidenceRejected("Cloudx bridge contract identity is invalid")
@@ -204,6 +219,43 @@ def validate_cloudx_source(evidence: Mapping[str, Any]) -> Dict[str, Any]:
         raise BridgeEvidenceRejected("legacy bridge environment does not select the source version")
     if not (ROOT / "scripts/rehearse_legacy_health_bridge_rollback.py").is_file():
         raise BridgeEvidenceRejected("legacy bridge rollback rehearsal is unavailable")
+    installer = ROOT / cloudx["unitInstaller"]
+    if not installer.is_file():
+        raise BridgeEvidenceRejected("legacy bridge unit installer is unavailable")
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(installer), "--release-version", version],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=20.0,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise BridgeEvidenceRejected("legacy bridge unit installer plan is unavailable") from exc
+    try:
+        unit_plan = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise BridgeEvidenceRejected("legacy bridge unit installer plan is invalid") from exc
+    authorization = unit_plan.get("authorization")
+    expected_authorization = {
+        "unitWrite": False,
+        "daemonReload": False,
+        "serviceStart": False,
+        "timerEnable": False,
+        "legacyMutation": False,
+        "releaseActivation": False,
+    }
+    if (
+        completed.returncode != 0
+        or unit_plan.get("schema") != cloudx["unitPlanSchema"]
+        or unit_plan.get("releaseArtifact") != expected_artifact
+        or unit_plan.get("serviceStartRequired") is not False
+        or unit_plan.get("timerEnableRequired") is not False
+        or unit_plan.get("automaticAction") is not False
+        or authorization != expected_authorization
+    ):
+        raise BridgeEvidenceRejected("legacy bridge unit installer is authorizing or inconsistent")
     handshake = json.loads((ROOT / "shared/contracts/examples/handshake.json").read_text(encoding="utf-8"))
     if cloudx["capability"] not in handshake.get("capabilities", []):
         raise BridgeEvidenceRejected("handshake example omits the legacy bridge capability")

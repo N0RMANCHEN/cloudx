@@ -1,0 +1,20 @@
+{
+  "backup": "/var/lib/cloudx/legacy-health-bridge-install-backups/123456789",
+  "daemonReloaded": true,
+  "environmentMode": "0644",
+  "filesChanged": 3,
+  "legacyServiceStopped": false,
+  "legacyTimerActive": true,
+  "legacyTimerDisabled": false,
+  "legacyTimerEnabled": true,
+  "releaseActivated": false,
+  "releaseArtifact": "/opt/cloudx/releases/0.1.15/cloudx-cloud.pyz",
+  "releaseVersion": "0.1.15",
+  "schema": "cloudx.legacy-health-bridge-unit-install.v1",
+  "serviceMode": "0644",
+  "serviceStarted": false,
+  "status": "installed",
+  "systemdVerified": true,
+  "timerEnabled": false,
+  "timerMode": "0644"
+}

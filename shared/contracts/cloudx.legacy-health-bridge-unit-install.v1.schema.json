@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.legacy-health-bridge-unit-install.v1.schema.json",
+  "title": "Cloudx legacy health bridge unit installation receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "releaseVersion",
+    "releaseArtifact",
+    "filesChanged",
+    "environmentMode",
+    "serviceMode",
+    "timerMode",
+    "systemdVerified",
+    "daemonReloaded",
+    "serviceStarted",
+    "timerEnabled",
+    "legacyServiceStopped",
+    "legacyTimerDisabled",
+    "releaseActivated",
+    "legacyTimerActive",
+    "legacyTimerEnabled",
+    "backup"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.legacy-health-bridge-unit-install.v1"},
+    "status": {"enum": ["installed", "already-installed"]},
+    "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "releaseArtifact": {"type": "string", "pattern": "^/opt/cloudx/releases/[0-9]+\\.[0-9]+\\.[0-9]+/cloudx-cloud\\.pyz$"},
+    "filesChanged": {"type": "integer", "minimum": 0, "maximum": 3},
+    "environmentMode": {"const": "0644"},
+    "serviceMode": {"const": "0644"},
+    "timerMode": {"const": "0644"},
+    "systemdVerified": {"const": true},
+    "daemonReloaded": {"type": "boolean"},
+    "serviceStarted": {"const": false},
+    "timerEnabled": {"const": false},
+    "legacyServiceStopped": {"const": false},
+    "legacyTimerDisabled": {"const": false},
+    "releaseActivated": {"const": false},
+    "legacyTimerActive": {"const": true},
+    "legacyTimerEnabled": {"const": true},
+    "backup": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^/var/lib/cloudx/legacy-health-bridge-install-backups/[0-9]+$"}
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "installed"}}},
+      "then": {
+        "properties": {
+          "filesChanged": {"minimum": 1},
+          "daemonReloaded": {"const": true},
+          "backup": {"type": "string"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "already-installed"}}},
+      "then": {
+        "properties": {
+          "filesChanged": {"const": 0},
+          "daemonReloaded": {"const": false},
+          "backup": {"type": "null"}
+        }
+      }
+    }
+  ]
+}

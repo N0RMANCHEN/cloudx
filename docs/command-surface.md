@@ -103,6 +103,8 @@ cloudx-remote legacy-health-bridge --source /run/cloudx/health.json
 
 Supplying `--publish-to /var/lib/cloudx/health/v1.json` performs one bounded, validated, atomic mode-`0644` publication. The bridge preserves unknown process state, unobserved accounts, and unavailable-reason ambiguity instead of probing credentials, the old importer, or failure directories. Its packaged unit uses an exact immutable artifact selected by `/etc/cloudx/legacy-health-bridge.env`, not `/opt/cloudx/current`, so Cloudx endpoint rollback cannot silently remove the compatibility command. The command and templates do not install or start the unit and do not authorize replacement of the current legacy exporter.
 
+Repository operators can inspect the distinct unit-file plan with `python3 scripts/install_legacy_health_bridge_units.py --release-version <version>`. The default invocation is non-authorizing. Exact-confirmation apply installs the signed templates disabled and inactive and performs only `daemon-reload`; it does not publish or activate a release, start/enable the candidate, stop/disable the current exporter, or write legacy health output.
+
 The adjacent credential policy is also read-only:
 
 ```bash

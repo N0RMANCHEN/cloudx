@@ -57,6 +57,8 @@ Source `0.1.15` carries `legacy-health-bridge.v1` plus a strict `cloudx.legacy-h
 
 The packaged `cloudx-legacy-health-bridge.service` reads an operator-created `/etc/cloudx/legacy-health-bridge.env` whose sole value selects an exact `/opt/cloudx/releases/<version>/cloudx-cloud.pyz`. It deliberately does not follow `/opt/cloudx/current`, has no network address family beyond `AF_UNIX`, and can write only `/var/lib/cloudx/health`. Building, publishing, staging, or activating the artifact does not install, enable, start, or restart the bridge. The mutable-checkout legacy exporter remains in place until a separately confirmed side-by-side candidate, output comparison, Phi N-1 rollback, and restoration transaction pass.
 
+Source `0.1.15` also provides `scripts/install_legacy_health_bridge_units.py`. Its default plan is read only; exact-confirmation apply can install only the exact staged artifact's three fixed files and run `daemon-reload`. It requires the old timer to remain active/enabled and the candidate to remain inactive/disabled, saves a root-only rollback set, and changes no selector or output. Merely running the plan, building, publishing, staging, or activating a release does not grant that installation authority; starting the candidate remains a later maintenance action.
+
 Repository `0.1.11` prepares that importer migration by carrying a signed `codex-gateway-import` compatibility adapter. Inspect it without installing anything:
 
 ```bash

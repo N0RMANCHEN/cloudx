@@ -147,6 +147,17 @@ python3 scripts/rehearse_legacy_health_bridge_rollback.py --phi-root <phi-checko
 
 The rehearsal builds the current cloud candidate in a temporary root, seeds isolated `0.1.13/0.1.12` selectors, runs the candidate bridge, invokes the real Cloudx rollback implementation in both directions, and requires the persisted legacy bytes to remain identical across all three states. It emits no temporary path and grants no production publication, staging, unit, service, or selector authority.
 
+Inspect the separate bridge unit-file installation transaction without changing the host:
+
+```bash
+python3 scripts/install_legacy_health_bridge_units.py \
+  --release-version <staged-signed-version>
+```
+
+The default `cloudx.legacy-health-bridge-unit-plan.v1` result reads no artifact, systemd state, unit file, or legacy output and keeps every authorization false. Apply requires the exact printed `INSTALL cloudx-legacy-health-bridge UNITS WITHOUT START` confirmation, root, the exact `/opt/cloudx/releases/<version>/cloudx-cloud.pyz`, root-owned fixed installation directories, a loaded/enabled/active legacy timer, and inactive/disabled candidate units.
+
+The transaction extracts the environment, service, and timer from that exact artifact, validates their immutable-path and offline boundaries, writes mode-`0644` root-owned files, runs `systemd-analyze verify`, and performs only `systemctl daemon-reload`. It retains prior files in a root-only backup and restores them plus reloads systemd if any write or verification fails. Success explicitly reports that the candidate was not started or enabled, the legacy exporter was not stopped or disabled, and no release was activated. Publication, candidate start, output comparison, Phi N-1 rollback, restoration, and legacy retirement remain separately approved operations.
+
 Tunnel broker status includes `lastReconnectMilliseconds` after an SSH child exit. M2 evidence should record this field together with the stable `publicPort` and incremented `generation`; HTTP probe failures must leave all three unchanged.
 
 Installing the dedicated gateway key is an explicit maintenance action because it restarts the external `cliproxy.service`. A read-only invocation prints the required confirmation:

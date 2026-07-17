@@ -11,6 +11,10 @@
     "command": "legacy-health-bridge",
     "serviceTemplate": "cloudx-legacy-health-bridge.service",
     "timerTemplate": "cloudx-legacy-health-bridge.timer",
+    "unitInstaller": "scripts/install_legacy_health_bridge_units.py",
+    "unitPlanSchema": "cloudx.legacy-health-bridge-unit-plan.v1",
+    "unitInstallSchema": "cloudx.legacy-health-bridge-unit-install.v1",
+    "inactiveInstallOnly": true,
     "fixedArtifactSelection": true
   },
   "phiPrevious": {
@@ -21,7 +25,8 @@
   },
   "sourceAcceptance": {
     "exactPhiPreviousParser": true,
-    "isolatedSelectorRollback": true
+    "isolatedSelectorRollback": true,
+    "inactiveUnitInstaller": true
   },
   "runtimeAcceptance": {
     "signedArtifactPublished": false,

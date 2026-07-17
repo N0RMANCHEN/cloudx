@@ -39,6 +39,28 @@ class ContractTests(unittest.TestCase):
         for forbidden in ("api_key", "token", "email", "account_name", "taskid", "deviceid"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_legacy_health_bridge_unit_transaction_is_non_activating(self) -> None:
+        plan = json.loads(
+            (CONTRACTS / "examples/legacy-health-bridge-unit-plan.json").read_text(encoding="utf-8")
+        )
+        receipt = json.loads(
+            (CONTRACTS / "examples/legacy-health-bridge-unit-install.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(plan["schema"], "cloudx.legacy-health-bridge-unit-plan.v1")
+        self.assertEqual(receipt["schema"], "cloudx.legacy-health-bridge-unit-install.v1")
+        self.assertFalse(plan["automaticAction"])
+        self.assertFalse(any(plan["authorization"].values()))
+        self.assertFalse(plan["serviceStartRequired"])
+        self.assertFalse(plan["timerEnableRequired"])
+        self.assertFalse(receipt["serviceStarted"])
+        self.assertFalse(receipt["timerEnabled"])
+        self.assertFalse(receipt["legacyServiceStopped"])
+        self.assertFalse(receipt["legacyTimerDisabled"])
+        self.assertFalse(receipt["releaseActivated"])
+        serialized = json.dumps({"plan": plan, "receipt": receipt}).casefold()
+        for forbidden in ("api_key", "bearer ", "token-", "secret-value"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_capacity_example_is_aggregate_and_distinguishes_all_states(self) -> None:
         schema = json.loads((CONTRACTS / "cloudx.capacity.v1.schema.json").read_text(encoding="utf-8"))
         document = json.loads((CONTRACTS / "examples/capacity.json").read_text(encoding="utf-8"))

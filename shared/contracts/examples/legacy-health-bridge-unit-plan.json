@@ -1,0 +1,29 @@
+{
+  "authorization": {
+    "daemonReload": false,
+    "legacyMutation": false,
+    "releaseActivation": false,
+    "serviceStart": false,
+    "timerEnable": false,
+    "unitWrite": false
+  },
+  "automaticAction": false,
+  "confirmation": "INSTALL cloudx-legacy-health-bridge UNITS WITHOUT START",
+  "environmentPath": "/etc/cloudx/legacy-health-bridge.env",
+  "legacyService": "cloudx-health-contract.service",
+  "legacyTimer": "cloudx-health-contract.timer",
+  "preconditions": [
+    "signed_cloud_artifact_staged",
+    "legacy_timer_loaded_enabled_active",
+    "target_units_disabled_inactive",
+    "root_owned_install_directories"
+  ],
+  "releaseArtifact": "/opt/cloudx/releases/0.1.15/cloudx-cloud.pyz",
+  "releaseVersion": "0.1.15",
+  "schema": "cloudx.legacy-health-bridge-unit-plan.v1",
+  "servicePath": "/etc/systemd/system/cloudx-legacy-health-bridge.service",
+  "serviceStartRequired": false,
+  "status": "confirmation-required",
+  "timerEnableRequired": false,
+  "timerPath": "/etc/systemd/system/cloudx-legacy-health-bridge.timer"
+}

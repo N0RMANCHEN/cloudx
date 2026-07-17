@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.legacy-health-bridge-unit-plan.v1.schema.json",
+  "title": "Cloudx legacy health bridge unit installation plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "confirmation",
+    "releaseVersion",
+    "releaseArtifact",
+    "environmentPath",
+    "servicePath",
+    "timerPath",
+    "legacyService",
+    "legacyTimer",
+    "serviceStartRequired",
+    "timerEnableRequired",
+    "automaticAction",
+    "preconditions",
+    "authorization"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.legacy-health-bridge-unit-plan.v1"},
+    "status": {"const": "confirmation-required"},
+    "confirmation": {"const": "INSTALL cloudx-legacy-health-bridge UNITS WITHOUT START"},
+    "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "releaseArtifact": {"type": "string", "pattern": "^/opt/cloudx/releases/[0-9]+\\.[0-9]+\\.[0-9]+/cloudx-cloud\\.pyz$"},
+    "environmentPath": {"const": "/etc/cloudx/legacy-health-bridge.env"},
+    "servicePath": {"const": "/etc/systemd/system/cloudx-legacy-health-bridge.service"},
+    "timerPath": {"const": "/etc/systemd/system/cloudx-legacy-health-bridge.timer"},
+    "legacyService": {"const": "cloudx-health-contract.service"},
+    "legacyTimer": {"const": "cloudx-health-contract.timer"},
+    "serviceStartRequired": {"const": false},
+    "timerEnableRequired": {"const": false},
+    "automaticAction": {"const": false},
+    "preconditions": {
+      "const": [
+        "signed_cloud_artifact_staged",
+        "legacy_timer_loaded_enabled_active",
+        "target_units_disabled_inactive",
+        "root_owned_install_directories"
+      ]
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unitWrite", "daemonReload", "serviceStart", "timerEnable", "legacyMutation", "releaseActivation"],
+      "properties": {
+        "unitWrite": {"const": false},
+        "daemonReload": {"const": false},
+        "serviceStart": {"const": false},
+        "timerEnable": {"const": false},
+        "legacyMutation": {"const": false},
+        "releaseActivation": {"const": false}
+      }
+    }
+  }
+}
