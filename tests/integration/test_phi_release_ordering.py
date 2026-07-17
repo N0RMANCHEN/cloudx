@@ -44,7 +44,7 @@ class PhiCloudxReleaseOrderingTests(unittest.TestCase):
             ["legacy_bridge_not_runtime_accepted"],
         )
         self.assertEqual(result["legacyBridgeStatus"], "source-ready")
-        self.assertEqual(len(result["legacyBridgeBlockers"]), 3)
+        self.assertEqual(len(result["legacyBridgeBlockers"]), 2)
         orders = self._by_name(result["orders"])
         self.assertTrue(orders["cloudx_rollback"]["compatible"])
         self.assertFalse(orders["phi_rollback"]["compatible"])

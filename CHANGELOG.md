@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Advance repository development to `0.1.16` immediately after immutable signed `0.1.15` publication, preventing later source changes from rebuilding the released identity.
+- Bind legacy-health bridge evidence to published `0.1.15` source/artifact/manifest/signer identities and reduce its truthful runtime blockers from three to the two remaining production gates: inactive unit installation and rollback/cutover acceptance.
+
+## 0.1.15 - 2026-07-17
+
+- Publish immutable signed `0.1.15` from source `9ffa3208f39053c2b3af1136a530ce98eac7ad41` after exact confirmation; verify workflow run `29579921061`, artifact ref `332cb865a97d654efca4b4321b90cdc140e57e64`, stable ref `78fe78303f9d57c592b103e11c0fdca1c373b37c`, seven GitHub Release assets, new-root acceptance, old-root rejection, and idempotent isolated local/cloud staging without endpoint activation.
 - Synchronize the replacement signer into the GitHub `release` environment after exact confirmation and accept non-publishing workflow run `29579236303` on pushed commit `f245186f62f298dba015f7a122a63eb2db177b33`: verification, signed build, and release-evidence checks passed, while tag verification and both publication steps were skipped and the existing stable ref remained unchanged.
 - Add a default-offline, exact-confirmation GitHub release-workflow key synchronization transaction. Apply requires a clean pushed `main`, an external mode-`0600` Ed25519 key matching all committed public roots, authenticated access to the fixed `release` environment, absent `v0.1.15` tag/artifact refs, and a tag-only publication workflow; it writes only the environment secret, runs a non-publishing `workflow_dispatch` signing canary, requires release refs unchanged, emits no key/path material, and explicitly blocks tagging after any post-write uncertainty instead of claiming secret rollback.
 - Rotate the `0.1.15` release trust root after exact operator confirmation: generate the Ed25519 private key outside the repository under mode-`0700`/`0600` protection, atomically synchronize only the repository/local/cloud public signer roots, verify replacement fingerprint `SHA256:oEhvhqj9U4wM8zLz8w43A/fvMN+BRNXO1k5/3eVPh9o`, and keep tag creation, release publication, stable movement, endpoint staging/activation, and service restart separate.

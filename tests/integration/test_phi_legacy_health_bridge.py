@@ -31,7 +31,6 @@ class PhiLegacyHealthBridgeTests(unittest.TestCase):
         self.assertTrue(result["sourceReady"])
         self.assertTrue(all(result["sourceAcceptance"].values()))
         self.assertEqual(result["blockers"], [
-            "signed_artifact_not_published",
             "bridge_unit_not_installed",
             "rollback_not_rehearsed",
         ])
@@ -65,11 +64,25 @@ class PhiLegacyHealthBridgeTests(unittest.TestCase):
             with self.assertRaises(BridgeEvidenceRejected):
                 load_evidence(path)
 
+    def test_published_identity_is_strict_and_bound_to_the_tagged_source(self) -> None:
+        document = json.loads(DEFAULT_EVIDENCE.read_text(encoding="utf-8"))
+        document["cloudx"]["artifactRef"] = "refs/heads/release-artifacts/v9.9.9"
+        with tempfile.TemporaryDirectory() as value:
+            path = pathlib.Path(value) / "evidence.json"
+            path.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(BridgeEvidenceRejected, "published bridge identity"):
+                load_evidence(path)
+
+        evidence = load_evidence()
+        evidence["cloudx"]["sourceRef"] = "0" * 40
+        with self.assertRaisesRegex(BridgeEvidenceRejected, "tag does not match"):
+            validate_cloudx_source(evidence)
+
     def test_cli_accepts_source_readiness_but_can_require_runtime_acceptance(self) -> None:
         output = StringIO()
         with redirect_stdout(output):
             self.assertEqual(main([]), 0)
-        self.assertEqual(output.getvalue().strip(), "legacy-health-bridge: source-ready (3 blockers)")
+        self.assertEqual(output.getvalue().strip(), "legacy-health-bridge: source-ready (2 blockers)")
         with redirect_stdout(StringIO()):
             self.assertEqual(main(["--require-runtime-accepted"]), 2)
 

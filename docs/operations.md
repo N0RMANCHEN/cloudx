@@ -47,7 +47,17 @@ GitHub secret values cannot be read back, so this transaction cannot restore the
 
 The separately confirmed `0.1.15` synchronization is complete. The `release` environment secret did not exist before the transaction and was created at `2026-07-17T12:09:03Z`. Workflow-dispatch run `29579236303` completed successfully on commit `f245186f62f298dba015f7a122a63eb2db177b33`: repository verification, key loading, signed build, and release-evidence verification passed; tag verification, signed-ref publication, and GitHub Release publication were skipped. Stable remained at its prior ref, and neither `v0.1.15` nor `release-artifacts/v0.1.15` was created.
 
-Recording this receipt creates a later documentation commit. Before tagging, dispatch `release.yml` once more on the final pushed `main` and require a successful run whose `headSha` equals that exact tag target; this verification-only dispatch must again leave all release refs unchanged. It does not rewrite the secret and does not itself authorize tag creation.
+Recording this receipt created a later documentation commit. Verification-only run `29579445629` then succeeded on exact tag target `9ffa3208f39053c2b3af1136a530ce98eac7ad41` while leaving every release ref unchanged. The later separate publication confirmation created `v0.1.15`; neither canary alone authorized that tag.
+
+## Published Release 0.1.15
+
+The immutable annotated tag `v0.1.15` identifies source `9ffa3208f39053c2b3af1136a530ce98eac7ad41`. Tag workflow `29579921061` completed repository verification, exact tag verification, key loading, signed build, release evidence verification, signed-ref publication, and GitHub Release publication successfully.
+
+The immutable artifact ref is `332cb865a97d654efca4b4321b90cdc140e57e64`; stable is `78fe78303f9d57c592b103e11c0fdca1c373b37c`. The release manifest SHA-256 is `3d1f9747cefab855725d105f584e938a27bc93baf488598b746418978547595a`. Local artifact, cloud artifact, and offline bundle SHA-256 values are respectively `9d9d400ce16630eae7e9dddcf17e837ef05d3315a709ff4bbc12abcf10308e97`, `7e838757727e90b11029d85966525a621f629e5f400fa113abc6168790878b71`, and `5f523fec6c1d53b4b3ee8c1e2a252daf552888eb0e3af39a97a13cd43534b89a`.
+
+Fresh remote clones verified the manifest and stable signatures with the replacement root, rejected the same release with the previous root, matched all seven GitHub Release assets to the artifact ref, and repeated local/cloud `staged -> already-staged` transactions in isolated roots with no `current` or `previous` selector. Publication did not stage or activate a real endpoint and did not restart any service.
+
+Installed `0.1.13`/`0.1.12` and lagging `0.1.8/0.1.7` artifacts embed the previous trust root, so they cannot be assumed to accept the newly signed stable index. Use the separately confirmed repository-root stage-only recovery or an exact candidate-verified offline bundle transaction for `0.1.15`; do not bypass signature checks or move a selector as part of publication.
 
 ## Diagnose API Failures
 

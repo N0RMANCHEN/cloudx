@@ -23,6 +23,7 @@ RESULT_SCHEMA = "cloudx.phi-legacy-health-bridge-check.v1"
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
 DIGEST_RE = re.compile(r"^[a-f0-9]{64}$")
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+FINGERPRINT_RE = re.compile(r"^SHA256:[A-Za-z0-9+/]{43}$")
 RUNTIME_BLOCKERS = {
     "signedArtifactPublished": "signed_artifact_not_published",
     "bridgeUnitInstalled": "bridge_unit_not_installed",
@@ -92,6 +93,11 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
         root["cloudx"],
         (
             "version",
+            "sourceRef",
+            "artifactRef",
+            "artifactRefCommit",
+            "manifestSha256",
+            "signerFingerprint",
             "formalSchema",
             "legacyContract",
             "legacySchemaVersion",
@@ -119,6 +125,19 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
     version = _text(cloudx["version"], "cloudx.version", 32)
     if not VERSION_RE.fullmatch(version):
         raise BridgeEvidenceRejected("cloudx.version is invalid")
+    source_ref = _text(cloudx["sourceRef"], "cloudx.sourceRef", 40)
+    artifact_ref = _text(cloudx["artifactRef"], "cloudx.artifactRef", 96)
+    artifact_commit = _text(cloudx["artifactRefCommit"], "cloudx.artifactRefCommit", 40)
+    manifest_digest = _text(cloudx["manifestSha256"], "cloudx.manifestSha256", 64)
+    signer_fingerprint = _text(cloudx["signerFingerprint"], "cloudx.signerFingerprint", 80)
+    if (
+        not SHA_RE.fullmatch(source_ref)
+        or not SHA_RE.fullmatch(artifact_commit)
+        or not DIGEST_RE.fullmatch(manifest_digest)
+        or not FINGERPRINT_RE.fullmatch(signer_fingerprint)
+        or artifact_ref != "refs/heads/release-artifacts/v%s" % version
+    ):
+        raise BridgeEvidenceRejected("Cloudx published bridge identity is invalid")
     if cloudx["legacySchemaVersion"] != 1 or isinstance(cloudx["legacySchemaVersion"], bool):
         raise BridgeEvidenceRejected("cloudx.legacySchemaVersion is invalid")
     phi = _object(
@@ -148,6 +167,11 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
         "expectedStatus": expected_status,
         "cloudx": {
             "version": version,
+            "sourceRef": source_ref,
+            "artifactRef": artifact_ref,
+            "artifactRefCommit": artifact_commit,
+            "manifestSha256": manifest_digest,
+            "signerFingerprint": signer_fingerprint,
             "formalSchema": _text(cloudx["formalSchema"], "cloudx.formalSchema"),
             "legacyContract": _text(cloudx["legacyContract"], "cloudx.legacyContract"),
             "legacySchemaVersion": 1,
@@ -217,9 +241,35 @@ def validate_cloudx_source(evidence: Mapping[str, Any]) -> Dict[str, Any]:
     from cloudx_cloud.legacy_health_bridge import validate_legacy_health  # noqa: WPS433
 
     cloudx = evidence["cloudx"]
-    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
-    if version != cloudx["version"]:
-        raise BridgeEvidenceRejected("bridge evidence version does not match repository VERSION")
+    repository_version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    if not VERSION_RE.fullmatch(repository_version):
+        raise BridgeEvidenceRejected("repository VERSION is invalid")
+    version = cloudx["version"]
+    completed = subprocess.run(
+        ["git", "-C", str(ROOT), "rev-list", "-n", "1", "v%s" % version],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0 or completed.stdout.strip() != cloudx["sourceRef"]:
+        raise BridgeEvidenceRejected("published bridge tag does not match its source evidence")
+    tagged_version = _git_show(ROOT, cloudx["sourceRef"], "VERSION").decode(
+        "utf-8", errors="replace"
+    ).strip()
+    if tagged_version != version:
+        raise BridgeEvidenceRejected("published bridge source version is inconsistent")
+    tagged_signer = _git_show(ROOT, cloudx["sourceRef"], "release/allowed_signers")
+    completed = subprocess.run(
+        ["ssh-keygen", "-lf", "-"],
+        input=tagged_signer,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    fields = completed.stdout.decode("utf-8", errors="replace").split()
+    if completed.returncode != 0 or len(fields) < 2 or fields[1] != cloudx["signerFingerprint"]:
+        raise BridgeEvidenceRejected("published bridge signer does not match its source evidence")
     if (
         cloudx["formalSchema"] != "cloudx.health.v1"
         or cloudx["legacyContract"] != "cloudx.health"
@@ -432,7 +482,7 @@ def _git_show(root: pathlib.Path, revision: str, relative: str) -> bytes:
         check=False,
     )
     if completed.returncode != 0:
-        raise BridgeEvidenceRejected("exact Phi previous consumer source is unavailable")
+        raise BridgeEvidenceRejected("exact recorded source is unavailable")
     return completed.stdout
 
 
