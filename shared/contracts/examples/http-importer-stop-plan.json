@@ -1,0 +1,36 @@
+{
+  "authorization": {
+    "failureReceiptRemoval": false,
+    "gatewayRestart": false,
+    "phiServiceRestart": false,
+    "releaseActivation": false,
+    "rollbackSnapshotRemoval": false,
+    "runtimeRemoval": false,
+    "serviceDisable": false,
+    "serviceRestoreOnFailure": false,
+    "serviceStop": false,
+    "tokenRemoval": false,
+    "unitRemoval": false
+  },
+  "automaticAction": false,
+  "canaries": [
+    "signed_stop_gate",
+    "rollback_manifest",
+    "listener_closed",
+    "ssh_import_dry_run",
+    "formal_health",
+    "phi_formal_health_consumer",
+    "gateway_model",
+    "selector_and_gateway_continuity"
+  ],
+  "confirmation": "STOP AND DISABLE codex-import.service WITH AUTOMATIC RESTORE",
+  "evidenceRequired": true,
+  "listenerPort": 8780,
+  "maximumEvidenceAgeSeconds": 300,
+  "releaseArtifact": "/opt/cloudx/releases/0.1.15/cloudx-cloud.pyz",
+  "releaseVersion": "0.1.15",
+  "rollbackSnapshot": "/var/lib/cloudx/http-importer-stop-prep/20260716T075313Z",
+  "schema": "cloudx.http-importer-stop-plan.v1",
+  "service": "codex-import.service",
+  "status": "confirmation-required"
+}

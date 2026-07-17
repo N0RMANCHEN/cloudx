@@ -178,6 +178,33 @@ class ContractTests(unittest.TestCase):
         for forbidden in ("token", "email", "account", "server-admin", "api_key"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_http_importer_stop_transaction_is_explicit_and_retains_rollback(self) -> None:
+        plan = json.loads(
+            (CONTRACTS / "examples/http-importer-stop-plan.json").read_text(encoding="utf-8")
+        )
+        receipt = json.loads(
+            (CONTRACTS / "examples/http-importer-stop.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(plan["schema"], "cloudx.http-importer-stop-plan.v1")
+        self.assertEqual(receipt["schema"], "cloudx.http-importer-stop.v1")
+        self.assertFalse(plan["automaticAction"])
+        self.assertFalse(any(plan["authorization"].values()))
+        self.assertIn("ssh_import_dry_run", plan["canaries"])
+        self.assertFalse(receipt["serviceActive"])
+        self.assertFalse(receipt["serviceEnabled"])
+        self.assertTrue(receipt["listenerClosed"])
+        self.assertTrue(receipt["rollbackSnapshotRetained"])
+        self.assertFalse(receipt["runtimeRemoved"])
+        self.assertFalse(receipt["unitRemoved"])
+        self.assertFalse(receipt["tokenRemoved"])
+        self.assertFalse(receipt["failureReceiptsRemoved"])
+        self.assertFalse(receipt["gatewayRestarted"])
+        self.assertFalse(receipt["phiServiceRestarted"])
+        self.assertFalse(receipt["releaseActivated"])
+        serialized = json.dumps({"plan": plan, "receipt": receipt}).casefold()
+        for forbidden in ("api_key", "bearer ", "access_token", "refresh_token", "secret-value"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_phi_mesh_compatibility_profile_references_existing_contracts(self) -> None:
         profile = json.loads(
             (CONTRACTS / "examples/phi-mesh-compatibility-profile.json").read_text(encoding="utf-8")

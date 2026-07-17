@@ -21,6 +21,8 @@
     "shared/contracts/cloudx.handshake.v1.schema.json",
     "shared/contracts/cloudx.http-importer-stop-gate-evidence.v1.schema.json",
     "shared/contracts/cloudx.http-importer-stop-gate.v1.schema.json",
+    "shared/contracts/cloudx.http-importer-stop-plan.v1.schema.json",
+    "shared/contracts/cloudx.http-importer-stop.v1.schema.json",
     "shared/contracts/cloudx.import.v1.schema.json",
     "shared/contracts/cloudx.local-cpa-import.v1.schema.json",
     "shared/contracts/cloudx.legacy-health.v1.schema.json",
@@ -48,6 +50,7 @@
     "scripts/rehearse_legacy_health_bridge_rollback.py",
     "scripts/rehearse_legacy_health_bridge_cutover.py",
     "scripts/run_legacy_health_bridge_canary.py",
+    "scripts/stop_http_importer.py",
     "prompts/README.md"
   ],
   "forbidden_runtime_fragments": [

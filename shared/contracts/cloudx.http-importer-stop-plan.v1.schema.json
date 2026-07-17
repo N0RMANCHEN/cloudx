@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.http-importer-stop-plan.v1.schema.json",
+  "title": "Cloudx legacy HTTP importer stop transaction plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "confirmation",
+    "releaseVersion",
+    "releaseArtifact",
+    "service",
+    "listenerPort",
+    "rollbackSnapshot",
+    "evidenceRequired",
+    "maximumEvidenceAgeSeconds",
+    "automaticAction",
+    "canaries",
+    "authorization"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.http-importer-stop-plan.v1"},
+    "status": {"const": "confirmation-required"},
+    "confirmation": {"const": "STOP AND DISABLE codex-import.service WITH AUTOMATIC RESTORE"},
+    "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "releaseArtifact": {"type": "string", "pattern": "^/opt/cloudx/releases/[0-9]+\\.[0-9]+\\.[0-9]+/cloudx-cloud\\.pyz$"},
+    "service": {"const": "codex-import.service"},
+    "listenerPort": {"const": 8780},
+    "rollbackSnapshot": {"type": "string", "pattern": "^/var/lib/cloudx/http-importer-stop-prep/[0-9]{8}T[0-9]{6}Z$"},
+    "evidenceRequired": {"const": true},
+    "maximumEvidenceAgeSeconds": {"const": 300},
+    "automaticAction": {"const": false},
+    "canaries": {
+      "const": [
+        "signed_stop_gate",
+        "rollback_manifest",
+        "listener_closed",
+        "ssh_import_dry_run",
+        "formal_health",
+        "phi_formal_health_consumer",
+        "gateway_model",
+        "selector_and_gateway_continuity"
+      ]
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "serviceStop",
+        "serviceDisable",
+        "serviceRestoreOnFailure",
+        "runtimeRemoval",
+        "unitRemoval",
+        "tokenRemoval",
+        "failureReceiptRemoval",
+        "rollbackSnapshotRemoval",
+        "gatewayRestart",
+        "phiServiceRestart",
+        "releaseActivation"
+      ],
+      "properties": {
+        "serviceStop": {"const": false},
+        "serviceDisable": {"const": false},
+        "serviceRestoreOnFailure": {"const": false},
+        "runtimeRemoval": {"const": false},
+        "unitRemoval": {"const": false},
+        "tokenRemoval": {"const": false},
+        "failureReceiptRemoval": {"const": false},
+        "rollbackSnapshotRemoval": {"const": false},
+        "gatewayRestart": {"const": false},
+        "phiServiceRestart": {"const": false},
+        "releaseActivation": {"const": false}
+      }
+    }
+  }
+}

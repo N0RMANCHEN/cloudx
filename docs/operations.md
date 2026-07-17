@@ -234,6 +234,17 @@ The command reads at most 64 KiB and writes nothing. Unknown or duplicate fields
 
 The sanitized `2026-07-17` production snapshot in `docs/archive/` is the current reference decision. It validates the existing root-only runtime, unit, token-metadata, failure-receipt, and restore-plan snapshot; refreshes attributed traffic and zero-connection/lock/caller evidence; and evaluates to `preconditions-satisfied`. This is readiness evidence only. It does not authorize an operator, Agent, timer, installer, or release command to stop the service.
 
+Inspect the separately controlled stop transaction without reading evidence or contacting the host:
+
+```bash
+python3 scripts/stop_http_importer.py \
+  --release-version <staged-signed-version>
+```
+
+The default `cloudx.http-importer-stop-plan.v1` result keeps all eleven authorization fields false. Real apply requires the exact printed `STOP AND DISABLE codex-import.service WITH AUTOMATIC RESTORE` confirmation, the exact evidence digest, evidence captured no more than five minutes earlier, the declared root-only rollback snapshot, and the exact staged cloud artifact. Both local source and that artifact must produce the identical blocker-free stop-gate decision before any service command.
+
+The transaction verifies every rollback-manifest entry, records the active importer and gateway/selectors, disables/stops only `codex-import.service`, and requires the service inactive/disabled with port `8780` closed and no established connection. It then runs an actual SSH `cloudx-remote import --dry-run` with generated fixture data, live formal health, the existing Phi formal-health consumer state, and the authenticated gateway model probe. Any failure—including a partially failed disable—re-enables/starts the importer and requires its listener to return. Success retains the runtime, unit/drop-ins, token metadata, failure receipts, rollback snapshot, and legacy exporter. The archived evidence is intentionally too old for apply; an operator must refresh and re-sign the decision immediately before a separately approved stop window.
+
 ## Stage
 
 Local releases live under `~/.local/lib/cloudx/releases/<version>` and cloud releases under `/opt/cloudx/releases/<version>`. State, configuration, credentials, sessions, and logs live elsewhere.

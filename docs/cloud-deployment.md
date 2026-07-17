@@ -70,3 +70,5 @@ cloudx-remote compatibility-script codex-gateway-import
 ```
 
 The adapter preserves FILE/stdin and `--force`, adds an explicit `--dry-run`, and routes bytes directly to `cloudx-remote import`. It contains no HTTP endpoint, token-file read, or curl dependency. Installing the script and stopping the old HTTP service remain separate confirmation-gated actions.
+
+Source `0.1.15` adds `scripts/stop_http_importer.py` for the latter action. Its default plan is offline and non-authorizing. Exact-confirmation apply requires fresh signed stop-gate parity plus the existing complete rollback manifest, disables only `codex-import.service`, proves the listener closed, repeats the real SSH dry-run import and health/consumer/model canaries, and restores the importer on any failure. It does not remove the service, runtime, keys, receipts, snapshot, exporter, or any external dependency. Building, publishing, staging, activating, evaluating the stop gate, or running the plan grants no stop authority.

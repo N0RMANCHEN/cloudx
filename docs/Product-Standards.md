@@ -18,6 +18,8 @@ Remote handshake, health, release staging, and rollback exist to make those beha
 
 The migration-only HTTP importer stop-gate evaluator accepts a bounded sanitized evidence contract and returns deterministic precondition blockers. It does not collect privileged host state, stop or disable a service, or grant authorization; every result keeps `serviceStop=false` and requires a separate operator-confirmed transaction.
 
+That separate stop transaction also defaults to a non-authorizing plan. Exact-confirmation apply must require fresh digest-bound evidence evaluated identically by source and the exact staged signed cloud artifact, verify the complete root-only rollback manifest, stop/disable only `codex-import.service`, prove port `8780` closed, repeat the actual SSH dry-run import plus formal-health/Phi/gateway-model canaries, and preserve gateway/release-selector continuity. Any failure re-enables the importer. It cannot remove importer runtime, unit files, token metadata, failure receipts, rollback data, the legacy exporter, or any credential.
+
 ## Product Invariants
 
 - Single user and personal node first.

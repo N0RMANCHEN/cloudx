@@ -85,6 +85,8 @@ The input is limited to 64 KiB, must use `cloudx.http-importer-stop-gate-evidenc
 
 The result is `cloudx.http-importer-stop-gate.v1`, binds the canonical evidence with a SHA-256 digest, contains no account identity or credential data, labels itself `migration-only`, sets `automaticAction=false`, and always keeps `authorization.serviceStop=false`. It neither collects root-only evidence nor authorizes or performs a service change.
 
+Repository operators can inspect the separate transaction with `python3 scripts/stop_http_importer.py --release-version <version>`. The default plan reads no evidence and opens no SSH connection. Its distinct exact-confirmation apply requires fresh source/signed-artifact gate parity and a verified rollback snapshot, then stops only `codex-import.service`, runs the real SSH import and health/consumer/model canaries, and restores the service on any failure. It never removes the retained legacy assets.
+
 ## Phi Mesh Compatibility Profile
 
 The signed cloud artifact publishes the static compatibility profile with:
