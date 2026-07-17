@@ -27,6 +27,8 @@ The plan contains no private path or key material and grants no action. After a 
 
 Do not combine this preparation with commit, tag, publication, stable selection, staging, activation, service restart, or legacy removal. Each later step keeps its own evidence and authorization gate.
 
+The separately approved `0.1.15` rotation is complete. The current public signer fingerprint is `SHA256:oEhvhqj9U4wM8zLz8w43A/fvMN+BRNXO1k5/3eVPh9o`; its private key remains outside the repository with mode `0600`. Do not rerun recovery against the same path or copy that private key into Git, a release directory, an endpoint bundle, logs, or operator notes. Creating the release tag, signing/publishing artifacts, moving stable, staging endpoints, and activation are still later independent steps.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:
