@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Endpoint-aware Cloudx installer with explicit activation confirmation."""
+"""Endpoint-aware signed Cloudx staging and installation with exact confirmation."""
 
 from __future__ import annotations
 
@@ -40,8 +40,9 @@ def detected_endpoint() -> str:
     raise RuntimeError("Cloudx install supports macOS local and Linux cloud endpoints")
 
 
-def confirmation(endpoint: str, version: str) -> str:
-    return "INSTALL CLOUDX %s %s" % (endpoint.upper(), version)
+def confirmation(endpoint: str, version: str, stage_only: bool = False) -> str:
+    action = "STAGE" if stage_only else "INSTALL"
+    return "%s CLOUDX %s %s" % (action, endpoint.upper(), version)
 
 
 def fetch_release(repository: str, version: str, destination: pathlib.Path) -> pathlib.Path:
@@ -110,6 +111,24 @@ def install_local(version: str, seed_account: str, repository: str) -> Dict[str,
     }
 
 
+def stage_local(version: str, repository: str) -> Dict[str, Any]:
+    config = LocalConfig.load()
+    with tempfile.TemporaryDirectory(prefix="cloudx-install-local-stage-") as value:
+        source = fetch_release(repository, version, pathlib.Path(value) / "release")
+        staged = updater.stage(config, source, local_only=True)
+    return {
+        "schema": "cloudx.install-stage.v1",
+        "endpoint": "local",
+        "version": version,
+        "status": "staged",
+        "staged": staged,
+        "activated": False,
+        "shellSourceInstalled": False,
+        "nativeProfileChanged": False,
+        "legacyBackupChanged": False,
+    }
+
+
 def install_cloud(version: str, operator: str, repository: str) -> Dict[str, Any]:
     if os.geteuid() != 0:
         raise RuntimeError("cloud endpoint installation must run as root")
@@ -147,13 +166,31 @@ def install_cloud(version: str, operator: str, repository: str) -> Dict[str, Any
     }
 
 
+def stage_cloud(version: str, repository: str) -> Dict[str, Any]:
+    if os.geteuid() != 0:
+        raise RuntimeError("cloud endpoint staging must run as root")
+    with tempfile.TemporaryDirectory(prefix="cloudx-install-cloud-stage-") as value:
+        source = fetch_release(repository, version, pathlib.Path(value) / "release")
+        staged = cloud_release.stage(release_bundle(source, version))
+    return {
+        "schema": "cloudx.install-stage.v1",
+        "endpoint": "cloud",
+        "version": version,
+        "status": "staged",
+        "staged": staged,
+        "activated": False,
+        "serviceRestarted": False,
+    }
+
+
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(description="Install a signed Cloudx release on the local or cloud endpoint")
+    root = argparse.ArgumentParser(description="Stage or install a signed Cloudx release on one endpoint")
     root.add_argument("endpoint", nargs="?", choices=("local", "cloud"))
     root.add_argument("--version", default=(ROOT / "VERSION").read_text(encoding="utf-8").strip())
     root.add_argument("--repository", default="git@github.com:N0RMANCHEN/cloudx.git")
     root.add_argument("--seed-native-from", default="soul0")
     root.add_argument("--operator", default=os.environ.get("SUDO_USER") or pwd.getpwuid(os.getuid()).pw_name)
+    root.add_argument("--stage-only", action="store_true")
     root.add_argument("--apply", action="store_true")
     root.add_argument("--confirm", default="")
     return root
@@ -162,26 +199,61 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser().parse_args(argv)
     endpoint = args.endpoint or detected_endpoint()
-    expected = confirmation(endpoint, args.version)
+    expected = confirmation(endpoint, args.version, args.stage_only)
     if not args.apply:
+        if args.stage_only:
+            local_actions = [
+                "fetch exact signed artifact",
+                "verify release signature and self-check",
+                "stage local artifact",
+                "no activation",
+                "no shell, profile, backup, or process change",
+            ] if endpoint == "local" else []
+            cloud_actions = [
+                "fetch exact signed artifact",
+                "verify release signature and self-check",
+                "stage cloud artifact",
+                "no activation",
+                "no service restart",
+            ] if endpoint == "cloud" else []
+        else:
+            local_actions = [
+                "stage signed artifact",
+                "backup legacy path",
+                "seed native profile",
+                "install shell source",
+                "activate links",
+            ] if endpoint == "local" else []
+            cloud_actions = [
+                "stage signed artifact",
+                "activate helper/current",
+                "no service restart",
+            ] if endpoint == "cloud" else []
         print(json.dumps({
-            "schema": "cloudx.install-plan.v1",
+            "schema": "cloudx.install-stage-plan.v1" if args.stage_only else "cloudx.install-plan.v1",
             "status": "confirmation-required",
             "endpoint": endpoint,
             "version": args.version,
             "confirmation": expected,
             "releaseSource": "release-artifacts/v%s" % args.version,
-            "localActions": ["stage signed artifact", "backup legacy path", "seed native profile", "install shell source", "activate links"] if endpoint == "local" else [],
-            "cloudActions": ["stage signed artifact", "activate helper/current", "no service restart"] if endpoint == "cloud" else [],
+            "localActions": local_actions,
+            "cloudActions": cloud_actions,
         }, sort_keys=True, separators=(",", ":")))
         return 0
     if args.confirm != expected:
         raise RuntimeError("install confirmation does not match")
-    result = (
-        install_local(args.version, args.seed_native_from, args.repository)
-        if endpoint == "local"
-        else install_cloud(args.version, args.operator, args.repository)
-    )
+    if args.stage_only:
+        result = (
+            stage_local(args.version, args.repository)
+            if endpoint == "local"
+            else stage_cloud(args.version, args.repository)
+        )
+    else:
+        result = (
+            install_local(args.version, args.seed_native_from, args.repository)
+            if endpoint == "local"
+            else install_cloud(args.version, args.operator, args.repository)
+        )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 

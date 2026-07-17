@@ -47,6 +47,9 @@ codexx exit
 
 # Endpoint-aware signed installation; the plan prints its exact confirmation.
 ./install
+
+# Trust-recovery staging for a lagging endpoint; selectors and runtime stay unchanged.
+./install local --version <signed-version> --stage-only
 ```
 
 `codexx` deliberately stays small: account selection/lifecycle, explicit local/cloud import, and read-only API failure diagnosis. Pool management, task governance, agents, remote clients, and the former control plane are outside this product.

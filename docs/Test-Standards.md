@@ -7,6 +7,7 @@
 - Governance and unit tests require every cloud-runtime stdout/stderr path and published public document to pass the Phi metadata boundary, including negative fixtures for Task, session, device, lease, approval, local path, transfer content, ContextRequest, LocalAction, and Phi Artifact fields.
 - The default verifier evaluates the committed Phi/Cloudx current-and-N-1 evidence across all four release pairs, Cloudx-first and Phi-first upgrades, and both independent rollback directions. A valid audit may report `blocked`; only `compatible` can satisfy the M4A ordering gate.
 - The default verifier also evaluates the committed Phi privileged-boundary evidence across the normal interactive CLI, mail-command, and orchestrator Agent surfaces. It derives effective auth-read, import, gateway-mutation, and release-mutation capability from direct tools, runtime identity, privilege elevation, `NoNewPrivileges`, and path masking. A valid audit may report `blocked`; only `secure` can satisfy the M4A privilege gate.
+- Installer tests require stage-only trust recovery to use a distinct exact confirmation and to leave activation links, shell source, native profiles, legacy backups, services, and processes unchanged.
 - Contract tests validate every example against the versioned shared schema.
 - Integration tests exercise local and cloud entrypoints with fake SSH, gateway, Codex, and filesystem boundaries.
 - Live canaries are manual and use a non-production local port and shadow cloud paths.

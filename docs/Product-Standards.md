@@ -9,7 +9,7 @@ Cloudx 0.x supports these durable behaviors:
 3. Hold a shell-owned broker lease for `codexx cloud`, then run the official Codex with plain `codex`.
 4. Import local CPA credentials through the explicit migration adapter with `codexx import`.
 5. Import cloud gateway credentials over SSH with `codexx cloud import`.
-6. Install signed endpoint artifacts and the local shell source with `./install`.
+6. Stage an exact signed endpoint artifact without activation, or install it with the local shell source, through the separately confirmed `./install` workflow.
 7. Diagnose retained local or cloud API failure evidence without replacing `codex`, changing the gateway response, or exposing a credential or account identity.
 
 `cloud codex` and `cloud import` remain supported compatibility commands during the migration window.

@@ -154,11 +154,16 @@ The legacy local adapter has no Cloudx dry-run contract. A real local import the
 
 ```bash
 ./install
+./install local --version <signed-version> --stage-only
+./install local --version <signed-version> --stage-only --apply --confirm "STAGE CLOUDX LOCAL <version>"
+sudo ./install cloud --version <signed-version> --stage-only --apply --confirm "STAGE CLOUDX CLOUD <version>"
 ./install local --version <signed-version> --apply --confirm "INSTALL CLOUDX LOCAL <version>"
 sudo ./install cloud --version <signed-version> --apply --confirm "INSTALL CLOUDX CLOUD <version>"
 ```
 
-The local installer stages the signed local artifact, creates a private legacy recovery bundle when needed, seeds the native profile, installs the shell source into `.zshrc`, and activates stable links. The cloud installer requires the scoped credential/environment prerequisite, stages the signed cloud artifact, and activates the helper without restarting a service.
+Stage-only mode fetches one exact `release-artifacts/v<version>` ref, verifies its release signature, artifact digest, and self-check with the current repository trust root, and writes only the side-by-side release directory. It does not create a legacy backup, seed a profile, install a shell source, move `current` or `previous`, contact the other endpoint, or restart a process. This provides a recovery path when an older installed updater cannot verify the current stable index after an approved signing-root transition.
+
+The ordinary local installer stages the signed local artifact, creates a private legacy recovery bundle when needed, seeds the native profile, installs the shell source into `.zshrc`, and activates stable links. The ordinary cloud installer requires the scoped credential/environment prerequisite, stages the signed cloud artifact, and activates the helper without restarting a service.
 
 ## Signed GitHub Updates
 
