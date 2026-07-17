@@ -84,6 +84,30 @@ class ContractTests(unittest.TestCase):
         for forbidden in ("api_key", "bearer ", "token-", "secret-value"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_legacy_health_bridge_cutover_is_overlap_first_and_non_authorizing(self) -> None:
+        plan = json.loads(
+            (CONTRACTS / "examples/legacy-health-bridge-cutover-plan.json").read_text(encoding="utf-8")
+        )
+        receipt = json.loads(
+            (CONTRACTS / "examples/legacy-health-bridge-cutover.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(plan["schema"], "cloudx.legacy-health-bridge-cutover-plan.v1")
+        self.assertEqual(receipt["schema"], "cloudx.legacy-health-bridge-cutover.v1")
+        self.assertFalse(plan["automaticAction"])
+        self.assertFalse(plan["communicationGapAllowed"])
+        self.assertFalse(any(plan["authorization"].values()))
+        self.assertFalse(receipt["communicationGapObserved"])
+        self.assertTrue(receipt["rollbackRehearsed"])
+        self.assertTrue(receipt["restorationAccepted"])
+        self.assertTrue(receipt["primaryTimerEnabled"])
+        self.assertTrue(receipt["legacyTimerDisabled"])
+        self.assertTrue(receipt["legacyServiceRetained"])
+        self.assertFalse(receipt["phiServiceRestarted"])
+        self.assertFalse(receipt["releaseActivated"])
+        serialized = json.dumps({"plan": plan, "receipt": receipt}).casefold()
+        for forbidden in ("api_key", "bearer ", "token-", "secret-value"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_capacity_example_is_aggregate_and_distinguishes_all_states(self) -> None:
         schema = json.loads((CONTRACTS / "cloudx.capacity.v1.schema.json").read_text(encoding="utf-8"))
         document = json.loads((CONTRACTS / "examples/capacity.json").read_text(encoding="utf-8"))

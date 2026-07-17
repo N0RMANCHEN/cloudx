@@ -250,6 +250,48 @@ def parser() -> argparse.ArgumentParser:
     return root
 
 
+def run_once() -> Mapping[str, Any]:
+    _require_no_output()
+    canary_attempted = False
+    try:
+        canary_attempted = True
+        _systemctl("start")
+        result = _canary_result()
+        if (
+            result["LoadState"] != "loaded"
+            or result["ActiveState"] != "inactive"
+            or result["UnitFileState"] != "static"
+            or result["Result"] != "success"
+            or result["ExecMainStatus"] != "0"
+        ):
+            raise RuntimeError("legacy bridge canary unit did not finish successfully")
+        accepted = _validate_output()
+        _cleanup_output()
+        _require_runtime_boundaries()
+        return accepted
+    except Exception as exc:
+        cleanup_errors = []
+        if canary_attempted:
+            try:
+                _systemctl("stop")
+            except Exception:  # pragma: no cover - hard failure path
+                cleanup_errors.append("canary stop failed")
+        try:
+            _cleanup_output()
+        except Exception:  # pragma: no cover - hard failure path
+            cleanup_errors.append("temporary output cleanup failed")
+        try:
+            _require_runtime_boundaries()
+        except Exception:  # pragma: no cover - concurrent external mutation
+            cleanup_errors.append("runtime boundary recovery failed")
+        if cleanup_errors:
+            raise RuntimeError(
+                "legacy bridge canary failed; cleanup incomplete: %s"
+                % "; ".join(cleanup_errors)
+            ) from exc
+        raise RuntimeError("legacy bridge canary failed and temporary state was removed") from exc
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser().parse_args(argv)
     if not units.VERSION_RE.fullmatch(args.release_version):
@@ -272,44 +314,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         units.verify_artifact(artifact, args.release_version)
         _require_installed_files(artifact, args.release_version)
         _require_runtime_boundaries()
-        _require_no_output()
-        canary_attempted = False
-        try:
-            canary_attempted = True
-            _systemctl("start")
-            result = _canary_result()
-            if (
-                result["LoadState"] != "loaded"
-                or result["ActiveState"] != "inactive"
-                or result["UnitFileState"] != "static"
-                or result["Result"] != "success"
-                or result["ExecMainStatus"] != "0"
-            ):
-                raise RuntimeError("legacy bridge canary unit did not finish successfully")
-            accepted = _validate_output()
-            _cleanup_output()
-            _require_runtime_boundaries()
-        except Exception as exc:
-            cleanup_errors = []
-            if canary_attempted:
-                try:
-                    _systemctl("stop")
-                except Exception:  # pragma: no cover - hard failure path
-                    cleanup_errors.append("canary stop failed")
-            try:
-                _cleanup_output()
-            except Exception:  # pragma: no cover - hard failure path
-                cleanup_errors.append("temporary output cleanup failed")
-            try:
-                _require_runtime_boundaries()
-            except Exception:  # pragma: no cover - concurrent external mutation
-                cleanup_errors.append("runtime boundary recovery failed")
-            if cleanup_errors:
-                raise RuntimeError(
-                    "legacy bridge canary failed; cleanup incomplete: %s"
-                    % "; ".join(cleanup_errors)
-                ) from exc
-            raise RuntimeError("legacy bridge canary failed and temporary state was removed") from exc
+        accepted = run_once()
 
     print(json.dumps({
         "schema": "cloudx.legacy-health-bridge-canary.v1",

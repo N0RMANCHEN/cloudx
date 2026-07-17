@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.legacy-health-bridge-cutover-plan.v1.schema.json",
+  "title": "Cloudx legacy health bridge cutover rehearsal plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "confirmation",
+    "releaseVersion",
+    "releaseArtifact",
+    "legacyService",
+    "legacyTimer",
+    "primaryService",
+    "primaryTimer",
+    "communicationGapAllowed",
+    "finalPublisher",
+    "phases",
+    "automaticAction",
+    "preconditions",
+    "authorization"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.legacy-health-bridge-cutover-plan.v1"},
+    "status": {"const": "confirmation-required"},
+    "confirmation": {"const": "CUT OVER AND REHEARSE cloudx-legacy-health-bridge WITH ROLLBACK"},
+    "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "releaseArtifact": {"type": "string", "pattern": "^/opt/cloudx/releases/[0-9]+\\.[0-9]+\\.[0-9]+/cloudx-cloud\\.pyz$"},
+    "legacyService": {"const": "cloudx-health-contract.service"},
+    "legacyTimer": {"const": "cloudx-health-contract.timer"},
+    "primaryService": {"const": "cloudx-legacy-health-bridge.service"},
+    "primaryTimer": {"const": "cloudx-legacy-health-bridge.timer"},
+    "communicationGapAllowed": {"const": false},
+    "finalPublisher": {"const": "signed_primary_bridge"},
+    "phases": {
+      "const": [
+        "isolated_canary",
+        "candidate_overlap",
+        "candidate_cutover",
+        "legacy_rollback",
+        "candidate_restoration"
+      ]
+    },
+    "automaticAction": {"const": false},
+    "preconditions": {
+      "const": [
+        "signed_cloud_artifact_staged",
+        "signed_units_installed_inactive",
+        "legacy_timer_loaded_enabled_active",
+        "gateway_and_importer_continuity",
+        "exact_release_selectors_recorded"
+      ]
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "isolatedCanary",
+        "backupWrite",
+        "primaryServiceStart",
+        "primaryTimerEnable",
+        "primaryTimerDisable",
+        "legacyServiceStart",
+        "legacyTimerEnable",
+        "legacyTimerDisable",
+        "legacyOutputWrite",
+        "releaseActivation",
+        "phiServiceMutation"
+      ],
+      "properties": {
+        "isolatedCanary": {"const": false},
+        "backupWrite": {"const": false},
+        "primaryServiceStart": {"const": false},
+        "primaryTimerEnable": {"const": false},
+        "primaryTimerDisable": {"const": false},
+        "legacyServiceStart": {"const": false},
+        "legacyTimerEnable": {"const": false},
+        "legacyTimerDisable": {"const": false},
+        "legacyOutputWrite": {"const": false},
+        "releaseActivation": {"const": false},
+        "phiServiceMutation": {"const": false}
+      }
+    }
+  }
+}

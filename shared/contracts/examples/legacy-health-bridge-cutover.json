@@ -1,0 +1,26 @@
+{
+  "backup": "/var/lib/cloudx/legacy-health-bridge-cutover-backups/123456789",
+  "communicationGapObserved": false,
+  "finalPublisher": "signed_primary_bridge",
+  "gatewayProcessUnchanged": true,
+  "importerProcessUnchanged": true,
+  "legacyServiceRetained": true,
+  "legacyTimerDisabled": true,
+  "phases": [
+    {"name": "isolated_canary", "outputSha256": "1111111111111111111111111111111111111111111111111111111111111111", "status": "accepted"},
+    {"name": "candidate_overlap", "outputSha256": "2222222222222222222222222222222222222222222222222222222222222222", "status": "accepted"},
+    {"name": "candidate_cutover", "outputSha256": "3333333333333333333333333333333333333333333333333333333333333333", "status": "accepted"},
+    {"name": "legacy_rollback", "outputSha256": "4444444444444444444444444444444444444444444444444444444444444444", "status": "accepted"},
+    {"name": "candidate_restoration", "outputSha256": "5555555555555555555555555555555555555555555555555555555555555555", "status": "accepted"}
+  ],
+  "phiServiceRestarted": false,
+  "primaryTimerEnabled": true,
+  "releaseActivated": false,
+  "releaseArtifact": "/opt/cloudx/releases/0.1.15/cloudx-cloud.pyz",
+  "releaseVersion": "0.1.15",
+  "restorationAccepted": true,
+  "rollbackRehearsed": true,
+  "schema": "cloudx.legacy-health-bridge-cutover.v1",
+  "selectorsUnchanged": true,
+  "status": "accepted"
+}

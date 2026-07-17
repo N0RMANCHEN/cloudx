@@ -169,6 +169,17 @@ The default `cloudx.legacy-health-bridge-canary-plan.v1` result reads no artifac
 
 The signed canary unit uses the same immutable artifact and hardening boundary as the primary bridge but writes only `/run/cloudx-legacy-health-bridge-canary/v1.json`; `/var/lib/cloudx/health` is inaccessible to it. The runner starts only the static canary, requires systemd success plus the strict bounded legacy contract, records a public output digest, deletes the temporary file/directory, and rechecks all old/primary unit boundaries. Failure stops only the canary and removes temporary state. This does not start or enable the primary bridge and does not count as final production cutover or rollback acceptance.
 
+Inspect the final overlap-first cutover/rollback/restoration transaction separately:
+
+```bash
+python3 scripts/rehearse_legacy_health_bridge_cutover.py \
+  --release-version <staged-signed-version>
+```
+
+The default `cloudx.legacy-health-bridge-cutover-plan.v1` result reads no artifact, unit, process, selector, or health file and keeps every authorization false. Real apply requires the exact printed `CUT OVER AND REHEARSE cloudx-legacy-health-bridge WITH ROLLBACK` confirmation, root, exact signed installed bytes, the old active/enabled timer, inactive primary units, active unchanged gateway/importer processes, exact current/previous selectors, and a distinguishable old-exporter document.
+
+The confirmed transaction runs five phases: isolated canary, candidate overlap, candidate cutover, legacy rollback, and candidate restoration. It enables and validates each target timer/writer before disabling the current timer, retains root-only copies of the pre-cutover public document and continuity manifest, requires the conservative bridge and old exporter to have distinct producer/process evidence, and finishes with the signed primary enabled plus the old service retained. Any failure re-enables and validates the old path before disabling the primary; it never moves a selector, restarts Phi, or touches the gateway/importer. This command performs a real production publisher cutover and is not authorized by repository verification or by the read-only plan.
+
 Tunnel broker status includes `lastReconnectMilliseconds` after an SSH child exit. M2 evidence should record this field together with the stable `publicPort` and incremented `generation`; HTTP probe failures must leave all three unchanged.
 
 Installing the dedicated gateway key is an explicit maintenance action because it restarts the external `cliproxy.service`. A read-only invocation prints the required confirmation:

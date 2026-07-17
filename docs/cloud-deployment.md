@@ -61,6 +61,8 @@ Source `0.1.15` also provides `scripts/install_legacy_health_bridge_units.py`. I
 
 The installed set now includes a fourth static canary service. It shares the signed artifact selection and hardening rules but publishes only to `/run/cloudx-legacy-health-bridge-canary/v1.json` and explicitly masks `/var/lib/cloudx/health`. `scripts/run_legacy_health_bridge_canary.py` defaults to a read-only plan and, after separate exact confirmation, may start only this canary, validate and remove the temporary document, and stop it on failure. It never starts the primary service, enables the primary timer, changes the old exporter, or moves a release selector.
 
+`scripts/rehearse_legacy_health_bridge_cutover.py` is the separately confirmed production transition. It requires the canary first, then performs overlap-first primary cutover, old-exporter rollback, and primary restoration with no point at which both timers are intentionally inactive. It retains the old service and a root-only backup, and fails closed if Cloudx selectors, CLIProxyAPI, or the real `codex-import.service` continuity changes. Running its plan, building, publishing, staging, installing files, or running the isolated canary grants no cutover authority.
+
 Repository `0.1.11` prepares that importer migration by carrying a signed `codex-gateway-import` compatibility adapter. Inspect it without installing anything:
 
 ```bash

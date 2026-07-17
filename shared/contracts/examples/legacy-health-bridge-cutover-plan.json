@@ -1,0 +1,41 @@
+{
+  "authorization": {
+    "backupWrite": false,
+    "isolatedCanary": false,
+    "legacyOutputWrite": false,
+    "legacyServiceStart": false,
+    "legacyTimerDisable": false,
+    "legacyTimerEnable": false,
+    "phiServiceMutation": false,
+    "primaryServiceStart": false,
+    "primaryTimerDisable": false,
+    "primaryTimerEnable": false,
+    "releaseActivation": false
+  },
+  "automaticAction": false,
+  "communicationGapAllowed": false,
+  "confirmation": "CUT OVER AND REHEARSE cloudx-legacy-health-bridge WITH ROLLBACK",
+  "finalPublisher": "signed_primary_bridge",
+  "legacyService": "cloudx-health-contract.service",
+  "legacyTimer": "cloudx-health-contract.timer",
+  "phases": [
+    "isolated_canary",
+    "candidate_overlap",
+    "candidate_cutover",
+    "legacy_rollback",
+    "candidate_restoration"
+  ],
+  "preconditions": [
+    "signed_cloud_artifact_staged",
+    "signed_units_installed_inactive",
+    "legacy_timer_loaded_enabled_active",
+    "gateway_and_importer_continuity",
+    "exact_release_selectors_recorded"
+  ],
+  "primaryService": "cloudx-legacy-health-bridge.service",
+  "primaryTimer": "cloudx-legacy-health-bridge.timer",
+  "releaseArtifact": "/opt/cloudx/releases/0.1.15/cloudx-cloud.pyz",
+  "releaseVersion": "0.1.15",
+  "schema": "cloudx.legacy-health-bridge-cutover-plan.v1",
+  "status": "confirmation-required"
+}

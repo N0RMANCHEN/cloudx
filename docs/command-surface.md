@@ -107,6 +107,8 @@ Repository operators can inspect the distinct unit-file plan with `python3 scrip
 
 After those inactive files exist, `python3 scripts/run_legacy_health_bridge_canary.py --release-version <version>` prints a second non-authorizing plan. Its separately confirmed apply starts only the signed static canary, writes and validates one temporary `/run` document, then removes it. The canary unit masks the production legacy-health directory, so this command cannot cut over the legacy consumer path or replace final rollback evidence.
 
+`python3 scripts/rehearse_legacy_health_bridge_cutover.py --release-version <version>` prints the final non-authorizing cutover plan. Its distinct exact confirmation covers a real overlap-first primary/legacy/primary round trip and root-only backup. No plan or canary invocation authorizes it, and the transaction rejects any selector, gateway, importer, or Phi-service continuity change.
+
 The adjacent credential policy is also read-only:
 
 ```bash

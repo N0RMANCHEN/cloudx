@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.legacy-health-bridge-cutover.v1.schema.json",
+  "title": "Cloudx legacy health bridge cutover rehearsal receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "releaseVersion",
+    "releaseArtifact",
+    "phases",
+    "communicationGapObserved",
+    "rollbackRehearsed",
+    "restorationAccepted",
+    "finalPublisher",
+    "primaryTimerEnabled",
+    "legacyTimerDisabled",
+    "legacyServiceRetained",
+    "selectorsUnchanged",
+    "gatewayProcessUnchanged",
+    "importerProcessUnchanged",
+    "phiServiceRestarted",
+    "releaseActivated",
+    "backup"
+  ],
+  "$defs": {
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "outputSha256"],
+      "properties": {
+        "name": {"type": "string"},
+        "status": {"const": "accepted"},
+        "outputSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    }
+  },
+  "properties": {
+    "schema": {"const": "cloudx.legacy-health-bridge-cutover.v1"},
+    "status": {"const": "accepted"},
+    "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "releaseArtifact": {"type": "string", "pattern": "^/opt/cloudx/releases/[0-9]+\\.[0-9]+\\.[0-9]+/cloudx-cloud\\.pyz$"},
+    "phases": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "prefixItems": [
+        {"allOf": [{"$ref": "#/$defs/phase"}, {"properties": {"name": {"const": "isolated_canary"}}}]},
+        {"allOf": [{"$ref": "#/$defs/phase"}, {"properties": {"name": {"const": "candidate_overlap"}}}]},
+        {"allOf": [{"$ref": "#/$defs/phase"}, {"properties": {"name": {"const": "candidate_cutover"}}}]},
+        {"allOf": [{"$ref": "#/$defs/phase"}, {"properties": {"name": {"const": "legacy_rollback"}}}]},
+        {"allOf": [{"$ref": "#/$defs/phase"}, {"properties": {"name": {"const": "candidate_restoration"}}}]}
+      ],
+      "items": false
+    },
+    "communicationGapObserved": {"const": false},
+    "rollbackRehearsed": {"const": true},
+    "restorationAccepted": {"const": true},
+    "finalPublisher": {"const": "signed_primary_bridge"},
+    "primaryTimerEnabled": {"const": true},
+    "legacyTimerDisabled": {"const": true},
+    "legacyServiceRetained": {"const": true},
+    "selectorsUnchanged": {"const": true},
+    "gatewayProcessUnchanged": {"const": true},
+    "importerProcessUnchanged": {"const": true},
+    "phiServiceRestarted": {"const": false},
+    "releaseActivated": {"const": false},
+    "backup": {"type": "string", "pattern": "^/var/lib/cloudx/legacy-health-bridge-cutover-backups/[0-9]+$"}
+  }
+}

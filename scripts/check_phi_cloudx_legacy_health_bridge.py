@@ -106,6 +106,10 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
             "canaryRunner",
             "canaryPlanSchema",
             "canaryReceiptSchema",
+            "cutoverRunner",
+            "cutoverPlanSchema",
+            "cutoverReceiptSchema",
+            "overlapFirstCutover",
             "isolatedCanaryOutput",
             "inactiveInstallOnly",
             "fixedArtifactSelection",
@@ -134,6 +138,7 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
             "isolatedSelectorRollback",
             "inactiveUnitInstaller",
             "isolatedSystemdCanary",
+            "overlapCutoverTransaction",
         ),
         "sourceAcceptance",
     )
@@ -157,6 +162,13 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
             "canaryRunner": _text(cloudx["canaryRunner"], "cloudx.canaryRunner", 160),
             "canaryPlanSchema": _text(cloudx["canaryPlanSchema"], "cloudx.canaryPlanSchema"),
             "canaryReceiptSchema": _text(cloudx["canaryReceiptSchema"], "cloudx.canaryReceiptSchema"),
+            "cutoverRunner": _text(cloudx["cutoverRunner"], "cloudx.cutoverRunner", 160),
+            "cutoverPlanSchema": _text(cloudx["cutoverPlanSchema"], "cloudx.cutoverPlanSchema"),
+            "cutoverReceiptSchema": _text(cloudx["cutoverReceiptSchema"], "cloudx.cutoverReceiptSchema"),
+            "overlapFirstCutover": _boolean(
+                cloudx["overlapFirstCutover"],
+                "cloudx.overlapFirstCutover",
+            ),
             "isolatedCanaryOutput": _boolean(
                 cloudx["isolatedCanaryOutput"],
                 "cloudx.isolatedCanaryOutput",
@@ -187,6 +199,10 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
                 source_acceptance["isolatedSystemdCanary"],
                 "sourceAcceptance.isolatedSystemdCanary",
             ),
+            "overlapCutoverTransaction": _boolean(
+                source_acceptance["overlapCutoverTransaction"],
+                "sourceAcceptance.overlapCutoverTransaction",
+            ),
         },
         "runtimeAcceptance": {
             name: _boolean(runtime[name], "runtimeAcceptance.%s" % name)
@@ -214,6 +230,9 @@ def validate_cloudx_source(evidence: Mapping[str, Any]) -> Dict[str, Any]:
         or cloudx["unitInstallSchema"] != "cloudx.legacy-health-bridge-unit-install.v1"
         or cloudx["canaryPlanSchema"] != "cloudx.legacy-health-bridge-canary-plan.v1"
         or cloudx["canaryReceiptSchema"] != "cloudx.legacy-health-bridge-canary.v1"
+        or cloudx["cutoverPlanSchema"] != "cloudx.legacy-health-bridge-cutover-plan.v1"
+        or cloudx["cutoverReceiptSchema"] != "cloudx.legacy-health-bridge-cutover.v1"
+        or cloudx["overlapFirstCutover"] is not True
         or cloudx["isolatedCanaryOutput"] is not True
         or cloudx["inactiveInstallOnly"] is not True
         or cloudx["fixedArtifactSelection"] is not True
@@ -339,6 +358,55 @@ def validate_cloudx_source(evidence: Mapping[str, Any]) -> Dict[str, Any]:
         or canary_plan.get("authorization") != expected_canary_authorization
     ):
         raise BridgeEvidenceRejected("legacy bridge canary plan is authorizing or inconsistent")
+    cutover_runner = ROOT / cloudx["cutoverRunner"]
+    if not cutover_runner.is_file():
+        raise BridgeEvidenceRejected("legacy bridge cutover runner is unavailable")
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(cutover_runner), "--release-version", version],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=20.0,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise BridgeEvidenceRejected("legacy bridge cutover plan is unavailable") from exc
+    try:
+        cutover_plan = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise BridgeEvidenceRejected("legacy bridge cutover plan is invalid") from exc
+    expected_cutover_authorization = {
+        "isolatedCanary": False,
+        "backupWrite": False,
+        "primaryServiceStart": False,
+        "primaryTimerEnable": False,
+        "primaryTimerDisable": False,
+        "legacyServiceStart": False,
+        "legacyTimerEnable": False,
+        "legacyTimerDisable": False,
+        "legacyOutputWrite": False,
+        "releaseActivation": False,
+        "phiServiceMutation": False,
+    }
+    expected_phases = [
+        "isolated_canary",
+        "candidate_overlap",
+        "candidate_cutover",
+        "legacy_rollback",
+        "candidate_restoration",
+    ]
+    if (
+        completed.returncode != 0
+        or cutover_plan.get("schema") != cloudx["cutoverPlanSchema"]
+        or cutover_plan.get("releaseArtifact") != expected_artifact
+        or cutover_plan.get("communicationGapAllowed") is not False
+        or cutover_plan.get("finalPublisher") != "signed_primary_bridge"
+        or cutover_plan.get("phases") != expected_phases
+        or cutover_plan.get("automaticAction") is not False
+        or cutover_plan.get("authorization") != expected_cutover_authorization
+    ):
+        raise BridgeEvidenceRejected("legacy bridge cutover plan is authorizing or inconsistent")
     handshake = json.loads((ROOT / "shared/contracts/examples/handshake.json").read_text(encoding="utf-8"))
     if cloudx["capability"] not in handshake.get("capabilities", []):
         raise BridgeEvidenceRejected("handshake example omits the legacy bridge capability")
