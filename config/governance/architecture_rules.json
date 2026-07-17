@@ -35,6 +35,7 @@
     "scripts/check_phi_cloudx_privileged_boundary.py",
     "scripts/check_phi_cloudx_release_ordering.py",
     "scripts/prepare_release_trust_recovery.py",
+    "scripts/rehearse_legacy_health_bridge_rollback.py",
     "prompts/README.md"
   ],
   "forbidden_runtime_fragments": [

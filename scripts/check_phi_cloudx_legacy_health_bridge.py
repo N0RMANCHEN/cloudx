@@ -72,13 +72,21 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
         raise BridgeEvidenceRejected("legacy bridge evidence is unavailable or invalid") from exc
     root = _object(
         document,
-        ("schema", "capturedAt", "expectedStatus", "cloudx", "phiPrevious", "runtimeAcceptance"),
+        (
+            "schema",
+            "capturedAt",
+            "expectedStatus",
+            "cloudx",
+            "phiPrevious",
+            "sourceAcceptance",
+            "runtimeAcceptance",
+        ),
         "evidence",
     )
     if root["schema"] != EVIDENCE_SCHEMA:
         raise BridgeEvidenceRejected("legacy bridge evidence schema is unsupported")
     expected_status = _text(root["expectedStatus"], "expectedStatus", 24)
-    if expected_status not in {"source-ready", "runtime-accepted"}:
+    if expected_status not in {"source-incomplete", "source-ready", "runtime-accepted"}:
         raise BridgeEvidenceRejected("expectedStatus is invalid")
     cloudx = _object(
         root["cloudx"],
@@ -110,6 +118,11 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
     if not SHA_RE.fullmatch(release_ref) or not DIGEST_RE.fullmatch(digest):
         raise BridgeEvidenceRejected("Phi previous release identity is invalid")
     runtime = _object(root["runtimeAcceptance"], RUNTIME_BLOCKERS, "runtimeAcceptance")
+    source_acceptance = _object(
+        root["sourceAcceptance"],
+        ("exactPhiPreviousParser", "isolatedSelectorRollback"),
+        "sourceAcceptance",
+    )
     evidence = {
         "schema": EVIDENCE_SCHEMA,
         "capturedAt": _timestamp(root["capturedAt"], "capturedAt"),
@@ -130,6 +143,16 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
             "consumerFile": _text(phi["consumerFile"], "phiPrevious.consumerFile", 160),
             "consumerSha256": digest,
             "healthContract": _text(phi["healthContract"], "phiPrevious.healthContract"),
+        },
+        "sourceAcceptance": {
+            "exactPhiPreviousParser": _boolean(
+                source_acceptance["exactPhiPreviousParser"],
+                "sourceAcceptance.exactPhiPreviousParser",
+            ),
+            "isolatedSelectorRollback": _boolean(
+                source_acceptance["isolatedSelectorRollback"],
+                "sourceAcceptance.isolatedSelectorRollback",
+            ),
         },
         "runtimeAcceptance": {
             name: _boolean(runtime[name], "runtimeAcceptance.%s" % name)
@@ -179,6 +202,8 @@ def validate_cloudx_source(evidence: Mapping[str, Any]) -> Dict[str, Any]:
     expected_artifact = "/opt/cloudx/releases/%s/cloudx-cloud.pyz" % version
     if expected_artifact not in environment:
         raise BridgeEvidenceRejected("legacy bridge environment does not select the source version")
+    if not (ROOT / "scripts/rehearse_legacy_health_bridge_rollback.py").is_file():
+        raise BridgeEvidenceRejected("legacy bridge rollback rehearsal is unavailable")
     handshake = json.loads((ROOT / "shared/contracts/examples/handshake.json").read_text(encoding="utf-8"))
     if cloudx["capability"] not in handshake.get("capabilities", []):
         raise BridgeEvidenceRejected("handshake example omits the legacy bridge capability")
@@ -241,17 +266,24 @@ def verify_phi_previous(phi_root: pathlib.Path, evidence: Mapping[str, Any], exa
 
 
 def evaluate(evidence: Mapping[str, Any], phi_verification: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+    source_ready = all(evidence["sourceAcceptance"].values())
     blockers = [
         blocker
         for field, blocker in RUNTIME_BLOCKERS.items()
         if evidence["runtimeAcceptance"][field] is not True
     ]
-    status = "runtime-accepted" if not blockers else "source-ready"
+    if not source_ready:
+        status = "source-incomplete"
+    elif blockers:
+        status = "source-ready"
+    else:
+        status = "runtime-accepted"
     return {
         "schema": RESULT_SCHEMA,
         "status": status,
         "capturedAt": evidence["capturedAt"],
-        "sourceReady": True,
+        "sourceReady": source_ready,
+        "sourceAcceptance": dict(evidence["sourceAcceptance"]),
         "phiPreviousVerified": phi_verification is not None,
         "phiPrevious": dict(phi_verification) if phi_verification is not None else None,
         "runtimeAcceptance": dict(evidence["runtimeAcceptance"]),

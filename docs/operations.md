@@ -138,6 +138,15 @@ python3 scripts/check_phi_cloudx_legacy_health_bridge.py --require-runtime-accep
 
 The default check validates the strict formal-to-legacy mapping, shared schema/example, advertised capability, compatibility profile, and release-packaged service/timer. The checkout-aware form verifies the recorded Phi release/file digest and executes that exact parser against the generated legacy example. `--require-runtime-accepted` remains exit `2` until signed publication, isolated unit installation, and independent rollback rehearsal are all recorded; none of those actions is authorized by the checker.
 
+Rehearse fixed-artifact independence without touching an endpoint:
+
+```bash
+python3 scripts/rehearse_legacy_health_bridge_rollback.py --json
+python3 scripts/rehearse_legacy_health_bridge_rollback.py --phi-root <phi-checkout> --json
+```
+
+The rehearsal builds the current cloud candidate in a temporary root, seeds isolated `0.1.13/0.1.12` selectors, runs the candidate bridge, invokes the real Cloudx rollback implementation in both directions, and requires the persisted legacy bytes to remain identical across all three states. It emits no temporary path and grants no production publication, staging, unit, service, or selector authority.
+
 Tunnel broker status includes `lastReconnectMilliseconds` after an SSH child exit. M2 evidence should record this field together with the stable `publicPort` and incremented `generation`; HTTP probe failures must leave all three unchanged.
 
 Installing the dedicated gateway key is an explicit maintenance action because it restarts the external `cliproxy.service`. A read-only invocation prints the required confirmation:

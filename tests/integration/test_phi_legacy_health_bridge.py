@@ -28,6 +28,8 @@ class PhiLegacyHealthBridgeTests(unittest.TestCase):
         validate_cloudx_source(evidence)
         result = evaluate(evidence)
         self.assertEqual(result["status"], "source-ready")
+        self.assertTrue(result["sourceReady"])
+        self.assertTrue(all(result["sourceAcceptance"].values()))
         self.assertEqual(result["blockers"], [
             "signed_artifact_not_published",
             "bridge_unit_not_installed",
@@ -46,6 +48,13 @@ class PhiLegacyHealthBridgeTests(unittest.TestCase):
         result = evaluate(evidence)
         self.assertEqual(result["status"], "runtime-accepted")
         self.assertEqual(result["blockers"], [])
+
+    def test_source_readiness_requires_exact_parser_and_isolated_rollback(self) -> None:
+        evidence = load_evidence()
+        evidence["sourceAcceptance"]["isolatedSelectorRollback"] = False
+        result = evaluate(evidence)
+        self.assertEqual(result["status"], "source-incomplete")
+        self.assertFalse(result["sourceReady"])
 
     def test_unknown_evidence_fields_are_rejected(self) -> None:
         document = json.loads(DEFAULT_EVIDENCE.read_text(encoding="utf-8"))
