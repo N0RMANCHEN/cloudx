@@ -24,6 +24,8 @@
     "shared/contracts/cloudx.import.v1.schema.json",
     "shared/contracts/cloudx.local-cpa-import.v1.schema.json",
     "shared/contracts/cloudx.legacy-health.v1.schema.json",
+    "shared/contracts/cloudx.legacy-health-bridge-canary-plan.v1.schema.json",
+    "shared/contracts/cloudx.legacy-health-bridge-canary.v1.schema.json",
     "shared/contracts/cloudx.legacy-health-bridge-unit-install.v1.schema.json",
     "shared/contracts/cloudx.legacy-health-bridge-unit-plan.v1.schema.json",
     "shared/contracts/cloudx.phi-cloud-consumer-credential.v1.schema.json",
@@ -42,6 +44,7 @@
     "scripts/install_phi_consumer_gateway_key.py",
     "scripts/prepare_release_trust_recovery.py",
     "scripts/rehearse_legacy_health_bridge_rollback.py",
+    "scripts/run_legacy_health_bridge_canary.py",
     "prompts/README.md"
   ],
   "forbidden_runtime_fragments": [

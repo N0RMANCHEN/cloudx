@@ -12,6 +12,7 @@ TEMPLATES: Tuple[str, ...] = (
     "cloudx-health.service",
     "cloudx-health.timer",
     "cloudx-legacy-health-bridge.env.example",
+    "cloudx-legacy-health-bridge-canary.service",
     "cloudx-legacy-health-bridge.service",
     "cloudx-legacy-health-bridge.timer",
 )

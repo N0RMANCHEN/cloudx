@@ -1,0 +1,22 @@
+{
+  "canaryStarted": true,
+  "canaryStoppedOnFailure": false,
+  "execMainStatus": 0,
+  "legacyOutputMutated": false,
+  "legacyServiceStopped": false,
+  "legacyTimerActive": true,
+  "legacyTimerDisabled": false,
+  "legacyTimerEnabled": true,
+  "outputMode": "0644",
+  "outputSha256": "ac8a955a2f2482f4581cc7117086a6080247aee2df5a9837f6044919cceb1a11",
+  "primaryServiceStarted": false,
+  "primaryTimerEnabled": false,
+  "releaseActivated": false,
+  "releaseArtifact": "/opt/cloudx/releases/0.1.15/cloudx-cloud.pyz",
+  "releaseVersion": "0.1.15",
+  "schema": "cloudx.legacy-health-bridge-canary.v1",
+  "status": "accepted",
+  "temporaryOutputRemoved": true,
+  "unit": "cloudx-legacy-health-bridge-canary.service",
+  "unitResult": "success"
+}

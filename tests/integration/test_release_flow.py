@@ -366,6 +366,21 @@ class ReleaseFlowTests(unittest.TestCase):
         self.assertEqual(bridge_template.returncode, 0, msg=bridge_template.stderr)
         self.assertIn("${CLOUDX_LEGACY_HEALTH_BRIDGE_ARTIFACT}", bridge_template.stdout)
         self.assertNotIn("/opt/cloudx/current", bridge_template.stdout)
+        canary_template = subprocess.run(
+            [
+                sys.executable,
+                str(cloud_artifact),
+                "systemd-template",
+                "cloudx-legacy-health-bridge-canary.service",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(canary_template.returncode, 0, msg=canary_template.stderr)
+        self.assertIn("/run/cloudx-legacy-health-bridge-canary/v1.json", canary_template.stdout)
+        self.assertNotIn("--publish-to /var/lib/cloudx/health", canary_template.stdout)
         evidence = (ROOT / "shared/contracts/examples/http-importer-stop-gate-evidence.json").read_bytes()
         gate = subprocess.run(
             [

@@ -50,12 +50,35 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(receipt["schema"], "cloudx.legacy-health-bridge-unit-install.v1")
         self.assertFalse(plan["automaticAction"])
         self.assertFalse(any(plan["authorization"].values()))
+        self.assertFalse(plan["canaryStartRequired"])
         self.assertFalse(plan["serviceStartRequired"])
         self.assertFalse(plan["timerEnableRequired"])
         self.assertFalse(receipt["serviceStarted"])
+        self.assertFalse(receipt["canaryStarted"])
         self.assertFalse(receipt["timerEnabled"])
         self.assertFalse(receipt["legacyServiceStopped"])
         self.assertFalse(receipt["legacyTimerDisabled"])
+        self.assertFalse(receipt["releaseActivated"])
+        serialized = json.dumps({"plan": plan, "receipt": receipt}).casefold()
+        for forbidden in ("api_key", "bearer ", "token-", "secret-value"):
+            self.assertNotIn(forbidden, serialized)
+
+    def test_legacy_health_bridge_canary_is_isolated_and_non_authorizing(self) -> None:
+        plan = json.loads(
+            (CONTRACTS / "examples/legacy-health-bridge-canary-plan.json").read_text(encoding="utf-8")
+        )
+        receipt = json.loads(
+            (CONTRACTS / "examples/legacy-health-bridge-canary.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(plan["schema"], "cloudx.legacy-health-bridge-canary-plan.v1")
+        self.assertEqual(receipt["schema"], "cloudx.legacy-health-bridge-canary.v1")
+        self.assertFalse(plan["automaticAction"])
+        self.assertFalse(any(plan["authorization"].values()))
+        self.assertTrue(receipt["canaryStarted"])
+        self.assertTrue(receipt["temporaryOutputRemoved"])
+        self.assertFalse(receipt["primaryServiceStarted"])
+        self.assertFalse(receipt["primaryTimerEnabled"])
+        self.assertFalse(receipt["legacyOutputMutated"])
         self.assertFalse(receipt["releaseActivated"])
         serialized = json.dumps({"plan": plan, "receipt": receipt}).casefold()
         for forbidden in ("api_key", "bearer ", "token-", "secret-value"):

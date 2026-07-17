@@ -1,0 +1,28 @@
+{
+  "authorization": {
+    "canaryStart": false,
+    "canaryStopOnFailure": false,
+    "legacyMutation": false,
+    "primaryServiceStart": false,
+    "primaryTimerEnable": false,
+    "releaseActivation": false,
+    "temporaryOutputCleanup": false,
+    "temporaryOutputWrite": false
+  },
+  "automaticAction": false,
+  "confirmation": "RUN cloudx-legacy-health-bridge-canary WITHOUT LEGACY CUTOVER",
+  "legacyOutputPath": "/var/lib/cloudx/health/v1.json",
+  "outputPath": "/run/cloudx-legacy-health-bridge-canary/v1.json",
+  "preconditions": [
+    "signed_cloud_artifact_staged",
+    "signed_canary_unit_installed",
+    "legacy_timer_loaded_enabled_active",
+    "primary_bridge_disabled_inactive",
+    "canary_output_absent"
+  ],
+  "releaseArtifact": "/opt/cloudx/releases/0.1.15/cloudx-cloud.pyz",
+  "releaseVersion": "0.1.15",
+  "schema": "cloudx.legacy-health-bridge-canary-plan.v1",
+  "status": "confirmation-required",
+  "unit": "cloudx-legacy-health-bridge-canary.service"
+}

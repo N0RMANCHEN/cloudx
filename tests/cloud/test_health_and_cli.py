@@ -191,6 +191,14 @@ class CloudHealthTests(unittest.TestCase):
         self.assertNotIn("/home/", service)
 
     def test_signed_artifact_emits_fixed_release_legacy_bridge_templates(self) -> None:
+        canary_output = StringIO()
+        with redirect_stdout(canary_output):
+            self.assertEqual(main(["systemd-template", "cloudx-legacy-health-bridge-canary.service"]), 0)
+        canary = canary_output.getvalue()
+        self.assertIn("/run/cloudx-legacy-health-bridge-canary/v1.json", canary)
+        self.assertIn("InaccessiblePaths=", canary)
+        self.assertIn("/var/lib/cloudx/health", canary)
+        self.assertNotIn("--publish-to /var/lib/cloudx/health", canary)
         service_output = StringIO()
         with redirect_stdout(service_output):
             self.assertEqual(main(["systemd-template", "cloudx-legacy-health-bridge.service"]), 0)

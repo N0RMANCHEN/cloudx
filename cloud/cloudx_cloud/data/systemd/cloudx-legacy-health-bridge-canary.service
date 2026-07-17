@@ -1,0 +1,29 @@
+[Unit]
+Description=Canary the migration-only Cloudx legacy health bridge without cutover
+After=cloudx-health.service
+ConditionPathExists=/run/cloudx/health.json
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/cloudx/legacy-health-bridge.env
+ExecStart=/usr/bin/python3 ${CLOUDX_LEGACY_HEALTH_BRIDGE_ARTIFACT} legacy-health-bridge --source /run/cloudx/health.json --publish-to /run/cloudx-legacy-health-bridge-canary/v1.json
+User=root
+Group=root
+UMask=0022
+RuntimeDirectory=cloudx-legacy-health-bridge-canary
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+ReadOnlyPaths=/opt/cloudx/releases /etc/cloudx /run/cloudx
+ReadWritePaths=/run/cloudx-legacy-health-bridge-canary
+InaccessiblePaths=/var/lib/codex-gateway/cliproxy-auth /var/lib/codex-gateway/cliproxy-auth-archive /etc/cliproxy /etc/codex-gateway/import-client-keys /var/lib/cloudx/health
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX

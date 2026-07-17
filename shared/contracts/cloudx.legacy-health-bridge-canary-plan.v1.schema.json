@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.legacy-health-bridge-canary-plan.v1.schema.json",
+  "title": "Cloudx isolated legacy health bridge canary plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "confirmation",
+    "releaseVersion",
+    "releaseArtifact",
+    "unit",
+    "outputPath",
+    "legacyOutputPath",
+    "automaticAction",
+    "preconditions",
+    "authorization"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.legacy-health-bridge-canary-plan.v1"},
+    "status": {"const": "confirmation-required"},
+    "confirmation": {"const": "RUN cloudx-legacy-health-bridge-canary WITHOUT LEGACY CUTOVER"},
+    "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "releaseArtifact": {"type": "string", "pattern": "^/opt/cloudx/releases/[0-9]+\\.[0-9]+\\.[0-9]+/cloudx-cloud\\.pyz$"},
+    "unit": {"const": "cloudx-legacy-health-bridge-canary.service"},
+    "outputPath": {"const": "/run/cloudx-legacy-health-bridge-canary/v1.json"},
+    "legacyOutputPath": {"const": "/var/lib/cloudx/health/v1.json"},
+    "automaticAction": {"const": false},
+    "preconditions": {
+      "const": [
+        "signed_cloud_artifact_staged",
+        "signed_canary_unit_installed",
+        "legacy_timer_loaded_enabled_active",
+        "primary_bridge_disabled_inactive",
+        "canary_output_absent"
+      ]
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canaryStart",
+        "canaryStopOnFailure",
+        "temporaryOutputWrite",
+        "temporaryOutputCleanup",
+        "primaryServiceStart",
+        "primaryTimerEnable",
+        "legacyMutation",
+        "releaseActivation"
+      ],
+      "properties": {
+        "canaryStart": {"const": false},
+        "canaryStopOnFailure": {"const": false},
+        "temporaryOutputWrite": {"const": false},
+        "temporaryOutputCleanup": {"const": false},
+        "primaryServiceStart": {"const": false},
+        "primaryTimerEnable": {"const": false},
+        "legacyMutation": {"const": false},
+        "releaseActivation": {"const": false}
+      }
+    }
+  }
+}

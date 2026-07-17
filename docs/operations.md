@@ -156,7 +156,18 @@ python3 scripts/install_legacy_health_bridge_units.py \
 
 The default `cloudx.legacy-health-bridge-unit-plan.v1` result reads no artifact, systemd state, unit file, or legacy output and keeps every authorization false. Apply requires the exact printed `INSTALL cloudx-legacy-health-bridge UNITS WITHOUT START` confirmation, root, the exact `/opt/cloudx/releases/<version>/cloudx-cloud.pyz`, root-owned fixed installation directories, a loaded/enabled/active legacy timer, and inactive/disabled candidate units.
 
-The transaction extracts the environment, service, and timer from that exact artifact, validates their immutable-path and offline boundaries, writes mode-`0644` root-owned files, runs `systemd-analyze verify`, and performs only `systemctl daemon-reload`. It retains prior files in a root-only backup and restores them plus reloads systemd if any write or verification fails. Success explicitly reports that the candidate was not started or enabled, the legacy exporter was not stopped or disabled, and no release was activated. Publication, candidate start, output comparison, Phi N-1 rollback, restoration, and legacy retirement remain separately approved operations.
+The transaction extracts the environment, static canary, primary service, and primary timer from that exact artifact, validates their immutable-path and offline boundaries, writes mode-`0644` root-owned files, runs `systemd-analyze verify`, and performs only `systemctl daemon-reload`. It retains prior files in a root-only backup and restores them plus reloads systemd if any write or verification fails. Success explicitly reports that no candidate was started or enabled, the legacy exporter was not stopped or disabled, and no release was activated. Publication, canary execution, primary start, output comparison, Phi N-1 rollback, restoration, and legacy retirement remain separately approved operations.
+
+After the exact signed artifact and inactive unit set are installed, inspect the isolated runtime canary plan:
+
+```bash
+python3 scripts/run_legacy_health_bridge_canary.py \
+  --release-version <staged-signed-version>
+```
+
+The default `cloudx.legacy-health-bridge-canary-plan.v1` result reads no artifact, unit, systemd state, health file, or credential and keeps every authorization false. Apply requires the exact printed `RUN cloudx-legacy-health-bridge-canary WITHOUT LEGACY CUTOVER` confirmation, root, exact signed env/canary bytes, an active enabled old timer, inactive/disabled primary units, a static inactive canary, and no stale canary output.
+
+The signed canary unit uses the same immutable artifact and hardening boundary as the primary bridge but writes only `/run/cloudx-legacy-health-bridge-canary/v1.json`; `/var/lib/cloudx/health` is inaccessible to it. The runner starts only the static canary, requires systemd success plus the strict bounded legacy contract, records a public output digest, deletes the temporary file/directory, and rechecks all old/primary unit boundaries. Failure stops only the canary and removes temporary state. This does not start or enable the primary bridge and does not count as final production cutover or rollback acceptance.
 
 Tunnel broker status includes `lastReconnectMilliseconds` after an SSH child exit. M2 evidence should record this field together with the stable `publicPort` and incremented `generation`; HTTP probe failures must leave all three unchanged.
 

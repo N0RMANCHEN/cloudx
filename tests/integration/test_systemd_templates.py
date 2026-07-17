@@ -84,6 +84,7 @@ class ShadowSystemdTemplateTests(unittest.TestCase):
         self.assertIn("OnUnitActiveSec=5min", timer)
 
     def test_legacy_health_bridge_is_fixed_to_a_signed_artifact_and_off_network(self) -> None:
+        canary = (ACTIVE_SYSTEMD / "cloudx-legacy-health-bridge-canary.service").read_text(encoding="utf-8")
         service = (ACTIVE_SYSTEMD / "cloudx-legacy-health-bridge.service").read_text(encoding="utf-8")
         timer = (ACTIVE_SYSTEMD / "cloudx-legacy-health-bridge.timer").read_text(encoding="utf-8")
         environment = (ACTIVE_SYSTEMD / "cloudx-legacy-health-bridge.env.example").read_text(encoding="utf-8")
@@ -94,6 +95,14 @@ class ShadowSystemdTemplateTests(unittest.TestCase):
         self.assertIn("RestrictAddressFamilies=AF_UNIX", service)
         self.assertNotIn("/opt/cloudx/current", service)
         self.assertNotIn("/home/", service)
+        self.assertIn("--publish-to /run/cloudx-legacy-health-bridge-canary/v1.json", canary)
+        self.assertIn("ReadWritePaths=/run/cloudx-legacy-health-bridge-canary", canary)
+        self.assertIn("/var/lib/cloudx/health", canary)
+        self.assertIn("RestrictAddressFamilies=AF_UNIX", canary)
+        self.assertNotIn("[Install]", canary)
+        self.assertNotIn("--publish-to /var/lib/cloudx/health", canary)
+        self.assertNotIn("/opt/cloudx/current", canary)
+        self.assertNotIn("/home/", canary)
         self.assertIn("OnActiveSec=2min", timer)
         self.assertIn("OnUnitActiveSec=1min", timer)
         self.assertIn("Unit=cloudx-legacy-health-bridge.service", timer)

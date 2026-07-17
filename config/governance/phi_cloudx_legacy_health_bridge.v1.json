@@ -1,6 +1,6 @@
 {
   "schema": "cloudx.phi-legacy-health-bridge-evidence.v1",
-  "capturedAt": "2026-07-17T09:20:00Z",
+  "capturedAt": "2026-07-17T10:21:41Z",
   "expectedStatus": "source-ready",
   "cloudx": {
     "version": "0.1.15",
@@ -11,9 +11,14 @@
     "command": "legacy-health-bridge",
     "serviceTemplate": "cloudx-legacy-health-bridge.service",
     "timerTemplate": "cloudx-legacy-health-bridge.timer",
+    "canaryTemplate": "cloudx-legacy-health-bridge-canary.service",
     "unitInstaller": "scripts/install_legacy_health_bridge_units.py",
     "unitPlanSchema": "cloudx.legacy-health-bridge-unit-plan.v1",
     "unitInstallSchema": "cloudx.legacy-health-bridge-unit-install.v1",
+    "canaryRunner": "scripts/run_legacy_health_bridge_canary.py",
+    "canaryPlanSchema": "cloudx.legacy-health-bridge-canary-plan.v1",
+    "canaryReceiptSchema": "cloudx.legacy-health-bridge-canary.v1",
+    "isolatedCanaryOutput": true,
     "inactiveInstallOnly": true,
     "fixedArtifactSelection": true
   },
@@ -26,7 +31,8 @@
   "sourceAcceptance": {
     "exactPhiPreviousParser": true,
     "isolatedSelectorRollback": true,
-    "inactiveUnitInstaller": true
+    "inactiveUnitInstaller": true,
+    "isolatedSystemdCanary": true
   },
   "runtimeAcceptance": {
     "signedArtifactPublished": false,

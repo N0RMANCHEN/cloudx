@@ -1,8 +1,10 @@
 {
   "backup": "/var/lib/cloudx/legacy-health-bridge-install-backups/123456789",
+  "canaryMode": "0644",
+  "canaryStarted": false,
   "daemonReloaded": true,
   "environmentMode": "0644",
-  "filesChanged": 3,
+  "filesChanged": 4,
   "legacyServiceStopped": false,
   "legacyTimerActive": true,
   "legacyTimerDisabled": false,

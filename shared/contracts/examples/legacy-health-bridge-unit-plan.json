@@ -1,5 +1,6 @@
 {
   "authorization": {
+    "canaryStart": false,
     "daemonReload": false,
     "legacyMutation": false,
     "releaseActivation": false,
@@ -8,6 +9,8 @@
     "unitWrite": false
   },
   "automaticAction": false,
+  "canaryPath": "/etc/systemd/system/cloudx-legacy-health-bridge-canary.service",
+  "canaryStartRequired": false,
   "confirmation": "INSTALL cloudx-legacy-health-bridge UNITS WITHOUT START",
   "environmentPath": "/etc/cloudx/legacy-health-bridge.env",
   "legacyService": "cloudx-health-contract.service",

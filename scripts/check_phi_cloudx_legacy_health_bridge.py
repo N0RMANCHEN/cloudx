@@ -99,9 +99,14 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
             "command",
             "serviceTemplate",
             "timerTemplate",
+            "canaryTemplate",
             "unitInstaller",
             "unitPlanSchema",
             "unitInstallSchema",
+            "canaryRunner",
+            "canaryPlanSchema",
+            "canaryReceiptSchema",
+            "isolatedCanaryOutput",
             "inactiveInstallOnly",
             "fixedArtifactSelection",
         ),
@@ -124,7 +129,12 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
     runtime = _object(root["runtimeAcceptance"], RUNTIME_BLOCKERS, "runtimeAcceptance")
     source_acceptance = _object(
         root["sourceAcceptance"],
-        ("exactPhiPreviousParser", "isolatedSelectorRollback", "inactiveUnitInstaller"),
+        (
+            "exactPhiPreviousParser",
+            "isolatedSelectorRollback",
+            "inactiveUnitInstaller",
+            "isolatedSystemdCanary",
+        ),
         "sourceAcceptance",
     )
     evidence = {
@@ -140,9 +150,17 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
             "command": _text(cloudx["command"], "cloudx.command"),
             "serviceTemplate": _text(cloudx["serviceTemplate"], "cloudx.serviceTemplate"),
             "timerTemplate": _text(cloudx["timerTemplate"], "cloudx.timerTemplate"),
+            "canaryTemplate": _text(cloudx["canaryTemplate"], "cloudx.canaryTemplate"),
             "unitInstaller": _text(cloudx["unitInstaller"], "cloudx.unitInstaller", 160),
             "unitPlanSchema": _text(cloudx["unitPlanSchema"], "cloudx.unitPlanSchema"),
             "unitInstallSchema": _text(cloudx["unitInstallSchema"], "cloudx.unitInstallSchema"),
+            "canaryRunner": _text(cloudx["canaryRunner"], "cloudx.canaryRunner", 160),
+            "canaryPlanSchema": _text(cloudx["canaryPlanSchema"], "cloudx.canaryPlanSchema"),
+            "canaryReceiptSchema": _text(cloudx["canaryReceiptSchema"], "cloudx.canaryReceiptSchema"),
+            "isolatedCanaryOutput": _boolean(
+                cloudx["isolatedCanaryOutput"],
+                "cloudx.isolatedCanaryOutput",
+            ),
             "inactiveInstallOnly": _boolean(cloudx["inactiveInstallOnly"], "cloudx.inactiveInstallOnly"),
             "fixedArtifactSelection": _boolean(cloudx["fixedArtifactSelection"], "cloudx.fixedArtifactSelection"),
         },
@@ -164,6 +182,10 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
             "inactiveUnitInstaller": _boolean(
                 source_acceptance["inactiveUnitInstaller"],
                 "sourceAcceptance.inactiveUnitInstaller",
+            ),
+            "isolatedSystemdCanary": _boolean(
+                source_acceptance["isolatedSystemdCanary"],
+                "sourceAcceptance.isolatedSystemdCanary",
             ),
         },
         "runtimeAcceptance": {
@@ -190,6 +212,9 @@ def validate_cloudx_source(evidence: Mapping[str, Any]) -> Dict[str, Any]:
         or cloudx["command"] != "legacy-health-bridge"
         or cloudx["unitPlanSchema"] != "cloudx.legacy-health-bridge-unit-plan.v1"
         or cloudx["unitInstallSchema"] != "cloudx.legacy-health-bridge-unit-install.v1"
+        or cloudx["canaryPlanSchema"] != "cloudx.legacy-health-bridge-canary-plan.v1"
+        or cloudx["canaryReceiptSchema"] != "cloudx.legacy-health-bridge-canary.v1"
+        or cloudx["isolatedCanaryOutput"] is not True
         or cloudx["inactiveInstallOnly"] is not True
         or cloudx["fixedArtifactSelection"] is not True
     ):
@@ -201,6 +226,7 @@ def validate_cloudx_source(evidence: Mapping[str, Any]) -> Dict[str, Any]:
     systemd = ROOT / "cloud/cloudx_cloud/data/systemd"
     service = (systemd / cloudx["serviceTemplate"]).read_text(encoding="utf-8")
     timer = (systemd / cloudx["timerTemplate"]).read_text(encoding="utf-8")
+    canary = (systemd / cloudx["canaryTemplate"]).read_text(encoding="utf-8")
     environment = (systemd / "cloudx-legacy-health-bridge.env.example").read_text(encoding="utf-8")
     required_service = (
         "${CLOUDX_LEGACY_HEALTH_BRIDGE_ARTIFACT} legacy-health-bridge",
@@ -214,6 +240,22 @@ def validate_cloudx_source(evidence: Mapping[str, Any]) -> Dict[str, Any]:
         raise BridgeEvidenceRejected("legacy bridge service is not fixed to immutable release data")
     if "Unit=%s" % cloudx["serviceTemplate"] not in timer:
         raise BridgeEvidenceRejected("legacy bridge timer targets the wrong service")
+    required_canary = (
+        "${CLOUDX_LEGACY_HEALTH_BRIDGE_ARTIFACT} legacy-health-bridge",
+        "--source /run/cloudx/health.json",
+        "--publish-to /run/cloudx-legacy-health-bridge-canary/v1.json",
+        "ReadWritePaths=/run/cloudx-legacy-health-bridge-canary",
+        "/var/lib/cloudx/health",
+        "RestrictAddressFamilies=AF_UNIX",
+    )
+    if any(fragment not in canary for fragment in required_canary):
+        raise BridgeEvidenceRejected("legacy bridge canary template is incomplete")
+    if (
+        "/opt/cloudx/current" in canary
+        or "/home/" in canary
+        or "--publish-to /var/lib/cloudx/health" in canary
+    ):
+        raise BridgeEvidenceRejected("legacy bridge canary can mutate the production path")
     expected_artifact = "/opt/cloudx/releases/%s/cloudx-cloud.pyz" % version
     if expected_artifact not in environment:
         raise BridgeEvidenceRejected("legacy bridge environment does not select the source version")
@@ -241,6 +283,7 @@ def validate_cloudx_source(evidence: Mapping[str, Any]) -> Dict[str, Any]:
     expected_authorization = {
         "unitWrite": False,
         "daemonReload": False,
+        "canaryStart": False,
         "serviceStart": False,
         "timerEnable": False,
         "legacyMutation": False,
@@ -250,12 +293,52 @@ def validate_cloudx_source(evidence: Mapping[str, Any]) -> Dict[str, Any]:
         completed.returncode != 0
         or unit_plan.get("schema") != cloudx["unitPlanSchema"]
         or unit_plan.get("releaseArtifact") != expected_artifact
+        or unit_plan.get("canaryPath") != "/etc/systemd/system/cloudx-legacy-health-bridge-canary.service"
+        or unit_plan.get("canaryStartRequired") is not False
         or unit_plan.get("serviceStartRequired") is not False
         or unit_plan.get("timerEnableRequired") is not False
         or unit_plan.get("automaticAction") is not False
         or authorization != expected_authorization
     ):
         raise BridgeEvidenceRejected("legacy bridge unit installer is authorizing or inconsistent")
+    canary_runner = ROOT / cloudx["canaryRunner"]
+    if not canary_runner.is_file():
+        raise BridgeEvidenceRejected("legacy bridge canary runner is unavailable")
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(canary_runner), "--release-version", version],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=20.0,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise BridgeEvidenceRejected("legacy bridge canary plan is unavailable") from exc
+    try:
+        canary_plan = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise BridgeEvidenceRejected("legacy bridge canary plan is invalid") from exc
+    expected_canary_authorization = {
+        "canaryStart": False,
+        "canaryStopOnFailure": False,
+        "temporaryOutputWrite": False,
+        "temporaryOutputCleanup": False,
+        "primaryServiceStart": False,
+        "primaryTimerEnable": False,
+        "legacyMutation": False,
+        "releaseActivation": False,
+    }
+    if (
+        completed.returncode != 0
+        or canary_plan.get("schema") != cloudx["canaryPlanSchema"]
+        or canary_plan.get("releaseArtifact") != expected_artifact
+        or canary_plan.get("outputPath") != "/run/cloudx-legacy-health-bridge-canary/v1.json"
+        or canary_plan.get("legacyOutputPath") != "/var/lib/cloudx/health/v1.json"
+        or canary_plan.get("automaticAction") is not False
+        or canary_plan.get("authorization") != expected_canary_authorization
+    ):
+        raise BridgeEvidenceRejected("legacy bridge canary plan is authorizing or inconsistent")
     handshake = json.loads((ROOT / "shared/contracts/examples/handshake.json").read_text(encoding="utf-8"))
     if cloudx["capability"] not in handshake.get("capabilities", []):
         raise BridgeEvidenceRejected("handshake example omits the legacy bridge capability")

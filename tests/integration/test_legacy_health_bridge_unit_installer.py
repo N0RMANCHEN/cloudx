@@ -19,6 +19,16 @@ import install_legacy_health_bridge_units as installer  # noqa: E402
 
 
 ENVIRONMENT = b"CLOUDX_LEGACY_HEALTH_BRIDGE_ARTIFACT=/fixture/releases/0.1.15/cloudx-cloud.pyz\n"
+CANARY = b"""[Unit]
+Description=fixture canary
+
+[Service]
+EnvironmentFile=/etc/cloudx/legacy-health-bridge.env
+ExecStart=/usr/bin/python3 ${CLOUDX_LEGACY_HEALTH_BRIDGE_ARTIFACT} legacy-health-bridge --source /run/cloudx/health.json --publish-to /run/cloudx-legacy-health-bridge-canary/v1.json
+ReadWritePaths=/run/cloudx-legacy-health-bridge-canary
+InaccessiblePaths=/var/lib/cloudx/health
+RestrictAddressFamilies=AF_UNIX
+"""
 SERVICE = b"""[Unit]
 Description=fixture
 
@@ -50,6 +60,7 @@ class LegacyHealthBridgeUnitInstallerTests(unittest.TestCase):
         self.release_root = self.root / "fixture/releases"
         self.artifact = self.release_root / "0.1.15/cloudx-cloud.pyz"
         self.environment = self.root / "etc/cloudx/legacy-health-bridge.env"
+        self.canary = self.root / "etc/systemd/system/cloudx-legacy-health-bridge-canary.service"
         self.service = self.root / "etc/systemd/system/cloudx-legacy-health-bridge.service"
         self.timer = self.root / "etc/systemd/system/cloudx-legacy-health-bridge.timer"
         self.backup_root = self.root / "var/lib/cloudx/legacy-health-bridge-install-backups"
@@ -64,6 +75,7 @@ class LegacyHealthBridgeUnitInstallerTests(unittest.TestCase):
             installer,
             DEFAULT_RELEASE_ROOT=self.release_root,
             DEFAULT_ENVIRONMENT=self.environment,
+            DEFAULT_CANARY=self.canary,
             DEFAULT_SERVICE=self.service,
             DEFAULT_TIMER=self.timer,
             DEFAULT_BACKUP_ROOT=self.backup_root,
@@ -91,6 +103,8 @@ class LegacyHealthBridgeUnitInstallerTests(unittest.TestCase):
             return state("loaded", "inactive", "static") if self.service.exists() else state("not-found", "inactive", "")
         if unit == installer.TARGET_TIMER:
             return state("loaded", "inactive", "disabled") if self.timer.exists() else state("not-found", "inactive", "")
+        if unit == installer.CANARY_SERVICE:
+            return state("loaded", "inactive", "static") if self.canary.exists() else state("not-found", "inactive", "")
         raise AssertionError(unit)
 
     def _patches(self):
@@ -103,7 +117,12 @@ class LegacyHealthBridgeUnitInstallerTests(unittest.TestCase):
             mock.patch.object(
                 installer,
                 "_templates",
-                return_value={"environment": ENVIRONMENT, "service": SERVICE, "timer": TIMER},
+                return_value={
+                    "environment": ENVIRONMENT,
+                    "canary": CANARY,
+                    "service": SERVICE,
+                    "timer": TIMER,
+                },
             ),
             mock.patch.object(installer, "_unit_state", side_effect=self._unit_state),
             mock.patch.object(installer, "_verify_units"),
@@ -121,6 +140,7 @@ class LegacyHealthBridgeUnitInstallerTests(unittest.TestCase):
         document = json.loads(output.getvalue())
         self.assertEqual(document["status"], "confirmation-required")
         self.assertEqual(document["confirmation"], installer.CONFIRMATION)
+        self.assertFalse(document["canaryStartRequired"])
         self.assertFalse(document["serviceStartRequired"])
         self.assertFalse(document["timerEnableRequired"])
         self.assertFalse(document["automaticAction"])
@@ -162,17 +182,19 @@ class LegacyHealthBridgeUnitInstallerTests(unittest.TestCase):
             ]), 0)
         document = json.loads(output.getvalue())
         self.assertEqual(document["status"], "installed")
-        self.assertEqual(document["filesChanged"], 3)
+        self.assertEqual(document["filesChanged"], 4)
         self.assertTrue(document["daemonReloaded"])
+        self.assertFalse(document["canaryStarted"])
         self.assertFalse(document["serviceStarted"])
         self.assertFalse(document["timerEnabled"])
         self.assertFalse(document["legacyServiceStopped"])
         self.assertFalse(document["legacyTimerDisabled"])
         self.assertFalse(document["releaseActivated"])
         self.assertEqual(self.environment.read_bytes(), ENVIRONMENT)
+        self.assertEqual(self.canary.read_bytes(), CANARY)
         self.assertEqual(self.service.read_bytes(), SERVICE)
         self.assertEqual(self.timer.read_bytes(), TIMER)
-        for path in (self.environment, self.service, self.timer):
+        for path in (self.environment, self.canary, self.service, self.timer):
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o644)
         backup = self.backup_root / "123456789"
         self.assertTrue((backup / "manifest.json").is_file())
@@ -194,12 +216,14 @@ class LegacyHealthBridgeUnitInstallerTests(unittest.TestCase):
                     "0.1.15",
                 ])
         self.assertFalse(self.environment.exists())
+        self.assertFalse(self.canary.exists())
         self.assertFalse(self.service.exists())
         self.assertFalse(self.timer.exists())
         self.assertEqual(list(self.backup_root.iterdir()), [])
 
     def test_exact_install_is_idempotent_without_daemon_reload_or_backup(self) -> None:
         self._atomic_write(self.environment, ENVIRONMENT, 0o644, 0, 0)
+        self._atomic_write(self.canary, CANARY, 0o644, 0, 0)
         self._atomic_write(self.service, SERVICE, 0o644, 0, 0)
         self._atomic_write(self.timer, TIMER, 0o644, 0, 0)
         output = StringIO()
@@ -271,6 +295,7 @@ class LegacyHealthBridgeUnitInstallerTests(unittest.TestCase):
                 "cloudx-legacy-health-bridge.env.example": (
                     "CLOUDX_LEGACY_HEALTH_BRIDGE_ARTIFACT=%s\n" % self.artifact
                 ).encode("utf-8"),
+                installer.CANARY_SERVICE: CANARY,
                 installer.TARGET_SERVICE: service,
                 installer.TARGET_TIMER: TIMER,
             }[name]

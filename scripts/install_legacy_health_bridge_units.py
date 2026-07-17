@@ -23,12 +23,14 @@ from install_scoped_gateway_key import Snapshot, atomic_write, verify_artifact
 CONFIRMATION = "INSTALL cloudx-legacy-health-bridge UNITS WITHOUT START"
 DEFAULT_RELEASE_ROOT = pathlib.Path("/opt/cloudx/releases")
 DEFAULT_ENVIRONMENT = pathlib.Path("/etc/cloudx/legacy-health-bridge.env")
+DEFAULT_CANARY = pathlib.Path("/etc/systemd/system/cloudx-legacy-health-bridge-canary.service")
 DEFAULT_SERVICE = pathlib.Path("/etc/systemd/system/cloudx-legacy-health-bridge.service")
 DEFAULT_TIMER = pathlib.Path("/etc/systemd/system/cloudx-legacy-health-bridge.timer")
 DEFAULT_BACKUP_ROOT = pathlib.Path("/var/lib/cloudx/legacy-health-bridge-install-backups")
 DEFAULT_LOCK = pathlib.Path("/run/lock/cloudx-legacy-health-bridge-install.lock")
 TARGET_SERVICE = "cloudx-legacy-health-bridge.service"
 TARGET_TIMER = "cloudx-legacy-health-bridge.timer"
+CANARY_SERVICE = "cloudx-legacy-health-bridge-canary.service"
 LEGACY_SERVICE = "cloudx-health-contract.service"
 LEGACY_TIMER = "cloudx-health-contract.timer"
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
@@ -98,6 +100,8 @@ def _validate_root_directory(path: pathlib.Path, label: str, *, exact_mode: Opti
 def _validate_runtime_directories() -> None:
     _validate_root_directory(DEFAULT_ENVIRONMENT.parent, "Cloudx configuration directory")
     _validate_root_directory(DEFAULT_SERVICE.parent, "systemd unit directory")
+    if DEFAULT_CANARY.parent != DEFAULT_SERVICE.parent:
+        _validate_root_directory(DEFAULT_CANARY.parent, "systemd canary unit directory")
     if DEFAULT_TIMER.parent != DEFAULT_SERVICE.parent:
         _validate_root_directory(DEFAULT_TIMER.parent, "systemd timer directory")
     _validate_root_directory(DEFAULT_BACKUP_ROOT.parent, "Cloudx state directory")
@@ -157,6 +161,7 @@ def _templates(artifact: pathlib.Path, release_version: str) -> Dict[str, bytes]
             artifact,
             "cloudx-legacy-health-bridge.env.example",
         ),
+        "canary": _artifact_template(artifact, CANARY_SERVICE),
         "service": _artifact_template(artifact, TARGET_SERVICE),
         "timer": _artifact_template(artifact, TARGET_TIMER),
     }
@@ -167,6 +172,7 @@ def _templates(artifact: pathlib.Path, release_version: str) -> Dict[str, bytes]
         raise RuntimeError("legacy bridge environment does not select the exact artifact")
     try:
         service = values["service"].decode("utf-8")
+        canary = values["canary"].decode("utf-8")
         timer = values["timer"].decode("utf-8")
     except UnicodeDecodeError as exc:
         raise RuntimeError("legacy bridge unit template is not UTF-8") from exc
@@ -181,6 +187,24 @@ def _templates(artifact: pathlib.Path, release_version: str) -> Dict[str, bytes]
         raise RuntimeError("legacy bridge service template violates the fixed contract")
     if "/opt/cloudx/current" in service or "/home/" in service:
         raise RuntimeError("legacy bridge service template follows mutable code")
+    required_canary = (
+        "EnvironmentFile=/etc/cloudx/legacy-health-bridge.env",
+        "${CLOUDX_LEGACY_HEALTH_BRIDGE_ARTIFACT} legacy-health-bridge",
+        "--source /run/cloudx/health.json",
+        "--publish-to /run/cloudx-legacy-health-bridge-canary/v1.json",
+        "ReadWritePaths=/run/cloudx-legacy-health-bridge-canary",
+        "InaccessiblePaths=",
+        "/var/lib/cloudx/health",
+        "RestrictAddressFamilies=AF_UNIX",
+    )
+    if any(value not in canary for value in required_canary):
+        raise RuntimeError("legacy bridge canary template violates the isolated contract")
+    if (
+        "/opt/cloudx/current" in canary
+        or "/home/" in canary
+        or "--publish-to /var/lib/cloudx/health" in canary
+    ):
+        raise RuntimeError("legacy bridge canary template can mutate the legacy path")
     if "Unit=%s" % TARGET_SERVICE not in timer or "WantedBy=timers.target" not in timer:
         raise RuntimeError("legacy bridge timer template targets the wrong unit")
     if release_version not in expected_environment.decode("utf-8"):
@@ -237,10 +261,23 @@ def _require_target_quiescent(service: Mapping[str, str], timer: Mapping[str, st
         raise RuntimeError("legacy bridge target service must not be enabled or linked")
 
 
+def _require_canary_quiescent(canary: Mapping[str, str]) -> None:
+    if canary["ActiveState"] != "inactive":
+        raise RuntimeError("legacy bridge canary unit must be inactive")
+    if canary["UnitFileState"] not in {"", "static"}:
+        raise RuntimeError("legacy bridge canary unit must be static")
+
+
 def _verify_units() -> None:
     try:
         completed = subprocess.run(
-            ["systemd-analyze", "verify", str(DEFAULT_SERVICE), str(DEFAULT_TIMER)],
+            [
+                "systemd-analyze",
+                "verify",
+                str(DEFAULT_CANARY),
+                str(DEFAULT_SERVICE),
+                str(DEFAULT_TIMER),
+            ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             timeout=20.0,
@@ -308,11 +345,13 @@ def plan(release_version: str, artifact: pathlib.Path) -> Dict[str, Any]:
         "releaseVersion": release_version,
         "releaseArtifact": str(artifact),
         "environmentPath": str(DEFAULT_ENVIRONMENT),
+        "canaryPath": str(DEFAULT_CANARY),
         "servicePath": str(DEFAULT_SERVICE),
         "timerPath": str(DEFAULT_TIMER),
         "legacyService": LEGACY_SERVICE,
         "legacyTimer": LEGACY_TIMER,
         "serviceStartRequired": False,
+        "canaryStartRequired": False,
         "timerEnableRequired": False,
         "automaticAction": False,
         "preconditions": [
@@ -324,6 +363,7 @@ def plan(release_version: str, artifact: pathlib.Path) -> Dict[str, Any]:
         "authorization": {
             "unitWrite": False,
             "daemonReload": False,
+            "canaryStart": False,
             "serviceStart": False,
             "timerEnable": False,
             "legacyMutation": False,
@@ -366,11 +406,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         legacy_timer_before = _unit_state(LEGACY_TIMER)
         target_service_before = _unit_state(TARGET_SERVICE)
         target_timer_before = _unit_state(TARGET_TIMER)
+        canary_before = _unit_state(CANARY_SERVICE)
         _require_legacy_path(legacy_service_before, legacy_timer_before)
         _require_target_quiescent(target_service_before, target_timer_before)
+        _require_canary_quiescent(canary_before)
 
         paths = {
             "environment": DEFAULT_ENVIRONMENT,
+            "canary": DEFAULT_CANARY,
             "service": DEFAULT_SERVICE,
             "timer": DEFAULT_TIMER,
         }
@@ -399,6 +442,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     _unit_state(TARGET_SERVICE),
                     _unit_state(TARGET_TIMER),
                 )
+                _require_canary_quiescent(_unit_state(CANARY_SERVICE))
                 _require_legacy_path(
                     _unit_state(LEGACY_SERVICE),
                     _unit_state(LEGACY_TIMER),
@@ -419,6 +463,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         _unit_state(TARGET_SERVICE),
                         _unit_state(TARGET_TIMER),
                     )
+                    _require_canary_quiescent(_unit_state(CANARY_SERVICE))
                     _require_legacy_path(
                         _unit_state(LEGACY_SERVICE),
                         _unit_state(LEGACY_TIMER),
@@ -438,6 +483,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 _unit_state(TARGET_SERVICE),
                 _unit_state(TARGET_TIMER),
             )
+            _require_canary_quiescent(_unit_state(CANARY_SERVICE))
             _require_legacy_path(
                 _unit_state(LEGACY_SERVICE),
                 _unit_state(LEGACY_TIMER),
@@ -450,10 +496,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "releaseArtifact": str(artifact),
         "filesChanged": len(changed),
         "environmentMode": "0644",
+        "canaryMode": "0644",
         "serviceMode": "0644",
         "timerMode": "0644",
         "systemdVerified": True,
         "daemonReloaded": daemon_reloaded,
+        "canaryStarted": False,
         "serviceStarted": False,
         "timerEnabled": False,
         "legacyServiceStopped": False,
