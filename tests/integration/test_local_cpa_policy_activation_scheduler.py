@@ -84,7 +84,9 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
             fake.MAX_LAUNCHER_BYTES = 256 * 1024
             fake.MAX_CANDIDATE_BYTES = 100 * 1024 * 1024
             process = types.SimpleNamespace(pid=123)
-            with mock.patch.object(MODULE, "installer_module", return_value=fake), mock.patch.object(
+            with mock.patch.object(MODULE.sys, "platform", "darwin"), mock.patch.object(
+                MODULE, "installer_module", return_value=fake
+            ), mock.patch.object(
                 MODULE, "current_cloudx_version", return_value="0.1.18"
             ), mock.patch.object(MODULE.pathlib.Path, "home", return_value=home), mock.patch.object(
                 MODULE.subprocess, "Popen", return_value=process
