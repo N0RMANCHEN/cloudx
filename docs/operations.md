@@ -99,6 +99,8 @@ The separately approved local `0.1.18` install is also complete through the sign
 
 The separately approved cloud failure/sweep watcher transaction is active. After the source gate was aligned to active signed `0.1.18` and CI passed, the rollback-protected installer wrote the signed trigger-aware health service/timer plus both path-service pairs, enabled only the two path units, and preserved the health timer state. Backup `1784398277383594551` retains every prior unit byte. CPA PID `1613475`, importer PID `133756`, restart counts `0`, selectors, CPA unit/drop-in, zero active auth, 45 archive entries, empty trigger inputs, and local CPA PID `61859` were unchanged. A real idle health invocation exited `0` with `probe_gate=not_triggered`, `probe_concurrency=0`, absent trigger, and zero archive.
 
+The separately approved first-active-capacity transaction is accepted. Ordinary cloud import remained shadow-only and was not treated as capacity. One direct-Codex-verified `soul0` credential then entered the active pool through signed dry-run/apply and rollback-bounded stdin handling. Two source-hardening attempts privately restored the empty pool after an expected available observation and one hot-load HTTP `400`; final transaction `20260718T183809Z-6171f256` passed real model traffic with `codex-auto-review`, HTTP `200`, exact response text, public policy `2`, identity-free `available` observation, active/available count one, archive count 45, CPA PID `1613475`, restart count `0`, and no service restart or raw transaction copy. Signed health plus formal publishers now report one ready/available account and `cloudx.capacity.v1 state=healthy_capacity`, gateway HTTP `200`.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:
