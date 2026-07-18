@@ -44,6 +44,7 @@ class ActiveCloudCpaImportTests(unittest.TestCase):
     def test_model_selection_prefers_codex(self) -> None:
         document = {"data": [{"id": "gpt-other"}, {"id": "gpt-5.2-codex"}]}
         self.assertEqual(transaction.select_model(document), "gpt-5.2-codex")
+        self.assertEqual(transaction.select_models(document), ["gpt-5.2-codex", "gpt-other"])
 
     def test_recursive_response_text_extraction(self) -> None:
         document = {"output": [{"content": [{"text": transaction.EXPECTED_TEXT}]}]}

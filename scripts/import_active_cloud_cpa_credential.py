@@ -265,19 +265,28 @@ def request(
         connection.close()
 
 
-def select_model(document: Dict[str, Any]) -> str:
+def select_models(document: Dict[str, Any]) -> List[str]:
     data = document.get("data")
     models = [
         item.get("id")
         for item in data
         if isinstance(data, list) and isinstance(item, dict) and isinstance(item.get("id"), str)
     ] if isinstance(data, list) else []
+    ordered: List[str] = []
     for candidate in MODEL_PRIORITY:
-        if candidate in models:
-            return candidate
+        if candidate in models and candidate not in ordered:
+            ordered.append(candidate)
     for candidate in models:
-        if "codex" in candidate.lower():
-            return candidate
+        if "codex" in candidate.lower() and candidate not in ordered:
+            ordered.append(candidate)
+    for candidate in models:
+        if candidate not in ordered:
+            ordered.append(candidate)
+    return ordered
+
+
+def select_model(document: Dict[str, Any]) -> str:
+    models = select_models(document)
     return models[0] if models else ""
 
 
@@ -294,44 +303,67 @@ def strings(value: Any) -> Iterable[str]:
 
 def live_canary(host: str, port: int) -> Dict[str, Any]:
     credential = client_credential()
-    model = ""
+    models: List[str] = []
     for _unused in range(20):
         status, _headers, raw = request(host, port, credential, "GET", "/v1/models", timeout=10.0)
         if status == 200:
             try:
-                model = select_model(json.loads(raw.decode("utf-8")))
+                models = select_models(json.loads(raw.decode("utf-8")))
             except (UnicodeDecodeError, json.JSONDecodeError):
-                model = ""
-            if model:
+                models = []
+            if models:
                 break
         time.sleep(1.0)
-    if not model:
+    if not models:
         raise ActiveImportRejected("models_unavailable", "gateway did not expose a usable model")
-    status, headers, raw = request(
-        host,
-        port,
-        credential,
-        "POST",
-        "/v1/responses",
-        {
-            "model": model,
-            "input": "Reply with exactly %s" % EXPECTED_TEXT,
-            "max_output_tokens": 64,
-            "stream": False,
+    attempts = 0
+    last_status = 0
+    last_policy = ""
+    for model in models[:8]:
+        for retry in range(3):
+            attempts += 1
+            status, headers, raw = request(
+                host,
+                port,
+                credential,
+                "POST",
+                "/v1/responses",
+                {
+                    "model": model,
+                    "input": "Reply with exactly %s" % EXPECTED_TEXT,
+                    "max_output_tokens": 64,
+                    "stream": False,
+                },
+            )
+            policy = headers.get("x-cpa-max-concurrent-api-requests", "")
+            last_status = status
+            last_policy = policy
+            accepted = False
+            if status == 200:
+                try:
+                    accepted = EXPECTED_TEXT in "\n".join(strings(json.loads(raw.decode("utf-8"))))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    accepted = False
+            if accepted and policy == "2":
+                return {
+                    "model": model,
+                    "httpStatus": status,
+                    "policy": policy,
+                    "attempts": attempts,
+                }
+            if status in {400, 409, 429, 500, 502, 503, 504} and retry < 2:
+                time.sleep(2.0)
+                continue
+            break
+    raise ActiveImportRejected(
+        "live_model_failed" if last_policy in {"", "2"} else "policy_mismatch",
+        "live model canary failed",
+        result={
+            "httpStatus": last_status,
+            "policy": last_policy,
+            "attempts": attempts,
         },
     )
-    accepted = False
-    if status == 200:
-        try:
-            accepted = EXPECTED_TEXT in "\n".join(strings(json.loads(raw.decode("utf-8"))))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            accepted = False
-    policy = headers.get("x-cpa-max-concurrent-api-requests", "")
-    if not accepted:
-        raise ActiveImportRejected("live_model_failed", "live model canary failed")
-    if policy != "2":
-        raise ActiveImportRejected("policy_mismatch", "gateway concurrency policy is not two")
-    return {"model": model, "httpStatus": status, "policy": policy}
 
 
 def move_to_transaction_rollback(
@@ -445,6 +477,7 @@ def apply(raw: bytes, host: str, port: int) -> Dict[str, Any]:
             "model": canary["model"],
             "httpStatus": canary["httpStatus"],
             "policy": canary["policy"],
+            "canaryAttempts": canary["attempts"],
             "poolObservation": "available",
             "poolObservationCount": observation_count,
             "sweepTrigger": False,
@@ -485,6 +518,10 @@ def apply(raw: bytes, host: str, port: int) -> Dict[str, Any]:
             "serviceRestarted": False,
             "rawCredentialStored": False,
         }
+        if exc.result is not None:
+            for key in ("httpStatus", "policy", "attempts"):
+                if key in exc.result:
+                    receipt[key] = exc.result[key]
         atomic_json(transaction / "receipt.json", receipt)
         raise ActiveImportRejected(
             exc.code,
