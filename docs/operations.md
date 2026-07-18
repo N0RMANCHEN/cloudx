@@ -81,6 +81,14 @@ The separately confirmed cloud install is complete. Cloud now selects `current=0
 
 The separately confirmed local install is also complete. Local now selects `current=0.1.17`, `previous=0.1.13`; current artifact and manifest SHA-256 values are `b375e12ed9bfede2005bc18efb777135ebf373001bc4bbf311184ad444a52caa` and `9ea06875527f31cf1ca2577b33afe480a331f25f3e0718935f1d28771ef69aed`. Self-check, fresh-shell `codexx api`, official `/opt/homebrew/bin/codex` resolution, and a real post-install Codex request through the existing API profile passed. CPA PID/listener `38189` and all six captured pre-existing Codex PIDs survived. `codexx` and `cloud` now resolve to the signed `0.1.17` artifact, while the CPA launcher still selects the baseline `/Users/hirohi/.local/bin/cli-proxy-api` and contains neither failure nor sweep producer environment. Local installation therefore activated no CPA policy and restarted no service.
 
+## Published Release 0.1.18
+
+The immutable annotated tag `v0.1.18` identifies source `f94c926daa929d8d9801722013408eb9ebb7e90a`; tag object `0798a6c4bc3d4004fec56000306601a18fd1b857` peels to that exact commit. Main CI run `29653018964` passed the complete matrix, and non-publishing signed-build canary `29653206898` passed on the same source while both publication steps were skipped and release refs remained unchanged. Tag workflow `29653241622` then completed repository verification, exact tag verification, key loading, signed build, release evidence verification, signed-ref publication, and GitHub Release publication successfully.
+
+The immutable artifact ref is `5e345ed8cbf0373ac9e6214e45358187a524ea5d`; stable is `d3275fd150bceaa50c216c13a99969b58409992d`. The release manifest SHA-256 is `b5ab79e932f215730452dd6aa8afabe629a23118a489ec5c03054d5e0856ee23`. Local artifact, cloud artifact, and offline bundle SHA-256 values are respectively `56881ca376857652cefaecc5159f8818edf765702f3d574c3b55f37972edde1f`, `1cba50617522634c09584d7cc9d1a800df056256c0201fd325cb54afa8ca1426`, and `a4ae5d73b1ec6a25f64e9a4f86467a3f7be07455ef6d30f510a9286a87bc6738`.
+
+Fresh remote clones and all seven downloaded Release assets verified the current signer and exact source, rejected the release with the previous signer, matched every artifact and offline-bundle member byte-for-byte, passed both component self-checks, accepted stable, and repeated local/cloud `staged -> already-staged` transactions in selector-free isolated roots. Publication itself did not install or activate a real endpoint, restart CPA, or modify a credential/archive. Local remained Cloudx `0.1.17/0.1.13` with healthy CPA PID `61859`; cloud remained Cloudx `0.1.17/0.1.16` with CPA PID `1613475`, restart count `0`, and zero active auth files. Real installation requires separate `INSTALL CLOUDX CLOUD 0.1.18` and `INSTALL CLOUDX LOCAL 0.1.18` confirmations in that order.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:
