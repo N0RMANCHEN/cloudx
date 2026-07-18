@@ -7,7 +7,7 @@ This batch addresses two operator-requested behaviors on the existing external l
 1. never allow more than two proxied API requests to execute concurrently in one CPA process
 2. reversibly archive an auth record only after confirmed permanent authentication failure, never because of weekly quota or another transient failure
 
-It does not upgrade CLIProxyAPI, replace the official `codex` command, activate a Cloudx release, durably stage a CPA candidate, edit a launcher or unit, move a production auth file, or restart a production service.
+This evidence now includes the separately confirmed durable side-by-side staging of both exact CPA candidates. It does not upgrade CLIProxyAPI, replace the official `codex` command, activate a Cloudx release or CPA candidate, edit a launcher or unit, move a production auth file, or restart a production service.
 
 ## Exact Runtime Baseline
 
@@ -45,12 +45,13 @@ Each candidate was rebuilt independently from a fresh clean exact checkout with 
 - The cloud Linux candidate was copied only to remote `/tmp`; its remote SHA-256 and `-h` runtime identity matched. Active `cliproxy.service` retained PID `977036`, restart count `0`, and active/running state.
 - The local Darwin candidate ran only on `127.0.0.1:18427` with an empty temporary auth directory and a temporary API key. Two incomplete authenticated requests occupied both slots. A third request with a complete body produced no response while those slots remained occupied; after the first request completed, the third proceeded. All three responses reported `X-CPA-Max-Concurrent-API-Requests: 2`. The temporary process was stopped and no listener remained.
 - Production local CPA retained PID `38189`. No production account, archive, launcher, config, port, Cloudx selector, broker, Codex process, or service was changed.
+- After the exact `STAGE LOCAL CPA POLICY 7.0.1-codexx-fast-service-tier-cloudx-policy.1 70439565f253` confirmation, the local candidate was durably staged at `/Users/hirohi/.local/lib/cliproxy-cloudx/releases/7.0.1-codexx-fast-service-tier-cloudx-policy.1/cli-proxy-api`. Its manifest records 41,468,178 bytes and SHA-256 `70439565f25307c22fd93c8aa897871489dc32b1700ebc2390c07896e7b6de01`; stage output reported `externalServiceRestarted=false`, and PID `38189` continued to execute the baseline `/Users/hirohi/.local/bin/cli-proxy-api`.
+- After the exact `STAGE CLOUD CPA POLICY 7.2.71-cloudx-policy.1 67baab69ecc5` confirmation, the cloud candidate was durably staged at `/opt/cliproxy-cloudx/releases/7.2.71-cloudx-policy.1/cli-proxy-api`. Its manifest records 45,314,210 bytes and SHA-256 `67baab69ecc507c794f1336197a78e52c0126679a780e1c064cae453966c6a67`; stage output reported `externalServiceRestarted=false`, and `cliproxy.service` remained active/running with PID `977036`, restart count `0`, and baseline `/usr/local/bin/cli-proxy-api` selection.
 
 ## Remaining Gates
 
 1. publish and activate the signed Cloudx release containing both receipt consumers and retain signed N-1
-2. durably stage local and cloud CPA candidates using the separate exact `STAGE ... CPA POLICY ...` confirmations
-3. activate cloud first and local second using the distinct exact `ACTIVATE ... CPA POLICY ...` confirmations
-4. accept natural-traffic evidence for maximum-two concurrency, quota non-archive, permanent-failure archive, and exact restore
+2. activate cloud first and local second using the distinct exact `ACTIVATE ... CPA POLICY ...` confirmations
+3. accept natural-traffic evidence for maximum-two concurrency, quota non-archive, permanent-failure archive, and exact restore
 
 No build, test, `/tmp` copy, or readiness evidence above grants those later actions.

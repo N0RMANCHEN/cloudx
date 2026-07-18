@@ -7,6 +7,7 @@
 - Add strict local/cloud CPA failure receipts and reversible archive consumption: only fresh digest-bound permanent authentication evidence is accepted, while weekly quota, ordinary 429, transient/network/timeout/5xx failures, and refreshable expired access tokens are retained; local maintenance restores the previously broken `codexx api refresh --apply` compatibility path.
 - Pin reproducible policy patches to the exact deployed CPA v7.0.1 and v7.2.71 commits, preserve the local fast-service-tier behavior, enforce one global maximum of two in-flight proxied API requests, and bind deterministic Darwin/arm64 plus Linux/amd64 candidate bytes.
 - Add default-read-only, distinct-confirmation CPA stage/activation tooling. Stage is side-by-side and process-neutral; activation retains the original binary and a private launcher/unit rollback set, restarts only the selected external CPA, requires health plus a public concurrency-policy canary, and automatically restores prior service selection on failure.
+- Record the separately confirmed durable side-by-side staging of both exact CPA candidates. The local and cloud manifests match the pinned bytes while active local PID `38189`, cloud PID `977036`, cloud restart count `0`, baseline launch paths, credentials, launchers/units, and Cloudx selectors remain unchanged; the policy remains inactive pending distinct activation approval.
 
 ## 0.1.15 - 2026-07-17
 
