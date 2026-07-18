@@ -1,0 +1,612 @@
+#!/usr/bin/env python3
+"""Stage or explicitly activate the pinned external CPA policy candidate."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import http.client
+import json
+import os
+import pathlib
+import plistlib
+import pwd
+import re
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Sequence, Tuple
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+DEFAULT_CONTRACT = ROOT / "third_party/cliproxyapi/deployment-contract.json"
+PLAN_SCHEMA = "cloudx.cliproxy-policy-deployment-plan.v1"
+RESULT_SCHEMA = "cloudx.cliproxy-policy-deployment.v1"
+MAX_CANDIDATE_BYTES = 100 * 1024 * 1024
+MAX_CONFIG_BYTES = 2 * 1024 * 1024
+MAX_LAUNCHER_BYTES = 256 * 1024
+MAX_DROP_IN_BYTES = 64 * 1024
+SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
+VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$")
+
+
+class CpaPolicyInstallRejected(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    existed: bool
+    data: bytes
+    mode: int
+    uid: int
+    gid: int
+
+
+def sha256_bytes(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()
+
+
+def safe_snapshot(path: pathlib.Path, *, maximum: int, required: bool) -> Snapshot:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(str(path), flags)
+    except FileNotFoundError:
+        if required:
+            raise CpaPolicyInstallRejected("required CPA policy file is missing")
+        return Snapshot(False, b"", 0, 0, 0)
+    except OSError as exc:
+        raise CpaPolicyInstallRejected("CPA policy file is unavailable") from exc
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > maximum:
+            raise CpaPolicyInstallRejected("CPA policy file is unsafe or oversized")
+        chunks = []
+        remaining = maximum + 1
+        while remaining > 0:
+            chunk = os.read(descriptor, min(65536, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        if len(raw) > maximum:
+            raise CpaPolicyInstallRejected("CPA policy file is oversized")
+        return Snapshot(True, raw, stat.S_IMODE(info.st_mode), info.st_uid, info.st_gid)
+    finally:
+        os.close(descriptor)
+
+
+def fsync_directory(path: pathlib.Path) -> None:
+    descriptor = os.open(str(path), os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def atomic_write(path: pathlib.Path, raw: bytes, *, mode: int, uid: int, gid: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=".%s." % path.name, dir=str(path.parent))
+    temporary_path = pathlib.Path(temporary)
+    try:
+        os.fchmod(descriptor, mode)
+        os.fchown(descriptor, uid, gid)
+        offset = 0
+        while offset < len(raw):
+            offset += os.write(descriptor, raw[offset:])
+        os.fsync(descriptor)
+        os.close(descriptor)
+        descriptor = -1
+        os.replace(temporary_path, path)
+        fsync_directory(path.parent)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        temporary_path.unlink(missing_ok=True)
+
+
+def restore_snapshot(path: pathlib.Path, value: Snapshot) -> None:
+    if value.existed:
+        atomic_write(path, value.data, mode=value.mode, uid=value.uid, gid=value.gid)
+    else:
+        path.unlink(missing_ok=True)
+        if path.parent.is_dir():
+            fsync_directory(path.parent)
+
+
+def ensure_directory(path: pathlib.Path, *, mode: int, uid: int, gid: int) -> None:
+    path.mkdir(parents=True, exist_ok=True)
+    info = path.lstat()
+    if path.is_symlink() or not stat.S_ISDIR(info.st_mode):
+        raise CpaPolicyInstallRejected("CPA policy directory is unsafe")
+    os.chown(path, uid, gid)
+    path.chmod(mode)
+
+
+def run_command(
+    argv: Sequence[str],
+    *,
+    check: bool = True,
+    timeout: float = 30.0,
+) -> subprocess.CompletedProcess[str]:
+    try:
+        completed = subprocess.run(
+            list(argv),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CpaPolicyInstallRejected("CPA policy service command failed") from exc
+    if check and completed.returncode != 0:
+        raise CpaPolicyInstallRejected("CPA policy service command was rejected")
+    return completed
+
+
+def load_contract(path: pathlib.Path) -> Dict[str, Any]:
+    value = safe_snapshot(path, maximum=MAX_CONFIG_BYTES, required=True)
+    try:
+        document = json.loads(value.data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CpaPolicyInstallRejected("CPA deployment contract is invalid") from exc
+    if document.get("schema") != "cloudx.cliproxy-policy-deployment.v1":
+        raise CpaPolicyInstallRejected("CPA deployment contract schema is invalid")
+    targets = document.get("targets")
+    if not isinstance(targets, dict) or set(targets) != {"local", "cloud"}:
+        raise CpaPolicyInstallRejected("CPA deployment targets are invalid")
+    return document
+
+
+def expanded_target(target: str, contract: Dict[str, Any]) -> Dict[str, Any]:
+    raw = contract["targets"].get(target)
+    if not isinstance(raw, dict):
+        raise CpaPolicyInstallRejected("CPA deployment target is unavailable")
+    value = dict(raw)
+    if not VERSION_RE.fullmatch(str(value.get("version") or "")):
+        raise CpaPolicyInstallRejected("CPA deployment version is invalid")
+    if not SHA256_RE.fullmatch(str(value.get("candidateSha256") or "")):
+        raise CpaPolicyInstallRejected("CPA candidate digest is invalid")
+    if not SHA256_RE.fullmatch(str(value.get("baselineSha256") or "")):
+        raise CpaPolicyInstallRejected("CPA baseline digest is invalid")
+    if target == "local":
+        home = pathlib.Path.home().resolve()
+        for key in (
+            "baselineBinary",
+            "stageRoot",
+            "backupRoot",
+            "authDirectory",
+            "failureDirectory",
+            "config",
+            "launcher",
+        ):
+            value[key] = home / str(value[key])
+    else:
+        for key in (
+            "baselineBinary",
+            "stageRoot",
+            "backupRoot",
+            "authDirectory",
+            "failureDirectory",
+            "config",
+            "gatewayDropIn",
+            "healthDropIn",
+        ):
+            path = pathlib.Path(str(value[key]))
+            if not path.is_absolute():
+                raise CpaPolicyInstallRejected("cloud CPA deployment path is not absolute")
+            value[key] = path
+    value["stagedBinary"] = value["stageRoot"] / value["version"] / "cli-proxy-api"
+    return value
+
+
+def confirmations(target: str, value: Dict[str, Any]) -> Tuple[str, str]:
+    label = target.upper()
+    suffix = str(value["candidateSha256"])[:12]
+    return (
+        "STAGE %s CPA POLICY %s %s" % (label, value["version"], suffix),
+        "ACTIVATE %s CPA POLICY %s %s" % (label, value["version"], suffix),
+    )
+
+
+def plan_document(target: str, value: Dict[str, Any]) -> Dict[str, Any]:
+    stage_confirmation, activate_confirmation = confirmations(target, value)
+    return {
+        "schema": PLAN_SCHEMA,
+        "status": "confirmation-required",
+        "target": target,
+        "version": value["version"],
+        "candidateSha256": value["candidateSha256"],
+        "stageConfirmation": stage_confirmation,
+        "activationConfirmation": activate_confirmation,
+        "maxConcurrentAPIRequests": 2,
+        "weeklyQuotaArchived": False,
+        "stageChangesService": False,
+        "activationRestartsExternalCPA": True,
+        "automaticAction": False,
+    }
+
+
+def verify_candidate(path: pathlib.Path, value: Dict[str, Any]) -> Snapshot:
+    candidate = safe_snapshot(path, maximum=MAX_CANDIDATE_BYTES, required=True)
+    if len(candidate.data) != int(value["candidateSize"]):
+        raise CpaPolicyInstallRejected("CPA candidate size does not match")
+    if sha256_bytes(candidate.data) != value["candidateSha256"]:
+        raise CpaPolicyInstallRejected("CPA candidate digest does not match")
+    completed = run_command([str(path), "-h"], check=False, timeout=10.0)
+    output = (completed.stdout + completed.stderr).splitlines()
+    expected = "CLIProxyAPI Version: %s," % value["version"]
+    if completed.returncode != 0 or not output or not output[0].startswith(expected):
+        raise CpaPolicyInstallRejected("CPA candidate runtime identity does not match")
+    return candidate
+
+
+def stage_candidate(target: str, candidate_path: pathlib.Path, value: Dict[str, Any]) -> Dict[str, Any]:
+    if target == "cloud" and os.geteuid() != 0:
+        raise CpaPolicyInstallRejected("cloud CPA staging must run as root")
+    candidate = verify_candidate(candidate_path, value)
+    uid = 0 if target == "cloud" else os.geteuid()
+    gid = 0 if target == "cloud" else os.getegid()
+    directory_mode = 0o755 if target == "cloud" else 0o700
+    binary_mode = 0o755 if target == "cloud" else 0o700
+    release_dir = value["stagedBinary"].parent
+    ensure_directory(value["stageRoot"], mode=directory_mode, uid=uid, gid=gid)
+    ensure_directory(release_dir, mode=directory_mode, uid=uid, gid=gid)
+    final = value["stagedBinary"]
+    status = "staged"
+    if final.exists():
+        existing = verify_candidate(final, value)
+        if existing.data != candidate.data:
+            raise CpaPolicyInstallRejected("existing staged CPA candidate differs")
+        status = "already-staged"
+    else:
+        atomic_write(final, candidate.data, mode=binary_mode, uid=uid, gid=gid)
+        verify_candidate(final, value)
+    manifest = {
+        "schema": "cloudx.cliproxy-policy-stage.v1",
+        "target": target,
+        "version": value["version"],
+        "sha256": value["candidateSha256"],
+        "size": value["candidateSize"],
+    }
+    atomic_write(
+        release_dir / "manifest.json",
+        (json.dumps(manifest, sort_keys=True) + "\n").encode("utf-8"),
+        mode=0o644 if target == "cloud" else 0o600,
+        uid=uid,
+        gid=gid,
+    )
+    return {
+        "schema": RESULT_SCHEMA,
+        "status": status,
+        "target": target,
+        "version": value["version"],
+        "sha256": value["candidateSha256"],
+        "externalServiceManaged": False,
+        "externalServiceRestarted": False,
+    }
+
+
+def top_level_config(path: pathlib.Path) -> Tuple[str, int]:
+    raw = safe_snapshot(path, maximum=MAX_CONFIG_BYTES, required=True).data
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CpaPolicyInstallRejected("CPA config is not UTF-8") from exc
+    values: Dict[str, str] = {}
+    for line in text.splitlines():
+        if not line or line[0].isspace() or line.lstrip().startswith("#") or ":" not in line:
+            continue
+        key, raw_value = line.split(":", 1)
+        key = key.strip()
+        if key in {"host", "port"}:
+            values[key] = raw_value.split("#", 1)[0].strip().strip("\"'")
+    host = values.get("host", "")
+    try:
+        port = int(values.get("port", ""))
+    except ValueError as exc:
+        raise CpaPolicyInstallRejected("CPA config port is invalid") from exc
+    if not host or not 1 <= port <= 65535:
+        raise CpaPolicyInstallRejected("CPA config endpoint is invalid")
+    if host in {"0.0.0.0", "::"}:
+        host = "127.0.0.1" if host == "0.0.0.0" else "::1"
+    return host, port
+
+
+def probe_health(config: pathlib.Path) -> None:
+    host, port = top_level_config(config)
+    try:
+        connection = http.client.HTTPConnection(host, port, timeout=5.0)
+        connection.request("GET", "/healthz")
+        health = connection.getresponse()
+        health_body = health.read(4096)
+        connection.close()
+        if health.status != 200 or b'"status":"ok"' not in health_body.replace(b" ", b""):
+            raise CpaPolicyInstallRejected("CPA health canary failed")
+    except (OSError, http.client.HTTPException) as exc:
+        raise CpaPolicyInstallRejected("CPA health canary could not connect") from exc
+
+
+def probe_policy(config: pathlib.Path) -> Tuple[int, str]:
+    probe_health(config)
+    host, port = top_level_config(config)
+    try:
+
+        connection = http.client.HTTPConnection(host, port, timeout=5.0)
+        connection.request(
+            "POST",
+            "/v1/responses",
+            body=b"{}",
+            headers={
+                "Authorization": "Bearer cloudx-policy-invalid-canary",
+                "Content-Type": "application/json",
+            },
+        )
+        response = connection.getresponse()
+        response.read(4096)
+        policy = response.getheader("X-CPA-Max-Concurrent-API-Requests", "")
+        status = response.status
+        connection.close()
+    except (OSError, http.client.HTTPException) as exc:
+        raise CpaPolicyInstallRejected("CPA policy canary could not connect") from exc
+    if status not in {400, 401, 403} or policy != "2":
+        raise CpaPolicyInstallRejected("CPA concurrency policy canary failed")
+    return status, policy
+
+
+def backup_snapshot(root: pathlib.Path, name: str, snapshots: Dict[str, Snapshot], *, uid: int, gid: int) -> pathlib.Path:
+    ensure_directory(root, mode=0o700, uid=uid, gid=gid)
+    backup = root / ("%d-%s" % (time.time_ns(), name))
+    ensure_directory(backup, mode=0o700, uid=uid, gid=gid)
+    manifest: Dict[str, Any] = {"schema": "cloudx.cliproxy-policy-backup.v1", "files": {}}
+    for label, value in snapshots.items():
+        manifest["files"][label] = {
+            "existed": value.existed,
+            "mode": value.mode,
+            "uid": value.uid,
+            "gid": value.gid,
+            "sha256": sha256_bytes(value.data) if value.existed else "",
+        }
+        if value.existed:
+            atomic_write(backup / (label + ".before"), value.data, mode=0o600, uid=uid, gid=gid)
+    atomic_write(
+        backup / "manifest.json",
+        (json.dumps(manifest, sort_keys=True) + "\n").encode("utf-8"),
+        mode=0o600,
+        uid=uid,
+        gid=gid,
+    )
+    return backup
+
+
+def wait_systemd_active(unit: str) -> int:
+    deadline = time.monotonic() + 20.0
+    while time.monotonic() < deadline:
+        completed = run_command(
+            ["systemctl", "show", unit, "-p", "ActiveState", "-p", "SubState", "-p", "MainPID", "--no-pager"],
+            check=False,
+        )
+        values = dict(line.split("=", 1) for line in completed.stdout.splitlines() if "=" in line)
+        if values.get("ActiveState") == "active" and values.get("SubState") == "running":
+            pid = int(values.get("MainPID", "0") or "0")
+            if pid > 0:
+                return pid
+        time.sleep(0.25)
+    raise CpaPolicyInstallRejected("CPA systemd service did not become active")
+
+
+def cloud_drop_ins(value: Dict[str, Any]) -> Tuple[bytes, bytes]:
+    gateway = (
+        "[Service]\n"
+        "Environment=CLIPROXY_AUTH_DIR=%s\n"
+        "Environment=CLIPROXY_AUTH_FAILURE_DIR=%s\n"
+        "ReadWritePaths=%s\n"
+        "ExecStart=\n"
+        "ExecStart=%s -config %s\n"
+        % (
+            value["authDirectory"],
+            value["failureDirectory"],
+            value["failureDirectory"],
+            value["stagedBinary"],
+            value["config"],
+        )
+    ).encode("utf-8")
+    health = ("[Service]\nReadWritePaths=%s\n" % value["failureDirectory"]).encode("utf-8")
+    return gateway, health
+
+
+def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
+    if os.geteuid() != 0 or sys.platform != "linux":
+        raise CpaPolicyInstallRejected("cloud CPA activation requires root on Linux")
+    verify_candidate(value["stagedBinary"], value)
+    baseline = safe_snapshot(value["baselineBinary"], maximum=MAX_CANDIDATE_BYTES, required=True)
+    if sha256_bytes(baseline.data) != value["baselineSha256"]:
+        raise CpaPolicyInstallRejected("cloud CPA baseline binary changed")
+    gateway_before = safe_snapshot(value["gatewayDropIn"], maximum=MAX_DROP_IN_BYTES, required=False)
+    health_before = safe_snapshot(value["healthDropIn"], maximum=MAX_DROP_IN_BYTES, required=False)
+    gateway_after, health_after = cloud_drop_ins(value)
+    if (
+        gateway_before.existed
+        and gateway_before.data == gateway_after
+        and health_before.existed
+        and health_before.data == health_after
+    ):
+        pid = wait_systemd_active(value["service"])
+        status, policy = probe_policy(value["config"])
+        return {"schema": RESULT_SCHEMA, "status": "already-active", "target": "cloud", "pid": pid, "httpStatus": status, "policy": policy}
+    cliproxy = pwd.getpwnam("cliproxy")
+    ensure_directory(value["failureDirectory"], mode=0o700, uid=cliproxy.pw_uid, gid=cliproxy.pw_gid)
+    backup = backup_snapshot(
+        value["backupRoot"],
+        "cloud",
+        {"gateway-drop-in": gateway_before, "health-drop-in": health_before},
+        uid=0,
+        gid=0,
+    )
+    try:
+        atomic_write(value["gatewayDropIn"], gateway_after, mode=0o644, uid=0, gid=0)
+        atomic_write(value["healthDropIn"], health_after, mode=0o644, uid=0, gid=0)
+        run_command(["systemctl", "daemon-reload"])
+        run_command(["systemctl", "restart", value["service"]])
+        pid = wait_systemd_active(value["service"])
+        show = run_command(["systemctl", "show", value["service"], "-p", "ExecStart", "--no-pager"]).stdout
+        if str(value["stagedBinary"]) not in show:
+            raise CpaPolicyInstallRejected("cloud CPA service did not select the staged candidate")
+        status, policy = probe_policy(value["config"])
+        if sha256_bytes(safe_snapshot(value["baselineBinary"], maximum=MAX_CANDIDATE_BYTES, required=True).data) != value["baselineSha256"]:
+            raise CpaPolicyInstallRejected("cloud CPA baseline changed during activation")
+    except Exception as exc:
+        restore_snapshot(value["gatewayDropIn"], gateway_before)
+        restore_snapshot(value["healthDropIn"], health_before)
+        run_command(["systemctl", "daemon-reload"], check=False)
+        run_command(["systemctl", "restart", value["service"]], check=False)
+        wait_systemd_active(value["service"])
+        probe_health(value["config"])
+        raise CpaPolicyInstallRejected("cloud CPA activation failed and was rolled back") from exc
+    return {
+        "schema": RESULT_SCHEMA,
+        "status": "active",
+        "target": "cloud",
+        "version": value["version"],
+        "pid": pid,
+        "httpStatus": status,
+        "policy": policy,
+        "backupName": backup.name,
+        "externalServiceManaged": False,
+        "operatorApprovedRestart": True,
+    }
+
+
+def local_plist(raw: bytes, value: Dict[str, Any]) -> bytes:
+    try:
+        document = plistlib.loads(raw)
+    except Exception as exc:
+        raise CpaPolicyInstallRejected("local CPA launcher plist is invalid") from exc
+    if document.get("Label") != value["serviceLabel"]:
+        raise CpaPolicyInstallRejected("local CPA launcher label changed")
+    arguments = document.get("ProgramArguments")
+    if not isinstance(arguments, list) or not arguments:
+        raise CpaPolicyInstallRejected("local CPA launcher arguments are invalid")
+    document["ProgramArguments"] = [str(value["stagedBinary"]), *arguments[1:]]
+    environment = document.get("EnvironmentVariables")
+    if environment is None:
+        environment = {}
+    if not isinstance(environment, dict):
+        raise CpaPolicyInstallRejected("local CPA launcher environment is invalid")
+    environment["CLIPROXY_AUTH_DIR"] = str(value["authDirectory"])
+    environment["CLIPROXY_AUTH_FAILURE_DIR"] = str(value["failureDirectory"])
+    document["EnvironmentVariables"] = environment
+    return plistlib.dumps(document, fmt=plistlib.FMT_XML, sort_keys=False)
+
+
+def launchctl_print(domain: str, label: str, *, check: bool = True) -> subprocess.CompletedProcess[str]:
+    return run_command(["launchctl", "print", "%s/%s" % (domain, label)], check=check)
+
+
+def wait_launchd(domain: str, label: str, expected_binary: pathlib.Path) -> int:
+    deadline = time.monotonic() + 20.0
+    while time.monotonic() < deadline:
+        completed = launchctl_print(domain, label, check=False)
+        match = re.search(r"\bpid = ([0-9]+)", completed.stdout)
+        if completed.returncode == 0 and match and str(expected_binary) in completed.stdout:
+            return int(match.group(1))
+        time.sleep(0.25)
+    raise CpaPolicyInstallRejected("local CPA launchd service did not become active")
+
+
+def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
+    if sys.platform != "darwin" or os.geteuid() == 0:
+        raise CpaPolicyInstallRejected("local CPA activation requires the macOS login user")
+    verify_candidate(value["stagedBinary"], value)
+    baseline = safe_snapshot(value["baselineBinary"], maximum=MAX_CANDIDATE_BYTES, required=True)
+    if sha256_bytes(baseline.data) != value["baselineSha256"]:
+        raise CpaPolicyInstallRejected("local CPA baseline binary changed")
+    launcher_before = safe_snapshot(value["launcher"], maximum=MAX_LAUNCHER_BYTES, required=True)
+    launcher_after = local_plist(launcher_before.data, value)
+    uid = os.geteuid()
+    gid = os.getegid()
+    domain = "gui/%d" % uid
+    launchctl_print(domain, value["serviceLabel"])
+    if launcher_before.data == launcher_after:
+        pid = wait_launchd(domain, value["serviceLabel"], value["stagedBinary"])
+        status, policy = probe_policy(value["config"])
+        return {"schema": RESULT_SCHEMA, "status": "already-active", "target": "local", "pid": pid, "httpStatus": status, "policy": policy}
+    ensure_directory(value["failureDirectory"], mode=0o700, uid=uid, gid=gid)
+    backup = backup_snapshot(value["backupRoot"], "local", {"launcher": launcher_before}, uid=uid, gid=gid)
+    service = "%s/%s" % (domain, value["serviceLabel"])
+    try:
+        atomic_write(
+            value["launcher"],
+            launcher_after,
+            mode=launcher_before.mode,
+            uid=launcher_before.uid,
+            gid=launcher_before.gid,
+        )
+        run_command(["launchctl", "bootout", service])
+        run_command(["launchctl", "bootstrap", domain, str(value["launcher"])])
+        pid = wait_launchd(domain, value["serviceLabel"], value["stagedBinary"])
+        status, policy = probe_policy(value["config"])
+        if sha256_bytes(safe_snapshot(value["baselineBinary"], maximum=MAX_CANDIDATE_BYTES, required=True).data) != value["baselineSha256"]:
+            raise CpaPolicyInstallRejected("local CPA baseline changed during activation")
+    except Exception as exc:
+        restore_snapshot(value["launcher"], launcher_before)
+        run_command(["launchctl", "bootout", service], check=False)
+        run_command(["launchctl", "bootstrap", domain, str(value["launcher"])], check=False)
+        wait_launchd(domain, value["serviceLabel"], value["baselineBinary"])
+        probe_health(value["config"])
+        raise CpaPolicyInstallRejected("local CPA activation failed and was rolled back") from exc
+    return {
+        "schema": RESULT_SCHEMA,
+        "status": "active",
+        "target": "local",
+        "version": value["version"],
+        "pid": pid,
+        "httpStatus": status,
+        "policy": policy,
+        "backupName": backup.name,
+        "externalServiceManaged": False,
+        "operatorApprovedRestart": True,
+    }
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--target", choices=("local", "cloud"), required=True)
+    parser.add_argument("--contract", type=pathlib.Path, default=DEFAULT_CONTRACT)
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument("--stage", action="store_true")
+    action.add_argument("--activate", action="store_true")
+    parser.add_argument("--candidate", type=pathlib.Path)
+    parser.add_argument("--confirm", default="")
+    args = parser.parse_args(argv)
+
+    contract = load_contract(args.contract.expanduser().resolve())
+    value = expanded_target(args.target, contract)
+    stage_confirmation, activate_confirmation = confirmations(args.target, value)
+    if not args.stage and not args.activate:
+        print(json.dumps(plan_document(args.target, value), sort_keys=True))
+        return 0
+    if args.stage:
+        if args.confirm != stage_confirmation or args.candidate is None:
+            raise CpaPolicyInstallRejected("CPA stage confirmation or candidate does not match")
+        document = stage_candidate(args.target, args.candidate.expanduser().resolve(), value)
+    else:
+        if args.confirm != activate_confirmation or args.candidate is not None:
+            raise CpaPolicyInstallRejected("CPA activation confirmation does not match")
+        document = activate_local(value) if args.target == "local" else activate_cloud(value)
+    print(json.dumps(document, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except CpaPolicyInstallRejected as exc:
+        print("install_cpa_policy_candidate.py: %s" % exc, file=sys.stderr)
+        raise SystemExit(1)

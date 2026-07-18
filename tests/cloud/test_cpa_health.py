@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import pathlib
 import stat
@@ -10,6 +11,7 @@ import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 from unittest import mock
+from datetime import datetime, timezone
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -114,6 +116,118 @@ class CpaHealthTests(unittest.TestCase):
             self.assertEqual(archived, ["account.json"])
             self.assertEqual(candidates, {})
             quarantine.assert_called_once()
+
+    def test_confirmed_runtime_auth_failure_archives_but_weekly_quota_does_not(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            auth_dir = root / "auth"
+            failure_dir = root / "failures"
+            auth_dir.mkdir()
+            failure_dir.mkdir()
+            account = auth_dir / "account.json"
+            account.write_text('{"access_token":"sanitized"}', encoding="utf-8")
+            digest = hashlib.sha256(account.read_bytes()).hexdigest()
+            record = {"path": str(account)}
+            quarantine = mock.Mock(return_value={"moved_from": str(account)})
+            active_runtime = runtime(
+                quarantine=quarantine,
+                scan=mock.Mock(return_value=[record]),
+            )
+            config = cpa_health.cloudx_config(auth_dir, root / "archive", failure_confirmations=3)
+            receipt = {
+                "schema": cpa_health.FAILURE_RECEIPT_SCHEMA,
+                "authFile": account.name,
+                "authSha256": digest,
+                "reason": "authentication_unauthorized",
+                "failureCount": 2,
+                "permanentAuthFailure": True,
+                "weeklyQuota": False,
+                "observedAt": datetime.now(timezone.utc).isoformat(),
+            }
+            receipt_path = failure_dir / "accepted.json"
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
+            archived, rejected, stale = cpa_health.archive_runtime_failures(
+                active_runtime,
+                config,
+                failure_dir,
+            )
+
+            self.assertEqual((archived, rejected, stale), (["account.json"], 0, 0))
+            self.assertFalse(receipt_path.exists())
+            quarantine.assert_called_once_with(
+                config,
+                record,
+                reason="runtime-authentication_unauthorized",
+                moved_at=mock.ANY,
+            )
+
+            weekly = dict(receipt, weeklyQuota=True)
+            (failure_dir / "weekly.json").write_text(json.dumps(weekly), encoding="utf-8")
+            quarantine.reset_mock()
+            archived, rejected, stale = cpa_health.archive_runtime_failures(
+                active_runtime,
+                config,
+                failure_dir,
+            )
+            self.assertEqual((archived, rejected, stale), ([], 1, 0))
+            quarantine.assert_not_called()
+
+    def test_runtime_failure_receipt_is_bound_to_current_auth_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            auth_dir = root / "auth"
+            failure_dir = root / "failures"
+            auth_dir.mkdir()
+            failure_dir.mkdir()
+            account = auth_dir / "account.json"
+            account.write_text("{}", encoding="utf-8")
+            receipt = {
+                "schema": cpa_health.FAILURE_RECEIPT_SCHEMA,
+                "authFile": account.name,
+                "authSha256": "0" * 64,
+                "reason": "refresh_invalid_grant",
+                "failureCount": 2,
+                "permanentAuthFailure": True,
+                "weeklyQuota": False,
+                "observedAt": datetime.now(timezone.utc).isoformat(),
+            }
+            (failure_dir / "stale.json").write_text(json.dumps(receipt), encoding="utf-8")
+            active_runtime = runtime(scan=mock.Mock(return_value=[{"path": str(account)}]))
+            config = cpa_health.cloudx_config(auth_dir, root / "archive", failure_confirmations=3)
+
+            archived, rejected, stale = cpa_health.archive_runtime_failures(
+                active_runtime,
+                config,
+                failure_dir,
+            )
+
+            self.assertEqual((archived, rejected, stale), ([], 0, 1))
+            active_runtime.quarantine.assert_not_called()
+
+    def test_runtime_failure_receipt_symlink_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            auth_dir = root / "auth"
+            failure_dir = root / "failures"
+            auth_dir.mkdir()
+            failure_dir.mkdir()
+            account = auth_dir / "account.json"
+            account.write_text("{}", encoding="utf-8")
+            outside = root / "outside.json"
+            outside.write_text("{}", encoding="utf-8")
+            (failure_dir / "receipt.json").symlink_to(outside)
+            active_runtime = runtime(scan=mock.Mock(return_value=[{"path": str(account)}]))
+            config = cpa_health.cloudx_config(auth_dir, root / "archive", failure_confirmations=3)
+
+            archived, rejected, stale = cpa_health.archive_runtime_failures(
+                active_runtime,
+                config,
+                failure_dir,
+            )
+
+            self.assertEqual((archived, rejected, stale), ([], 1, 0))
+            active_runtime.quarantine.assert_not_called()
 
     def test_check_mode_does_not_write_or_quarantine(self) -> None:
         active_runtime = runtime(

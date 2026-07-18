@@ -1,0 +1,646 @@
+diff --git a/internal/api/cloudx_request_policy.go b/internal/api/cloudx_request_policy.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..b72415cb65444498c51cc6f9f8b8918d07b7d14f
+--- /dev/null
++++ b/internal/api/cloudx_request_policy.go
+@@ -0,0 +1,48 @@
++package api
++
++import (
++	"net/http"
++	"strings"
++
++	"github.com/gin-gonic/gin"
++)
++
++const cloudxMaxConcurrentAPIRequests = 2
++
++// cloudxRequestPolicyMiddleware caps all proxied inference traffic across every
++// credential at two in-flight requests. Requests wait for a slot and retain it
++// until the handler, including a streaming handler, returns. Local model-list,
++// health, OAuth, and management endpoints never consume a slot.
++func cloudxRequestPolicyMiddleware() gin.HandlerFunc {
++	slots := make(chan struct{}, cloudxMaxConcurrentAPIRequests)
++	return func(c *gin.Context) {
++		if c == nil || c.Request == nil || !cloudxProxiedAPIRequest(c.Request) {
++			c.Next()
++			return
++		}
++
++		select {
++		case slots <- struct{}{}:
++			defer func() { <-slots }()
++			c.Header("X-CPA-Max-Concurrent-API-Requests", "2")
++			c.Next()
++		case <-c.Request.Context().Done():
++			c.AbortWithStatus(499)
++		}
++	}
++}
++
++func cloudxProxiedAPIRequest(req *http.Request) bool {
++	if req == nil || req.URL == nil {
++		return false
++	}
++	path := req.URL.Path
++	if req.Method == http.MethodGet && (path == "/v1/models" || path == "/v1beta/models") {
++		return false
++	}
++	return path == "/v1" || strings.HasPrefix(path, "/v1/") ||
++		path == "/v1beta" || strings.HasPrefix(path, "/v1beta/") ||
++		path == "/openai/v1" || strings.HasPrefix(path, "/openai/v1/") ||
++		path == "/backend-api/codex" || strings.HasPrefix(path, "/backend-api/codex/") ||
++		path == "/v1internal:method"
++}
+diff --git a/internal/api/cloudx_request_policy_test.go b/internal/api/cloudx_request_policy_test.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..c4aa8b940b74570aa339d04f93970fa8689bb526
+--- /dev/null
++++ b/internal/api/cloudx_request_policy_test.go
+@@ -0,0 +1,96 @@
++package api
++
++import (
++	"net/http"
++	"net/http/httptest"
++	"sync"
++	"sync/atomic"
++	"testing"
++	"time"
++
++	"github.com/gin-gonic/gin"
++)
++
++func TestCloudxRequestPolicyCapsGlobalInferenceConcurrencyAtTwo(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++	engine := gin.New()
++	engine.Use(cloudxRequestPolicyMiddleware())
++
++	release := make(chan struct{})
++	var active atomic.Int32
++	var maximum atomic.Int32
++	engine.POST("/v1/responses", func(c *gin.Context) {
++		current := active.Add(1)
++		for {
++			observed := maximum.Load()
++			if current <= observed || maximum.CompareAndSwap(observed, current) {
++				break
++			}
++		}
++		<-release
++		active.Add(-1)
++		c.Status(http.StatusOK)
++	})
++
++	const requests = 5
++	var wg sync.WaitGroup
++	wg.Add(requests)
++	for i := 0; i < requests; i++ {
++		go func() {
++			defer wg.Done()
++			recorder := httptest.NewRecorder()
++			req := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
++			engine.ServeHTTP(recorder, req)
++			if recorder.Code != http.StatusOK {
++				t.Errorf("status = %d, want 200", recorder.Code)
++			}
++			if got := recorder.Header().Get("X-CPA-Max-Concurrent-API-Requests"); got != "2" {
++				t.Errorf("policy header = %q, want 2", got)
++			}
++		}()
++	}
++
++	deadline := time.Now().Add(2 * time.Second)
++	for active.Load() != 2 && time.Now().Before(deadline) {
++		time.Sleep(time.Millisecond)
++	}
++	if got := active.Load(); got != 2 {
++		close(release)
++		wg.Wait()
++		t.Fatalf("active = %d, want 2", got)
++	}
++	if got := maximum.Load(); got != 2 {
++		close(release)
++		wg.Wait()
++		t.Fatalf("maximum = %d, want 2", got)
++	}
++
++	close(release)
++	wg.Wait()
++	if got := maximum.Load(); got != 2 {
++		t.Fatalf("maximum = %d, want 2", got)
++	}
++}
++
++func TestCloudxRequestPolicyExcludesLocalControlEndpoints(t *testing.T) {
++	cases := []struct {
++		method string
++		path   string
++		want   bool
++	}{
++		{http.MethodPost, "/v1/responses", true},
++		{http.MethodGet, "/backend-api/codex/responses", true},
++		{http.MethodPost, "/v1internal:method", true},
++		{http.MethodGet, "/v1/models", false},
++		{http.MethodGet, "/v1beta/models", false},
++		{http.MethodGet, "/healthz", false},
++		{http.MethodGet, "/v0/management/config", false},
++		{http.MethodGet, "/codex/callback", false},
++	}
++	for _, tc := range cases {
++		req := httptest.NewRequest(tc.method, tc.path, nil)
++		if got := cloudxProxiedAPIRequest(req); got != tc.want {
++			t.Errorf("%s %s = %v, want %v", tc.method, tc.path, got, tc.want)
++		}
++	}
++}
+diff --git a/internal/api/server.go b/internal/api/server.go
+index 04f1fb0ab0d59f028a78d84a79a514aa02d9e94d..c64b06c59ad65719c6289c0b9a1461b9a3a44e99 100644
+--- a/internal/api/server.go
++++ b/internal/api/server.go
+@@ -224,6 +224,7 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
+ 	// Add middleware
+ 	engine.Use(logging.GinLogrusLogger())
+ 	engine.Use(logging.GinLogrusRecovery())
++	engine.Use(cloudxRequestPolicyMiddleware())
+ 	for _, mw := range optionState.extraMiddleware {
+ 		engine.Use(mw)
+ 	}
+diff --git a/internal/translator/codex/openai/responses/codex_openai-responses_request.go b/internal/translator/codex/openai/responses/codex_openai-responses_request.go
+index cc218b12b3480b9f70c01f0b07205d6a0d9d99e0..b7f5bc97d56792ce63974827eec1d95e22babbaa 100644
+--- a/internal/translator/codex/openai/responses/codex_openai-responses_request.go
++++ b/internal/translator/codex/openai/responses/codex_openai-responses_request.go
+@@ -27,7 +27,9 @@ func ConvertOpenAIResponsesRequestToCodex(modelName string, inputRawJSON []byte,
+ 	rawJSON, _ = sjson.DeleteBytes(rawJSON, "temperature")
+ 	rawJSON, _ = sjson.DeleteBytes(rawJSON, "top_p")
+ 	if v := gjson.GetBytes(rawJSON, "service_tier"); v.Exists() {
+-		if v.String() != "priority" {
++		if v.String() == "fast" {
++			rawJSON, _ = sjson.SetBytes(rawJSON, "service_tier", "priority")
++		} else if v.String() != "priority" {
+ 			rawJSON, _ = sjson.DeleteBytes(rawJSON, "service_tier")
+ 		}
+ 	}
+diff --git a/internal/translator/codex/openai/responses/codex_openai-responses_request_test.go b/internal/translator/codex/openai/responses/codex_openai-responses_request_test.go
+index 3b48a76e04125bb36db8ad15ddcf854b956b94fd..d994fcb42cd56a4ee2f32029df564d219046cfc7 100644
+--- a/internal/translator/codex/openai/responses/codex_openai-responses_request_test.go
++++ b/internal/translator/codex/openai/responses/codex_openai-responses_request_test.go
+@@ -6,6 +6,17 @@ import (
+ 	"github.com/tidwall/gjson"
+ )
+ 
++func TestConvertOpenAIResponsesRequestToCodexMapsFastServiceTier(t *testing.T) {
++	output := ConvertOpenAIResponsesRequestToCodex(
++		"gpt-5.2",
++		[]byte(`{"model":"gpt-5.2","input":"hello","service_tier":"fast"}`),
++		false,
++	)
++	if got := gjson.GetBytes(output, "service_tier").String(); got != "priority" {
++		t.Fatalf("service_tier = %q, want priority", got)
++	}
++}
++
+ // TestConvertSystemRoleToDeveloper_BasicConversion tests the basic system -> developer role conversion
+ func TestConvertSystemRoleToDeveloper_BasicConversion(t *testing.T) {
+ 	inputJSON := []byte(`{
+diff --git a/sdk/cliproxy/auth/cloudx_failure_receipts.go b/sdk/cliproxy/auth/cloudx_failure_receipts.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..79fe91d42b2b5430e4c48dbe6ecfcd625208351b
+--- /dev/null
++++ b/sdk/cliproxy/auth/cloudx_failure_receipts.go
+@@ -0,0 +1,301 @@
++package auth
++
++import (
++	"context"
++	"crypto/sha256"
++	"encoding/hex"
++	"encoding/json"
++	"errors"
++	"net/http"
++	"os"
++	"path/filepath"
++	"regexp"
++	"strings"
++	"sync"
++	"time"
++)
++
++const (
++	cloudxFailureReceiptSchema = "cloudx.cpa-auth-failure.v1"
++	cloudxFailureWindow        = 10 * time.Minute
++	cloudxMaxAuthFileBytes     = 4 * 1024 * 1024
++)
++
++var cloudxAuthFileNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,254}\.json$`)
++
++type cloudxFailureEvidence struct {
++	authFile   string
++	authSHA256 string
++	reason     string
++	count      int
++	conclusive bool
++	observedAt time.Time
++}
++
++type cloudxFailureReceipt struct {
++	Schema               string `json:"schema"`
++	AuthFile             string `json:"authFile"`
++	AuthSHA256           string `json:"authSha256"`
++	Reason               string `json:"reason"`
++	FailureCount         int    `json:"failureCount"`
++	PermanentAuthFailure bool   `json:"permanentAuthFailure"`
++	WeeklyQuota          bool   `json:"weeklyQuota"`
++	ObservedAt           string `json:"observedAt"`
++}
++
++var cloudxFailureTracker = struct {
++	sync.Mutex
++	entries map[string]cloudxFailureEvidence
++}{entries: make(map[string]cloudxFailureEvidence)}
++
++func cloudxRecordResult(auth *Auth, result Result) {
++	if auth == nil {
++		return
++	}
++	if result.Success {
++		cloudxClearFailure(auth)
++		return
++	}
++	reason, conclusive := cloudxClassifyRequestFailure(result.Error)
++	if reason == "" {
++		return
++	}
++	if reason == "authentication_unauthorized" {
++		conclusive = !cloudxAuthHasRefreshCredential(auth)
++	}
++	cloudxObserveFailure(auth, reason, conclusive)
++}
++
++func cloudxRecordRefreshFailure(auth *Auth, err error) {
++	reason := cloudxClassifyRefreshFailure(err)
++	if reason == "" {
++		return
++	}
++	cloudxObserveFailure(auth, reason, true)
++}
++
++func cloudxClassifyRequestFailure(err *Error) (string, bool) {
++	if err == nil {
++		return "", false
++	}
++	raw := strings.ToLower(strings.TrimSpace(err.Code + " " + err.Message))
++	if cloudxLooksLikeQuota(raw, err.HTTPStatus) {
++		return "", false
++	}
++	if reason := cloudxExplicitPermanentReason(raw); reason != "" {
++		return reason, true
++	}
++	if err.HTTPStatus == http.StatusUnauthorized {
++		return "authentication_unauthorized", false
++	}
++	return "", false
++}
++
++func cloudxClassifyRefreshFailure(err error) string {
++	if err == nil || errors.Is(err, context.Canceled) {
++		return ""
++	}
++	raw := strings.ToLower(strings.TrimSpace(err.Error()))
++	status := cloudxErrorStatus(err)
++	if cloudxLooksLikeQuota(raw, status) {
++		return ""
++	}
++	if reason := cloudxExplicitPermanentReason(raw); reason != "" {
++		return reason
++	}
++	if status == http.StatusUnauthorized || strings.Contains(raw, "status 401") || strings.Contains(raw, "401 unauthorized") {
++		return "authentication_unauthorized"
++	}
++	return ""
++}
++
++func cloudxErrorStatus(err error) int {
++	type statusCoder interface{ StatusCode() int }
++	var value statusCoder
++	if errors.As(err, &value) && value != nil {
++		return value.StatusCode()
++	}
++	return 0
++}
++
++func cloudxLooksLikeQuota(raw string, status int) bool {
++	if status == http.StatusTooManyRequests {
++		return true
++	}
++	for _, marker := range []string{
++		"weekly limit", "weekly quota", "usage_limit", "usage limit",
++		"rate limit", "quota", "too many requests", "status 429", "429 ",
++	} {
++		if strings.Contains(raw, marker) {
++			return true
++		}
++	}
++	return false
++}
++
++func cloudxExplicitPermanentReason(raw string) string {
++	switch {
++	case strings.Contains(raw, "refresh_token_reused") || strings.Contains(raw, "refresh token reused"):
++		return "refresh_token_reused"
++	case strings.Contains(raw, "invalid_grant"):
++		return "refresh_invalid_grant"
++	case strings.Contains(raw, "refresh token revoked") || strings.Contains(raw, "refresh_token_revoked") || strings.Contains(raw, "token has been revoked"):
++		return "refresh_token_revoked"
++	case strings.Contains(raw, "account deactivated") || strings.Contains(raw, "account has been deactivated") || strings.Contains(raw, "account disabled") || strings.Contains(raw, "account has been disabled") || strings.Contains(raw, "account deleted"):
++		return "account_deactivated"
++	case strings.Contains(raw, "refresh token is required") || strings.Contains(raw, "missing refresh token"):
++		return "missing_token"
++	default:
++		return ""
++	}
++}
++
++func cloudxAuthHasRefreshCredential(auth *Auth) bool {
++	if auth == nil || auth.Metadata == nil {
++		return false
++	}
++	for _, key := range []string{"refresh_token", "refreshToken"} {
++		if value, ok := auth.Metadata[key].(string); ok && strings.TrimSpace(value) != "" {
++			return true
++		}
++	}
++	return false
++}
++
++func cloudxObserveFailure(auth *Auth, reason string, conclusive bool) {
++	authFile, digest, failureDir, ok := cloudxAuthSnapshot(auth)
++	if !ok {
++		return
++	}
++	now := time.Now().UTC()
++
++	cloudxFailureTracker.Lock()
++	defer cloudxFailureTracker.Unlock()
++	state, found := cloudxFailureTracker.entries[authFile]
++	if !found || state.authSHA256 != digest || now.Sub(state.observedAt) > cloudxFailureWindow {
++		state = cloudxFailureEvidence{authFile: authFile, authSHA256: digest}
++	}
++	state.count++
++	state.observedAt = now
++	if conclusive {
++		state.reason = reason
++		state.conclusive = true
++	} else if state.reason == "" {
++		state.reason = reason
++	}
++	cloudxFailureTracker.entries[authFile] = state
++	if state.count < 2 || !state.conclusive {
++		return
++	}
++	cloudxWriteFailureReceipt(failureDir, cloudxFailureReceipt{
++		Schema:               cloudxFailureReceiptSchema,
++		AuthFile:             authFile,
++		AuthSHA256:           digest,
++		Reason:               state.reason,
++		FailureCount:         state.count,
++		PermanentAuthFailure: true,
++		WeeklyQuota:          false,
++		ObservedAt:           now.Format(time.RFC3339Nano),
++	})
++}
++
++func cloudxClearFailure(auth *Auth) {
++	if auth == nil {
++		return
++	}
++	authFile := filepath.Base(strings.TrimSpace(auth.FileName))
++	if !cloudxAuthFileNamePattern.MatchString(authFile) {
++		return
++	}
++	cloudxFailureTracker.Lock()
++	delete(cloudxFailureTracker.entries, authFile)
++	cloudxFailureTracker.Unlock()
++	if failureDir, ok := cloudxFailureDirectory(); ok {
++		_ = os.Remove(filepath.Join(failureDir, authFile))
++	}
++}
++
++func cloudxAuthSnapshot(auth *Auth) (string, string, string, bool) {
++	if auth == nil {
++		return "", "", "", false
++	}
++	authFile := filepath.Base(strings.TrimSpace(auth.FileName))
++	if !cloudxAuthFileNamePattern.MatchString(authFile) {
++		return "", "", "", false
++	}
++	authDir := strings.TrimSpace(os.Getenv("CLIPROXY_AUTH_DIR"))
++	failureDir, ok := cloudxFailureDirectory()
++	if !ok || !filepath.IsAbs(authDir) || filepath.Clean(authDir) == filepath.Clean(failureDir) {
++		return "", "", "", false
++	}
++	authPath := filepath.Join(authDir, authFile)
++	info, err := os.Lstat(authPath)
++	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() > cloudxMaxAuthFileBytes {
++		return "", "", "", false
++	}
++	raw, err := os.ReadFile(authPath)
++	if err != nil || len(raw) > cloudxMaxAuthFileBytes {
++		return "", "", "", false
++	}
++	digest := sha256.Sum256(raw)
++	return authFile, hex.EncodeToString(digest[:]), failureDir, true
++}
++
++func cloudxFailureDirectory() (string, bool) {
++	dir := strings.TrimSpace(os.Getenv("CLIPROXY_AUTH_FAILURE_DIR"))
++	if !filepath.IsAbs(dir) {
++		return "", false
++	}
++	dir = filepath.Clean(dir)
++	if err := os.MkdirAll(dir, 0o700); err != nil {
++		return "", false
++	}
++	info, err := os.Lstat(dir)
++	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
++		return "", false
++	}
++	if err := os.Chmod(dir, 0o700); err != nil {
++		return "", false
++	}
++	return dir, true
++}
++
++func cloudxWriteFailureReceipt(dir string, receipt cloudxFailureReceipt) {
++	raw, err := json.Marshal(receipt)
++	if err != nil {
++		return
++	}
++	temporary, err := os.CreateTemp(dir, "."+receipt.AuthFile+".tmp-")
++	if err != nil {
++		return
++	}
++	temporaryPath := temporary.Name()
++	keep := false
++	defer func() {
++		_ = temporary.Close()
++		if !keep {
++			_ = os.Remove(temporaryPath)
++		}
++	}()
++	if err = temporary.Chmod(0o600); err != nil {
++		return
++	}
++	if _, err = temporary.Write(append(raw, '\n')); err != nil {
++		return
++	}
++	if err = temporary.Sync(); err != nil {
++		return
++	}
++	if err = temporary.Close(); err != nil {
++		return
++	}
++	target := filepath.Join(dir, receipt.AuthFile)
++	if err = os.Rename(temporaryPath, target); err != nil {
++		return
++	}
++	keep = true
++	if handle, openErr := os.Open(dir); openErr == nil {
++		_ = handle.Sync()
++		_ = handle.Close()
++	}
++}
+diff --git a/sdk/cliproxy/auth/cloudx_failure_receipts_test.go b/sdk/cliproxy/auth/cloudx_failure_receipts_test.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..ad3440384918fda2fe503db45cceed8f6329a7c4
+--- /dev/null
++++ b/sdk/cliproxy/auth/cloudx_failure_receipts_test.go
+@@ -0,0 +1,100 @@
++package auth
++
++import (
++	"encoding/json"
++	"errors"
++	"net/http"
++	"os"
++	"path/filepath"
++	"testing"
++)
++
++func cloudxFailureFixture(t *testing.T, refreshToken bool) (*Auth, string) {
++	t.Helper()
++	root := t.TempDir()
++	authDir := filepath.Join(root, "auth")
++	failureDir := filepath.Join(root, "failures")
++	if err := os.Mkdir(authDir, 0o700); err != nil {
++		t.Fatal(err)
++	}
++	authFile := "codex-test.json"
++	if err := os.WriteFile(filepath.Join(authDir, authFile), []byte(`{"type":"codex","access_token":"secret"}`), 0o600); err != nil {
++		t.Fatal(err)
++	}
++	t.Setenv("CLIPROXY_AUTH_DIR", authDir)
++	t.Setenv("CLIPROXY_AUTH_FAILURE_DIR", failureDir)
++	cloudxFailureTracker.Lock()
++	cloudxFailureTracker.entries = make(map[string]cloudxFailureEvidence)
++	cloudxFailureTracker.Unlock()
++	auth := &Auth{FileName: authFile, Metadata: map[string]any{}}
++	if refreshToken {
++		auth.Metadata["refresh_token"] = "secret-refresh"
++	}
++	return auth, filepath.Join(failureDir, authFile)
++}
++
++func TestCloudxFailureReceiptRequiresPermanentNonQuotaEvidence(t *testing.T) {
++	auth, receiptPath := cloudxFailureFixture(t, true)
++	cloudxRecordResult(auth, Result{Error: &Error{HTTPStatus: http.StatusUnauthorized, Message: "expired token"}})
++	if _, err := os.Stat(receiptPath); !os.IsNotExist(err) {
++		t.Fatalf("receipt exists after provisional 401: %v", err)
++	}
++	cloudxRecordRefreshFailure(auth, errors.New(`token refresh failed with status 400: {"error":"invalid_grant"}`))
++	raw, err := os.ReadFile(receiptPath)
++	if err != nil {
++		t.Fatal(err)
++	}
++	var receipt cloudxFailureReceipt
++	if err := json.Unmarshal(raw, &receipt); err != nil {
++		t.Fatal(err)
++	}
++	if receipt.Schema != cloudxFailureReceiptSchema || receipt.Reason != "refresh_invalid_grant" || receipt.FailureCount != 2 {
++		t.Fatalf("unexpected receipt: %+v", receipt)
++	}
++	if !receipt.PermanentAuthFailure || receipt.WeeklyQuota {
++		t.Fatalf("unsafe receipt flags: %+v", receipt)
++	}
++}
++
++func TestCloudxFailureReceiptNeverTreatsWeeklyQuotaAsPermanent(t *testing.T) {
++	auth, receiptPath := cloudxFailureFixture(t, true)
++	for i := 0; i < 3; i++ {
++		cloudxRecordResult(auth, Result{Error: &Error{HTTPStatus: http.StatusTooManyRequests, Message: "weekly usage limit reached"}})
++		cloudxRecordRefreshFailure(auth, errors.New("weekly quota exhausted with status 429"))
++	}
++	if _, err := os.Stat(receiptPath); !os.IsNotExist(err) {
++		t.Fatalf("weekly quota created receipt: %v", err)
++	}
++}
++
++func TestCloudxFailureReceiptConfirmsRepeatedUnauthorizedWithoutRefresh(t *testing.T) {
++	auth, receiptPath := cloudxFailureFixture(t, false)
++	result := Result{Error: &Error{HTTPStatus: http.StatusUnauthorized, Message: "invalid or expired token"}}
++	cloudxRecordResult(auth, result)
++	cloudxRecordResult(auth, result)
++	var receipt cloudxFailureReceipt
++	raw, err := os.ReadFile(receiptPath)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := json.Unmarshal(raw, &receipt); err != nil {
++		t.Fatal(err)
++	}
++	if receipt.Reason != "authentication_unauthorized" || receipt.FailureCount != 2 {
++		t.Fatalf("unexpected receipt: %+v", receipt)
++	}
++}
++
++func TestCloudxFailureReceiptClearsAfterSuccess(t *testing.T) {
++	auth, receiptPath := cloudxFailureFixture(t, false)
++	result := Result{Error: &Error{HTTPStatus: http.StatusUnauthorized, Message: "unauthorized"}}
++	cloudxRecordResult(auth, result)
++	cloudxRecordResult(auth, result)
++	if _, err := os.Stat(receiptPath); err != nil {
++		t.Fatal(err)
++	}
++	cloudxRecordResult(auth, Result{Success: true})
++	if _, err := os.Stat(receiptPath); !os.IsNotExist(err) {
++		t.Fatalf("receipt remains after success: %v", err)
++	}
++}
+diff --git a/sdk/cliproxy/auth/conductor.go b/sdk/cliproxy/auth/conductor.go
+index 5d6a303568b23675486f8864fd24169afb443009..fde7766cc5fe86b6c4d3f55b6f0a01e23674db0f 100644
+--- a/sdk/cliproxy/auth/conductor.go
++++ b/sdk/cliproxy/auth/conductor.go
+@@ -2274,6 +2274,7 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
+ 		authSnapshot = auth.Clone()
+ 	}
+ 	m.mu.Unlock()
++	cloudxRecordResult(authSnapshot, result)
+ 	if m.scheduler != nil && authSnapshot != nil {
+ 		m.scheduler.upsertAuth(authSnapshot)
+ 	}
+@@ -3939,6 +3940,7 @@ func (m *Manager) refreshAuth(ctx context.Context, id string) {
+ 		if shouldReschedule {
+ 			m.queueRefreshReschedule(id)
+ 		}
++		cloudxRecordRefreshFailure(auth.Clone(), err)
+ 		return
+ 	}
+ 	if updated == nil {
+@@ -3957,6 +3959,7 @@ func (m *Manager) refreshAuth(ctx context.Context, id string) {
+ 		updated.NextRefreshAfter = now.Add(refreshIneffectiveBackoff)
+ 	}
+ 	_, _ = m.Update(ctx, updated)
++	cloudxClearFailure(updated)
+ }
+ 
+ func (m *Manager) executorFor(provider string) ProviderExecutor {

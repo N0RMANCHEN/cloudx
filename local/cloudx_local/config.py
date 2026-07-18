@@ -60,6 +60,8 @@ class LocalConfig:
     endpoint_attempts: int
     release_repository: str
     local_cpa_auth_dir: Optional[pathlib.Path] = None
+    local_cpa_archive_dir: Optional[pathlib.Path] = None
+    local_cpa_failure_dir: Optional[pathlib.Path] = None
 
     @classmethod
     def load(cls) -> "LocalConfig":
@@ -98,6 +100,16 @@ class LocalConfig:
                 os.environ.get("CLOUDX_LOCAL_CPA_AUTH_DIR")
                 or local_cpa.get("authDir")
                 or home / ".cli-proxy-api"
+            )).expanduser(),
+            local_cpa_archive_dir=pathlib.Path(str(
+                os.environ.get("CLOUDX_LOCAL_CPA_ARCHIVE_DIR")
+                or local_cpa.get("archiveDir")
+                or home / ".cli-proxy-api-archive"
+            )).expanduser(),
+            local_cpa_failure_dir=pathlib.Path(str(
+                os.environ.get("CLOUDX_LOCAL_CPA_FAILURE_DIR")
+                or local_cpa.get("failureDir")
+                or home / ".local/state/cloudx/cpa-auth-failures"
             )).expanduser(),
         )
 

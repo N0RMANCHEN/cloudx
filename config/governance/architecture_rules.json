@@ -17,6 +17,7 @@
     "config/governance/phi_cloudx_release_ordering.v1.json",
     "shared/contracts/cloudx.api-diagnosis.v1.schema.json",
     "shared/contracts/cloudx.capacity.v1.schema.json",
+    "shared/contracts/cloudx.cpa-auth-failure.v1.schema.json",
     "shared/contracts/cloudx.health.v1.schema.json",
     "shared/contracts/cloudx.handshake.v1.schema.json",
     "shared/contracts/cloudx.http-importer-stop-gate-evidence.v1.schema.json",
@@ -48,7 +49,9 @@
     "scripts/check_phi_cloudx_legacy_health_bridge.py",
     "scripts/check_phi_cloudx_privileged_boundary.py",
     "scripts/check_phi_cloudx_release_ordering.py",
+    "scripts/build_cpa_policy_candidate.py",
     "scripts/install_legacy_health_bridge_units.py",
+    "scripts/install_cpa_policy_candidate.py",
     "scripts/install_phi_consumer_gateway_key.py",
     "scripts/prepare_release_trust_recovery.py",
     "scripts/remove_legacy_local_package.py",
@@ -57,6 +60,10 @@
     "scripts/run_legacy_health_bridge_canary.py",
     "scripts/stop_http_importer.py",
     "scripts/synchronize_release_workflow_key.py",
+    "third_party/cliproxyapi/deployment-contract.json",
+    "third_party/cliproxyapi/policy-manifest.json",
+    "third_party/cliproxyapi/patches/v7.0.1-cloudx-policy.patch",
+    "third_party/cliproxyapi/patches/v7.2.71-cloudx-policy.patch",
     "prompts/README.md"
   ],
   "forbidden_runtime_fragments": [

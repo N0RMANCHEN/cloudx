@@ -129,8 +129,10 @@ codexx() {
         "$bin" "$@"
       elif [ "$#" -eq 3 ] && [ "${2:-}" = "diagnose" ] && [ "${3:-}" = "--json" ]; then
         "$bin" "$@"
+      elif [ "${2:-}" = "refresh" ] || [ "${2:-}" = "restore" ]; then
+        "$bin" "$@"
       else
-        echo "codexx: $command supports mode selection or $command diagnose [--json]" >&2
+        echo "codexx: $command supports mode selection, diagnose, refresh, or restore" >&2
         return 2
       fi
       ;;

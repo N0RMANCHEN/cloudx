@@ -1,0 +1,101 @@
+from __future__ import annotations
+
+import importlib.util
+import os
+import pathlib
+import plistlib
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+MODULE_PATH = ROOT / "scripts/install_cpa_policy_candidate.py"
+SPEC = importlib.util.spec_from_file_location("install_cpa_policy_candidate", MODULE_PATH)
+assert SPEC is not None and SPEC.loader is not None
+MODULE = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = MODULE
+SPEC.loader.exec_module(MODULE)
+
+
+class CpaPolicyInstallerTests(unittest.TestCase):
+    def test_plan_requires_distinct_stage_and_activation_confirmations(self) -> None:
+        contract = MODULE.load_contract(MODULE.DEFAULT_CONTRACT)
+        value = MODULE.expanded_target("local", contract)
+        document = MODULE.plan_document("local", value)
+        self.assertTrue(document["stageConfirmation"].startswith("STAGE LOCAL CPA POLICY"))
+        self.assertTrue(document["activationConfirmation"].startswith("ACTIVATE LOCAL CPA POLICY"))
+        self.assertNotEqual(document["stageConfirmation"], document["activationConfirmation"])
+        self.assertFalse(document["stageChangesService"])
+        self.assertTrue(document["activationRestartsExternalCPA"])
+        self.assertFalse(document["weeklyQuotaArchived"])
+
+    def test_cloud_drop_ins_select_exact_candidate_and_private_failure_dir(self) -> None:
+        value = MODULE.expanded_target("cloud", MODULE.load_contract(MODULE.DEFAULT_CONTRACT))
+        gateway, health = MODULE.cloud_drop_ins(value)
+        gateway_text = gateway.decode("utf-8")
+        health_text = health.decode("utf-8")
+        self.assertIn("ExecStart=\nExecStart=%s" % value["stagedBinary"], gateway_text)
+        self.assertIn("CLIPROXY_AUTH_DIR=%s" % value["authDirectory"], gateway_text)
+        self.assertIn("CLIPROXY_AUTH_FAILURE_DIR=%s" % value["failureDirectory"], gateway_text)
+        self.assertIn("ReadWritePaths=%s" % value["failureDirectory"], health_text)
+        self.assertNotIn("systemctl", gateway_text + health_text)
+
+    def test_local_plist_preserves_launcher_fields_and_adds_only_policy_environment(self) -> None:
+        value = MODULE.expanded_target("local", MODULE.load_contract(MODULE.DEFAULT_CONTRACT))
+        original = {
+            "Label": value["serviceLabel"],
+            "ProgramArguments": [str(value["baselineBinary"]), "--config", str(value["config"])],
+            "RunAtLoad": True,
+            "StandardOutPath": "/tmp/cpa.out",
+            "EnvironmentVariables": {"EXISTING": "kept"},
+        }
+        updated = plistlib.loads(MODULE.local_plist(plistlib.dumps(original), value))
+        self.assertEqual(updated["ProgramArguments"][0], str(value["stagedBinary"]))
+        self.assertEqual(updated["ProgramArguments"][1:], original["ProgramArguments"][1:])
+        self.assertEqual(updated["StandardOutPath"], original["StandardOutPath"])
+        self.assertEqual(updated["EnvironmentVariables"]["EXISTING"], "kept")
+        self.assertEqual(updated["EnvironmentVariables"]["CLIPROXY_AUTH_DIR"], str(value["authDirectory"]))
+        self.assertEqual(
+            updated["EnvironmentVariables"]["CLIPROXY_AUTH_FAILURE_DIR"],
+            str(value["failureDirectory"]),
+        )
+
+    def test_local_stage_is_side_by_side_and_idempotent_without_service_action(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            candidate_path = root / "candidate"
+            candidate_raw = b"candidate-bytes"
+            candidate_path.write_bytes(candidate_raw)
+            value = {
+                "version": "test-policy.1",
+                "candidateSha256": MODULE.sha256_bytes(candidate_raw),
+                "candidateSize": len(candidate_raw),
+                "stageRoot": root / "releases",
+            }
+            value["stagedBinary"] = value["stageRoot"] / value["version"] / "cli-proxy-api"
+            snapshot = MODULE.Snapshot(True, candidate_raw, 0o700, os.geteuid(), os.getegid())
+            with mock.patch.object(MODULE, "verify_candidate", return_value=snapshot), mock.patch.object(
+                MODULE,
+                "run_command",
+            ) as command:
+                first = MODULE.stage_candidate("local", candidate_path, value)
+                second = MODULE.stage_candidate("local", candidate_path, value)
+            self.assertEqual(first["status"], "staged")
+            self.assertEqual(second["status"], "already-staged")
+            self.assertEqual(value["stagedBinary"].read_bytes(), candidate_raw)
+            command.assert_not_called()
+
+    def test_contract_binds_observed_baseline_and_candidate_digests(self) -> None:
+        contract = MODULE.load_contract(MODULE.DEFAULT_CONTRACT)
+        local = contract["targets"]["local"]
+        cloud = contract["targets"]["cloud"]
+        self.assertEqual(local["baselineSha256"], "cf9641b3e50ae486aec1698dec88f735589680f9ae98558c29cde184daac3a96")
+        self.assertEqual(cloud["baselineSha256"], "1d0abbc6316b1869f74896109c0efb5e19c8197b8226f48a74212ed0a6f5a39d")
+        self.assertEqual(local["candidateSha256"], "70439565f25307c22fd93c8aa897871489dc32b1700ebc2390c07896e7b6de01")
+        self.assertEqual(cloud["candidateSha256"], "67baab69ecc507c794f1336197a78e52c0126679a780e1c064cae453966c6a67")
+
+
+if __name__ == "__main__":
+    unittest.main()

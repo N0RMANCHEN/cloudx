@@ -4,6 +4,9 @@
 
 - Advance repository development to `0.1.16` immediately after immutable signed `0.1.15` publication, preventing later source changes from rebuilding the released identity.
 - Bind legacy-health bridge evidence to published `0.1.15` source/artifact/manifest/signer identities and reduce its truthful runtime blockers from three to the two remaining production gates: inactive unit installation and rollback/cutover acceptance.
+- Add strict local/cloud CPA failure receipts and reversible archive consumption: only fresh digest-bound permanent authentication evidence is accepted, while weekly quota, ordinary 429, transient/network/timeout/5xx failures, and refreshable expired access tokens are retained; local maintenance restores the previously broken `codexx api refresh --apply` compatibility path.
+- Pin reproducible policy patches to the exact deployed CPA v7.0.1 and v7.2.71 commits, preserve the local fast-service-tier behavior, enforce one global maximum of two in-flight proxied API requests, and bind deterministic Darwin/arm64 plus Linux/amd64 candidate bytes.
+- Add default-read-only, distinct-confirmation CPA stage/activation tooling. Stage is side-by-side and process-neutral; activation retains the original binary and a private launcher/unit rollback set, restarts only the selected external CPA, requires health plus a public concurrency-policy canary, and automatically restores prior service selection on failure.
 
 ## 0.1.15 - 2026-07-17
 

@@ -1,0 +1,52 @@
+{
+  "schema": "cloudx.cliproxy-policy.v1",
+  "policy": {
+    "maxConcurrentAPIRequests": 2,
+    "queueBehavior": "wait-until-slot-or-request-cancellation",
+    "excludedEndpoints": [
+      "health",
+      "management",
+      "oauth-callback",
+      "local-model-list"
+    ],
+    "failureReceiptSchema": "cloudx.cpa-auth-failure.v1",
+    "authDirectoryEnvironment": "CLIPROXY_AUTH_DIR",
+    "failureDirectoryEnvironment": "CLIPROXY_AUTH_FAILURE_DIR",
+    "minimumFailureEvidence": 2,
+    "weeklyQuotaArchived": false
+  },
+  "targets": {
+    "local": {
+      "upstreamRepository": "https://github.com/router-for-me/CLIProxyAPI.git",
+      "upstreamTag": "v7.0.1",
+      "upstreamCommit": "15ac7fb9324095330e60f522147b8a8e81f16ab5",
+      "patch": "patches/v7.0.1-cloudx-policy.patch",
+      "patchSha256": "ad90f18a5918f571e9309ec55f78f06dd548ab623adec7a45fd2dc3afd6f914b",
+      "goVersion": "1.26.0",
+      "goos": "darwin",
+      "goarch": "arm64",
+      "version": "7.0.1-codexx-fast-service-tier-cloudx-policy.1",
+      "commitLabel": "15ac7fb+cloudx-cpa-policy1",
+      "buildDate": "2026-07-18T06:40:00Z",
+      "candidateSha256": "70439565f25307c22fd93c8aa897871489dc32b1700ebc2390c07896e7b6de01",
+      "candidateSize": 41468178,
+      "preservesLocalFastServiceTier": true
+    },
+    "cloud": {
+      "upstreamRepository": "https://github.com/router-for-me/CLIProxyAPI.git",
+      "upstreamTag": "v7.2.71",
+      "upstreamCommit": "5b7f2361ee27d195f6514dde08656f6e4773a9a4",
+      "patch": "patches/v7.2.71-cloudx-policy.patch",
+      "patchSha256": "6315b309a38fc236b0e92cc60529ca852ca2003da5ad5fb2a4c4ff347ceb64f5",
+      "goVersion": "1.26.0",
+      "goos": "linux",
+      "goarch": "amd64",
+      "version": "7.2.71-cloudx-policy.1",
+      "commitLabel": "5b7f2361+cloudx-cpa-policy1",
+      "buildDate": "2026-07-18T06:40:00Z",
+      "candidateSha256": "67baab69ecc507c794f1336197a78e52c0126679a780e1c064cae453966c6a67",
+      "candidateSize": 45314210,
+      "preservesLocalFastServiceTier": false
+    }
+  }
+}

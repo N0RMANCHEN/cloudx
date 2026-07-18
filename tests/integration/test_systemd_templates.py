@@ -78,6 +78,7 @@ class ShadowSystemdTemplateTests(unittest.TestCase):
         self.assertNotIn("CLOUDX_LEGACY_RUNTIME_ROOT", service)
         self.assertIn("ReadOnlyPaths=/opt/cloudx/releases", service)
         self.assertIn("ReadWritePaths=/var/lib/cloudx/cpa-health", service)
+        self.assertIn("/var/lib/codex-gateway/cliproxy-auth-failures", service)
         self.assertNotIn("/home/", service)
         self.assertNotIn("send-email", service)
         self.assertIn("OnActiveSec=2min", timer)

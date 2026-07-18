@@ -1,0 +1,34 @@
+{
+  "schema": "cloudx.cliproxy-policy-deployment.v1",
+  "targets": {
+    "local": {
+      "version": "7.0.1-codexx-fast-service-tier-cloudx-policy.1",
+      "candidateSha256": "70439565f25307c22fd93c8aa897871489dc32b1700ebc2390c07896e7b6de01",
+      "candidateSize": 41468178,
+      "baselineBinary": ".local/bin/cli-proxy-api",
+      "baselineSha256": "cf9641b3e50ae486aec1698dec88f735589680f9ae98558c29cde184daac3a96",
+      "stageRoot": ".local/lib/cliproxy-cloudx/releases",
+      "backupRoot": ".local/state/cloudx/cpa-policy-backups",
+      "authDirectory": ".cli-proxy-api",
+      "failureDirectory": ".local/state/cloudx/cpa-auth-failures",
+      "config": ".cli-proxy-api/config.yaml",
+      "launcher": "Library/LaunchAgents/com.codexx.cliproxyapi.plist",
+      "serviceLabel": "com.codexx.cliproxyapi"
+    },
+    "cloud": {
+      "version": "7.2.71-cloudx-policy.1",
+      "candidateSha256": "67baab69ecc507c794f1336197a78e52c0126679a780e1c064cae453966c6a67",
+      "candidateSize": 45314210,
+      "baselineBinary": "/usr/local/bin/cli-proxy-api",
+      "baselineSha256": "1d0abbc6316b1869f74896109c0efb5e19c8197b8226f48a74212ed0a6f5a39d",
+      "stageRoot": "/opt/cliproxy-cloudx/releases",
+      "backupRoot": "/var/lib/cloudx/cpa-policy-backups",
+      "authDirectory": "/var/lib/codex-gateway/cliproxy-auth",
+      "failureDirectory": "/var/lib/codex-gateway/cliproxy-auth-failures",
+      "config": "/etc/cliproxy/config.yaml",
+      "service": "cliproxy.service",
+      "gatewayDropIn": "/etc/systemd/system/cliproxy.service.d/20-cloudx-cpa-policy.conf",
+      "healthDropIn": "/etc/systemd/system/cloudx-cpa-health.service.d/20-cloudx-cpa-policy.conf"
+    }
+  }
+}

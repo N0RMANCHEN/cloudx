@@ -13,6 +13,8 @@ The broker is the only tunnel owner. A filesystem lock prevents competing broker
 
 Local API/CPA diagnosis uses the external gateway's retained error files as a compatibility boundary. It reads only bounded response sections, not request bodies or headers. Both local and cloud modes emit `cloudx.api-diagnosis.v1`; when evidence is absent, reachability remains distinct from upstream account usability.
 
+Local CPA maintenance scans only top-level auth JSON. It retains expired access tokens when a refresh token exists, consumes only fresh `cloudx.cpa-auth-failure.v1` receipts bound to the current file digest, and moves accepted records into a private same-filesystem archive with a rollback-safe manifest. `codexx api restore` requires the exact archived filename. The external CPA is neither restarted nor managed by these commands.
+
 ## Cloud Component
 
 The cloud artifact owns:
@@ -28,6 +30,8 @@ The cloud artifact owns:
 - versioned install, stage, activate, and rollback helpers
 
 CLIProxyAPI remains the gateway runtime. Cloudx checks its contract but does not bundle or silently upgrade it.
+
+The optional operator-built CPA policy patch is pinned independently to each already deployed upstream commit. Its process-global middleware holds at most two proxied API requests until each handler, including streaming handlers, returns. Its failure observer writes no token, request, response, email, or account label; it emits only the top-level auth filename, SHA-256, enumerated permanent reason, evidence count, fixed non-quota flags, and observation time into a private directory. Cloudx revalidates every field before reversible archive.
 
 ## Shared Contracts
 

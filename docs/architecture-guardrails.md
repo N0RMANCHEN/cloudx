@@ -32,6 +32,8 @@ Cloud runtime stdout, stderr, and published public state must use `cloudx_cloud.
 
 Release directories are immutable code. Configuration and state live outside them. Activation changes an atomic `current` symlink only after explicit confirmation. Existing processes continue using the release from which they started.
 
+CLIProxyAPI remains an external dependency. Exact-version policy patches live only under `third_party/cliproxyapi`, are excluded from Cloudx release runtime code, and must bind a clean upstream commit, patch digest, Go version, target platform, and deterministic candidate digest. Building or staging such a candidate grants no launcher, unit, process, listener, credential, or archive authority; external CPA activation requires its own exact confirmation and rollback transaction.
+
 ## File Size
 
 Watched Python and shell files are limited to 800 lines. A temporary exception must be listed with an exact ceiling and split plan in the governance config.

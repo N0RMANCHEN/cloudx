@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 import pathlib
+import re
+import stat
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -18,8 +21,24 @@ from .public_metadata import emit_json, validate_public_document
 DEFAULT_AUTH_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth")
 DEFAULT_ARCHIVE_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth-archive")
 DEFAULT_STATE_DIR = pathlib.Path("/var/lib/cloudx/cpa-health")
+DEFAULT_FAILURE_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth-failures")
 DEFAULT_WARNING_AVAILABLE_ACCOUNTS = 3
 DEFAULT_FAILURE_CONFIRMATIONS = 3
+FAILURE_RECEIPT_SCHEMA = "cloudx.cpa-auth-failure.v1"
+MAX_FAILURE_RECEIPT_BYTES = 16 * 1024
+MAX_FAILURE_RECEIPTS = 2048
+MAX_FAILURE_RECEIPT_AGE_SECONDS = 30 * 60
+MAX_FAILURE_RECEIPT_FUTURE_SKEW_SECONDS = 5 * 60
+MIN_RUNTIME_FAILURE_CONFIRMATIONS = 2
+SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
+PERMANENT_RUNTIME_FAILURES = {
+    "account_deactivated",
+    "authentication_unauthorized",
+    "missing_token",
+    "refresh_invalid_grant",
+    "refresh_token_reused",
+    "refresh_token_revoked",
+}
 
 
 class CpaHealthUnavailable(RuntimeError):
@@ -265,6 +284,146 @@ def archive_confirmed_login_failures(
     return archived, next_candidates
 
 
+def _safe_file_bytes(path: pathlib.Path, maximum: int) -> Optional[bytes]:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(str(path), flags)
+    except OSError:
+        return None
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > maximum:
+            return None
+        chunks: List[bytes] = []
+        remaining = maximum + 1
+        while remaining > 0:
+            chunk = os.read(descriptor, min(65536, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        return raw if len(raw) <= maximum else None
+    except OSError:
+        return None
+    finally:
+        os.close(descriptor)
+
+
+def _sha256(path: pathlib.Path) -> str:
+    raw = _safe_file_bytes(path, cpa_auth.MAX_AUTH_FILE_BYTES)
+    if raw is None:
+        raise OSError("unsafe CPA auth file")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _failure_receipt(path: pathlib.Path, *, now: datetime) -> Optional[Dict[str, Any]]:
+    raw = _safe_file_bytes(path, MAX_FAILURE_RECEIPT_BYTES)
+    if raw is None:
+        return None
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if len(raw) > MAX_FAILURE_RECEIPT_BYTES or not isinstance(document, dict):
+        return None
+    observed = _parse_receipt_time(document.get("observedAt"))
+    auth_file = str(document.get("authFile") or "")
+    digest = str(document.get("authSha256") or "")
+    reason = str(document.get("reason") or "")
+    failure_count = document.get("failureCount")
+    if (
+        document.get("schema") != FAILURE_RECEIPT_SCHEMA
+        or pathlib.Path(auth_file).name != auth_file
+        or not auth_file.endswith(".json")
+        or not SHA256_RE.fullmatch(digest)
+        or reason not in PERMANENT_RUNTIME_FAILURES
+        or document.get("permanentAuthFailure") is not True
+        or document.get("weeklyQuota") is not False
+        or not isinstance(failure_count, int)
+        or isinstance(failure_count, bool)
+        or failure_count < MIN_RUNTIME_FAILURE_CONFIRMATIONS
+        or observed is None
+    ):
+        return None
+    age = (now - observed.astimezone(timezone.utc)).total_seconds()
+    if age < -MAX_FAILURE_RECEIPT_FUTURE_SKEW_SECONDS or age > MAX_FAILURE_RECEIPT_AGE_SECONDS:
+        return None
+    return {
+        "auth_file": auth_file,
+        "auth_sha256": digest,
+        "reason": reason,
+    }
+
+
+def _parse_receipt_time(raw: object) -> Optional[datetime]:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    value = raw.strip()
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+
+
+def archive_runtime_failures(
+    runtime: CpaRuntime,
+    config: Dict[str, Any],
+    failure_dir: pathlib.Path,
+) -> Tuple[List[str], int, int]:
+    if not failure_dir.is_dir() or failure_dir.is_symlink():
+        return [], 0, 0
+    scanned = runtime.scan(config)
+    if not isinstance(scanned, list) or any(not isinstance(item, dict) for item in scanned):
+        raise CpaHealthUnavailable("CPA runtime returned invalid account records")
+    records: Dict[str, List[Dict[str, Any]]] = {}
+    for record in scanned:
+        path = pathlib.Path(str(record.get("path") or ""))
+        if path.name and path.parent == pathlib.Path(config["cliproxy"]["auth_dir"]):
+            records.setdefault(path.name, []).append(record)
+    now = utc_now()
+    archived: List[str] = []
+    rejected = 0
+    stale = 0
+    for index, receipt_path in enumerate(sorted(failure_dir.glob("*.json"))):
+        if index >= MAX_FAILURE_RECEIPTS:
+            rejected += 1
+            continue
+        receipt = _failure_receipt(receipt_path, now=now)
+        if receipt is None:
+            rejected += 1
+            continue
+        matches = records.get(receipt["auth_file"], [])
+        if len(matches) != 1:
+            stale += 1
+            continue
+        record = matches[0]
+        auth_path = pathlib.Path(str(record.get("path") or ""))
+        try:
+            digest = _sha256(auth_path)
+        except OSError:
+            stale += 1
+            continue
+        if digest != receipt["auth_sha256"]:
+            stale += 1
+            continue
+        moved = runtime.quarantine(
+            config,
+            record,
+            reason="runtime-%s" % receipt["reason"],
+            moved_at=now.isoformat(),
+        )
+        archived.append(pathlib.Path(str(moved.get("moved_from") or auth_path)).name)
+        try:
+            receipt_path.unlink()
+        except OSError:
+            pass
+    return archived, rejected, stale
+
+
 def public_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
     result = {
         key: value
@@ -283,6 +442,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--auth-dir", type=pathlib.Path, default=DEFAULT_AUTH_DIR)
     parser.add_argument("--archive-dir", type=pathlib.Path, default=DEFAULT_ARCHIVE_DIR)
     parser.add_argument("--state-dir", type=pathlib.Path, default=DEFAULT_STATE_DIR)
+    parser.add_argument("--failure-dir", type=pathlib.Path, default=DEFAULT_FAILURE_DIR)
     parser.add_argument(
         "--warning-available-accounts",
         type=int,
@@ -334,6 +494,11 @@ def run(args: argparse.Namespace, runtime: Optional[CpaRuntime] = None) -> int:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         previous = load_state(state_path)
         static_archived = archive_static_failures(active_runtime, config, args.state_dir)
+        runtime_archived, rejected_receipts, stale_receipts = archive_runtime_failures(
+            active_runtime,
+            config,
+            args.failure_dir,
+        )
         summary, login_candidates = probe_accounts(
             active_runtime,
             config,
@@ -346,8 +511,11 @@ def run(args: argparse.Namespace, runtime: Optional[CpaRuntime] = None) -> int:
             previous,
             confirmations=max(1, args.failure_confirmations),
         )
-        summary["archived_files"] = sorted(set(static_archived + live_archived))
+        summary["archived_files"] = sorted(set(static_archived + runtime_archived + live_archived))
         summary["archive_candidates"] = archive_candidates
+        summary["runtime_failure_archived_count"] = len(runtime_archived)
+        summary["rejected_failure_receipts"] = rejected_receipts
+        summary["stale_failure_receipts"] = stale_receipts
         save_state(state_path, summary)
         emit_json(public_summary(summary), ensure_ascii=False)
     return 0

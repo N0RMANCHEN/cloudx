@@ -5,7 +5,7 @@ import os
 import sys
 from typing import Optional, Sequence
 
-from . import accounts, api_diagnosis, cloud_cli, import_ui, local_cpa, modes
+from . import accounts, api_diagnosis, cloud_cli, import_ui, local_cpa, local_cpa_maintenance, modes
 from .config import LocalConfig
 
 
@@ -33,6 +33,10 @@ API failure diagnosis (read-only):
   codexx diagnose [api|cpa|cloud] [--json]
   codexx api diagnose [--json]
   codexx cloud diagnose [--json]
+
+Local CPA credential maintenance:
+  codexx api refresh [--dry-run|--apply] [--json]
+  codexx api restore <archived-file> --confirm <archived-file>
 
 After selecting a mode, run plain `codex`; it remains the installed official executable."""
     )
@@ -73,6 +77,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return api_diagnosis.run(LocalConfig.load(), arguments[2:], forced_target="cloud")
     if len(arguments) >= 2 and arguments[0] in ("api", "cpa") and arguments[1] == "diagnose":
         return api_diagnosis.run(LocalConfig.load(), arguments[2:], forced_target=arguments[0])
+    if len(arguments) >= 2 and arguments[0] in ("api", "cpa") and arguments[1] == "refresh":
+        return local_cpa_maintenance.refresh_run(LocalConfig.load(), arguments[2:])
+    if len(arguments) >= 2 and arguments[0] in ("api", "cpa") and arguments[1] == "restore":
+        return local_cpa_maintenance.restore_run(LocalConfig.load(), arguments[2:])
     if arguments[:1] == ["diagnose"]:
         return api_diagnosis.run(LocalConfig.load(), arguments[1:])
     if arguments[:1] == ["cloud"]:

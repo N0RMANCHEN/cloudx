@@ -292,6 +292,43 @@ The default `cloudx.http-importer-stop-plan.v1` result keeps all eleven authoriz
 
 The transaction verifies every rollback-manifest entry, records the active importer and gateway/selectors, disables/stops only `codex-import.service`, and requires the service inactive/disabled with port `8780` closed and no established connection. It then runs an actual SSH `cloudx-remote import --dry-run` with generated fixture data, live formal health, the existing Phi formal-health consumer state, and the authenticated gateway model probe. Any failure—including a partially failed disable—re-enables/starts the importer and requires its listener to return. Success retains the runtime, unit/drop-ins, token metadata, failure receipts, rollback snapshot, and legacy exporter. The archived evidence is intentionally too old for apply; an operator must refresh and re-sign the decision immediately before a separately approved stop window.
 
+## Prepare The External CPA Safety Policy
+
+This is a separate external-service maintenance path. It is not part of ordinary Cloudx activation and does not change the official `codex` executable. The repository pins the currently deployed local CPA commit `15ac7fb...` and cloud CPA commit `5b7f2361...`; it does not upgrade either endpoint.
+
+Build planning is read-only. `--build` requires a clean exact checkout, applies the digest-bound patch in a temporary copy, runs focused Go regressions, and writes only a side-by-side candidate outside the repository:
+
+```bash
+python3 scripts/build_cpa_policy_candidate.py \
+  --target local \
+  --source /absolute/path/to/clean-v7.0.1 \
+  --output /absolute/path/to/local-candidate
+
+python3 scripts/build_cpa_policy_candidate.py \
+  --target cloud \
+  --source /absolute/path/to/clean-v7.2.71 \
+  --output /absolute/path/to/cloud-candidate
+```
+
+Inspect the two independent deployment plans:
+
+```bash
+python3 scripts/install_cpa_policy_candidate.py --target local
+python3 scripts/install_cpa_policy_candidate.py --target cloud
+```
+
+Stage and activation have different exact confirmations. Stage verifies the pinned candidate bytes and copies them under the target's dedicated `cliproxy-cloudx/releases` tree; it does not edit a launcher or unit and does not restart CPA. Activation remains unapproved until the operator repeats the exact printed `ACTIVATE ... CPA POLICY ...` string. It retains the original binary, snapshots the prior launcher or drop-ins, configures private auth/failure directories, restarts only the selected external CPA, and requires `/healthz` plus `X-CPA-Max-Concurrent-API-Requests: 2`. Any failed canary restores the prior service selection automatically.
+
+The signed Cloudx release containing the receipt consumer must be active before production acceptance. Local automatic maintenance then uses the existing `codexx api refresh --apply` LaunchAgent; cloud maintenance consumes receipts on the existing CPA-health timer. Manual local preview and reversible restore are:
+
+```bash
+codexx api refresh --dry-run --json
+codexx api refresh --apply --json
+codexx api restore <archived-file> --confirm <archived-file>
+```
+
+An access token that is merely expired but still has a refresh token is retained. Weekly quota, HTTP 429, transient limits, network failures, timeouts, and 5xx never create an accepted receipt. CPA never moves the auth file; Cloudx performs the digest-bound same-filesystem archive and keeps the private manifest outside release directories.
+
 ## Stage
 
 Local releases live under `~/.local/lib/cloudx/releases/<version>` and cloud releases under `/opt/cloudx/releases/<version>`. State, configuration, credentials, sessions, and logs live elsewhere.

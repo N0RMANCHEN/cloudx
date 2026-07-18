@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.cpa-auth-failure.v1.schema.json",
+  "title": "Cloudx CPA permanent authentication failure receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "authFile",
+    "authSha256",
+    "reason",
+    "failureCount",
+    "permanentAuthFailure",
+    "weeklyQuota",
+    "observedAt"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.cpa-auth-failure.v1"},
+    "authFile": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,254}\\.json$"
+    },
+    "authSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "reason": {
+      "enum": [
+        "account_deactivated",
+        "authentication_unauthorized",
+        "missing_token",
+        "refresh_invalid_grant",
+        "refresh_token_reused",
+        "refresh_token_revoked"
+      ]
+    },
+    "failureCount": {"type": "integer", "minimum": 2},
+    "permanentAuthFailure": {"const": true},
+    "weeklyQuota": {"const": false},
+    "observedAt": {"type": "string", "format": "date-time"}
+  }
+}
