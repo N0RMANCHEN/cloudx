@@ -21,7 +21,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_CONTRACT = ROOT / "third_party/cliproxyapi/deployment-contract.json"
-REQUIRED_CLOUDX_VERSIONS = {"local": "0.1.18", "cloud": "0.1.17"}
+REQUIRED_CLOUDX_VERSIONS = {"local": "0.1.18", "cloud": "0.1.18"}
 PLAN_SCHEMA = "cloudx.cpa-failure-watcher-plan.v1"
 RESULT_SCHEMA = "cloudx.cpa-failure-watcher.v1"
 MAX_FILE_BYTES = 2 * 1024 * 1024
