@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Accept the read-only cloud-install preflight for signed `0.1.18`: preserve Cloudx `0.1.17/0.1.16`, CPA/importer identities and restart counts, zero active/failure/sweep inputs, all 45 reversible archive entries, absent watcher units, and the healthy local CPA communication path; prove direct cloud GitHub access is unavailable while an automatically removed mihomo-proxied clone matches the immutable artifact/source/signature/digests and self-check, so the later exact-confirmation install must explicitly carry the proxy environment or use the complete offline Git-bundle fallback.
 - Advance repository development to `0.1.19` immediately after immutable signed `0.1.18` publication, preventing later source changes from rebuilding the released identity while endpoint installation, local CPA policy activation, and both watcher gates remain separately controlled.
 
 ## 0.1.18 - 2026-07-19

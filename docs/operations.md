@@ -89,6 +89,8 @@ The immutable artifact ref is `5e345ed8cbf0373ac9e6214e45358187a524ea5d`; stable
 
 Fresh remote clones and all seven downloaded Release assets verified the current signer and exact source, rejected the release with the previous signer, matched every artifact and offline-bundle member byte-for-byte, passed both component self-checks, accepted stable, and repeated local/cloud `staged -> already-staged` transactions in selector-free isolated roots. Publication itself did not install or activate a real endpoint, restart CPA, or modify a credential/archive. Local remained Cloudx `0.1.17/0.1.13` with healthy CPA PID `61859`; cloud remained Cloudx `0.1.17/0.1.16` with CPA PID `1613475`, restart count `0`, and zero active auth files. Real installation requires separate `INSTALL CLOUDX CLOUD 0.1.18` and `INSTALL CLOUDX LOCAL 0.1.18` confirmations in that order.
 
+The cloud-install read-only preflight is accepted. `/opt/cloudx/releases/0.1.18` remains absent; selectors, CPA/importer PIDs and restart counts, 45-entry archive manifest, zero active/failure/sweep inputs, required private files, watcher absence, and the local CPA communication path are preserved. Direct cloud-host GitHub HTTPS timed out, but an automatically removed clone using explicit `HTTP_PROXY`/`HTTPS_PROXY=http://127.0.0.1:7890` matched the immutable ref/source/signature/digests and passed the cloud self-check. The future exact-confirmation transaction must inject that proxy environment into the immutable installer or use the complete verified offline Git bundle; it must not change mihomo or global Git/system proxy configuration.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:
