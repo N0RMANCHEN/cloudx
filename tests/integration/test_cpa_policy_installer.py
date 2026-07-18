@@ -29,6 +29,8 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertNotEqual(document["stageConfirmation"], document["activationConfirmation"])
         self.assertFalse(document["stageChangesService"])
         self.assertTrue(document["activationRestartsExternalCPA"])
+        self.assertTrue(document["localActivationRequiresRealCodexCanary"])
+        self.assertTrue(document["localActivationRollsBackOnCommunicationFailure"])
         self.assertFalse(document["weeklyQuotaArchived"])
 
     def test_cloud_drop_ins_select_exact_candidate_and_private_failure_dir(self) -> None:
@@ -95,6 +97,46 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertEqual(cloud["baselineSha256"], "1d0abbc6316b1869f74896109c0efb5e19c8197b8226f48a74212ed0a6f5a39d")
         self.assertEqual(local["candidateSha256"], "70439565f25307c22fd93c8aa897871489dc32b1700ebc2390c07896e7b6de01")
         self.assertEqual(cloud["candidateSha256"], "67baab69ecc507c794f1336197a78e52c0126679a780e1c064cae453966c6a67")
+
+    def test_local_communication_canary_uses_pinned_official_codex_profile(self) -> None:
+        value = MODULE.expanded_target("local", MODULE.load_contract(MODULE.DEFAULT_CONTRACT))
+        completed = MODULE.subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=MODULE.COMMUNICATION_CANARY_TEXT,
+            stderr="",
+        )
+        with mock.patch.object(pathlib.Path, "is_file", return_value=True), mock.patch.object(
+            pathlib.Path,
+            "is_dir",
+            return_value=True,
+        ), mock.patch.object(pathlib.Path, "is_symlink", return_value=False), mock.patch.object(
+            MODULE.os,
+            "access",
+            return_value=True,
+        ), mock.patch.object(MODULE, "run_command", return_value=completed) as command:
+            self.assertEqual(MODULE.probe_local_communication(value), "passed")
+        arguments = command.call_args.args[0]
+        options = command.call_args.kwargs
+        self.assertEqual(arguments[0], str(value["codexBinary"]))
+        self.assertIn(MODULE.COMMUNICATION_CANARY_TEXT, arguments[-1])
+        self.assertEqual(options["environment"]["CODEX_HOME"], str(value["communicationCodexHome"]))
+        self.assertNotIn("OPENAI_BASE_URL", options["environment"])
+
+    def test_local_communication_canary_rejects_missing_expected_reply(self) -> None:
+        value = MODULE.expanded_target("local", MODULE.load_contract(MODULE.DEFAULT_CONTRACT))
+        completed = MODULE.subprocess.CompletedProcess(args=[], returncode=0, stdout="different", stderr="")
+        with mock.patch.object(pathlib.Path, "is_file", return_value=True), mock.patch.object(
+            pathlib.Path,
+            "is_dir",
+            return_value=True,
+        ), mock.patch.object(pathlib.Path, "is_symlink", return_value=False), mock.patch.object(
+            MODULE.os,
+            "access",
+            return_value=True,
+        ), mock.patch.object(MODULE, "run_command", return_value=completed):
+            with self.assertRaises(MODULE.CpaPolicyInstallRejected):
+                MODULE.probe_local_communication(value)
 
 
 if __name__ == "__main__":

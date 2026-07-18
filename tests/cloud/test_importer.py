@@ -48,6 +48,33 @@ class ImportNormalizationTests(unittest.TestCase):
         self.assertEqual(normalize(json.dumps(sub2api).encode())[0]["email"], "one@example.test")
         self.assertEqual(len(normalize(json.dumps(bundle).encode())), 1)
 
+    def test_openai_oauth_export_wrapper(self) -> None:
+        source = {
+            "type": "oauth",
+            "platform": "openai",
+            "credentials": {
+                "email": "oauth@example.test",
+                "access_token": "access.oauth.value",
+                "id_token": "id.oauth.value",
+                "chatgpt_account_id": "account-oauth",
+                "expires_at": "2030-01-01T00:00:00Z",
+            },
+        }
+        values = normalize(("卡密导出\n" + json.dumps(source)).encode("utf-8"))
+        self.assertEqual(values[0]["type"], "codex")
+        self.assertEqual(values[0]["account_id"], "account-oauth")
+        self.assertEqual(values[0]["expired"], "2030-01-01T00:00:00Z")
+
+    def test_non_openai_oauth_export_remains_rejected(self) -> None:
+        source = {
+            "type": "oauth",
+            "platform": "another-provider",
+            "credentials": {"access_token": "access.other.value"},
+        }
+        with self.assertRaises(ImportRejected) as captured:
+            normalize(json.dumps(source).encode())
+        self.assertEqual(captured.exception.code, "wrong_provider")
+
     def test_directory_envelope_and_deduplication(self) -> None:
         content = json.dumps(record())
         envelope = {

@@ -13,7 +13,9 @@
       "failureDirectory": ".local/state/cloudx/cpa-auth-failures",
       "config": ".cli-proxy-api/config.yaml",
       "launcher": "Library/LaunchAgents/com.codexx.cliproxyapi.plist",
-      "serviceLabel": "com.codexx.cliproxyapi"
+      "serviceLabel": "com.codexx.cliproxyapi",
+      "codexBinary": "/opt/homebrew/bin/codex",
+      "communicationCodexHome": ".codex-accounts/api/.codex"
     },
     "cloud": {
       "version": "7.2.71-cloudx-policy.1",

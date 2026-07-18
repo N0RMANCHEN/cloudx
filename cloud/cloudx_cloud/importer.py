@@ -141,7 +141,15 @@ def _flatten(entry: Dict[str, Any]) -> Dict[str, Any]:
         auth_claims = access_claims.get("https://api.openai.com/auth")
     if not isinstance(auth_claims, dict):
         auth_claims = {}
-    auth_type = str(source.get("type") or source.get("provider") or entry.get("type") or "codex").casefold()
+    nested_auth_type = str(source.get("type") or source.get("provider") or "").casefold()
+    outer_auth_type = str(entry.get("type") or "").casefold()
+    outer_platform = str(entry.get("platform") or "").casefold()
+    if nested_auth_type:
+        auth_type = nested_auth_type
+    elif credentials is not None and outer_auth_type == "oauth" and outer_platform == "openai":
+        auth_type = "codex"
+    else:
+        auth_type = outer_auth_type or "codex"
     if auth_type not in ("", "codex"):
         raise ImportRejected("wrong_provider", "an import record is not a Codex credential")
     email = str(source.get("email") or source.get("user_email") or entry.get("name") or id_claims.get("email") or "").strip()

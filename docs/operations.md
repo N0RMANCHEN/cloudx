@@ -93,6 +93,8 @@ The source may also be a bounded directory or `-` for redirected stdin. `--name-
 
 The default target is `~/.cli-proxy-api`. Configure a different external auth directory with `localCpa.authDir` in the local Cloudx config or `CLOUDX_LOCAL_CPA_AUTH_DIR`; the path must be absolute and outside Cloudx release/state roots. Cloudx never starts, stops, restarts, upgrades, or reconfigures the external CPA as part of import. A preview performs no filesystem or token-refresh write side effect.
 
+Source `0.1.16` also recognizes the exact CPA export wrapper with outer `platform=openai`, outer `type=oauth`, and a nested `credentials` object. Another OAuth platform remains rejected. Cloud import acceptance proves only a locked, validated, atomic credential write; always follow it with idempotent dry-run and real model traffic. A model-list response or `written` count is not evidence that the workspace is active, has quota, or can refresh.
+
 `codexx-legacy` remains a private rollback command for older installed releases. Do not remove its recovery bundle until a signed release containing the native adapter has been activated, a real local import and rollback have passed, and the separate M5 deletion decision is approved.
 
 ## Prepare Legacy Local Package Quarantine
@@ -318,6 +320,14 @@ python3 scripts/install_cpa_policy_candidate.py --target cloud
 ```
 
 Stage and activation have different exact confirmations. Stage verifies the pinned candidate bytes and copies them under the target's dedicated `cliproxy-cloudx/releases` tree; it does not edit a launcher or unit and does not restart CPA. Activation remains unapproved until the operator repeats the exact printed `ACTIVATE ... CPA POLICY ...` string. It retains the original binary, snapshots the prior launcher or drop-ins, configures private auth/failure directories, restarts only the selected external CPA, and requires `/healthz` plus `X-CPA-Max-Concurrent-API-Requests: 2`. Any failed canary restores the prior service selection automatically.
+
+Do not invoke synchronous local activation from a Codex turn that is itself using the local CPA. After signed Cloudx `0.1.16` is active locally, inspect the non-authorizing deferred plan:
+
+```bash
+python3 scripts/schedule_local_cpa_policy_activation.py
+```
+
+Its exact-confirmation apply copies only the installer and pinned contract into a private job directory, returns without restarting CPA, waits 180 seconds so the current turn can finish, and then runs the local activation from a detached worker. The worker requires a real official-Codex request through the current `api` profile before restart and after candidate selection. If the post-activation request fails, the installer restores the original LaunchAgent and binary and requires the same real request to recover before recording failure. The worker receipt is aggregate-only and contains no credential or model response content.
 
 The signed Cloudx release containing the receipt consumer must be active before production acceptance. Local automatic maintenance then uses the existing `codexx api refresh --apply` LaunchAgent; cloud maintenance consumes receipts on the existing CPA-health timer. Manual local preview and reversible restore are:
 

@@ -31,6 +31,8 @@ MAX_LAUNCHER_BYTES = 256 * 1024
 MAX_DROP_IN_BYTES = 64 * 1024
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$")
+COMMUNICATION_CANARY_TEXT = "LOCAL_CPA_POLICY_COMMUNICATION_OK"
+COMMUNICATION_CANARY_TIMEOUT_SECONDS = 180.0
 
 
 class CpaPolicyInstallRejected(RuntimeError):
@@ -132,6 +134,8 @@ def run_command(
     *,
     check: bool = True,
     timeout: float = 30.0,
+    environment: Optional[Dict[str, str]] = None,
+    cwd: Optional[pathlib.Path] = None,
 ) -> subprocess.CompletedProcess[str]:
     try:
         completed = subprocess.run(
@@ -142,6 +146,8 @@ def run_command(
             text=True,
             timeout=timeout,
             check=False,
+            env=environment,
+            cwd=str(cwd) if cwd is not None else None,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise CpaPolicyInstallRejected("CPA policy service command failed") from exc
@@ -187,6 +193,14 @@ def expanded_target(target: str, contract: Dict[str, Any]) -> Dict[str, Any]:
             "launcher",
         ):
             value[key] = home / str(value[key])
+        codex_binary = pathlib.Path(str(value.get("codexBinary") or ""))
+        if not codex_binary.is_absolute():
+            raise CpaPolicyInstallRejected("local communication Codex binary path is invalid")
+        codex_home_relative = pathlib.Path(str(value.get("communicationCodexHome") or ""))
+        if codex_home_relative.is_absolute() or ".." in codex_home_relative.parts:
+            raise CpaPolicyInstallRejected("local communication Codex home path is invalid")
+        value["codexBinary"] = codex_binary
+        value["communicationCodexHome"] = home / codex_home_relative
     else:
         for key in (
             "baselineBinary",
@@ -229,6 +243,8 @@ def plan_document(target: str, value: Dict[str, Any]) -> Dict[str, Any]:
         "weeklyQuotaArchived": False,
         "stageChangesService": False,
         "activationRestartsExternalCPA": True,
+        "localActivationRequiresRealCodexCanary": target == "local",
+        "localActivationRollsBackOnCommunicationFailure": target == "local",
         "automaticAction": False,
     }
 
@@ -358,6 +374,47 @@ def probe_policy(config: pathlib.Path) -> Tuple[int, str]:
     if status not in {400, 401, 403} or policy != "2":
         raise CpaPolicyInstallRejected("CPA concurrency policy canary failed")
     return status, policy
+
+
+def probe_local_communication(value: Dict[str, Any]) -> str:
+    codex_binary = value["codexBinary"]
+    codex_home = value["communicationCodexHome"]
+    if not codex_binary.is_file() or not os.access(codex_binary, os.X_OK):
+        raise CpaPolicyInstallRejected("official Codex communication canary binary is unavailable")
+    if codex_home.is_symlink() or not codex_home.is_dir():
+        raise CpaPolicyInstallRejected("local CPA communication account is unavailable")
+    environment = dict(os.environ)
+    environment["HOME"] = str(pathlib.Path.home().resolve())
+    environment["CODEX_HOME"] = str(codex_home)
+    for name in (
+        "OPENAI_API_KEY",
+        "OPENAI_BASE_URL",
+        "OPENAI_API_BASE",
+        "CLOUDX_MODE",
+        "CLOUDX_MODE_LEASE_ID",
+        "CLOUDX_MODE_BROKER_PORT",
+        "CODEXX_ACTIVE_ACCOUNT",
+        "CODEXX_ACTIVE_HOME",
+        "CODEXX_ACTIVE_PINNED",
+    ):
+        environment.pop(name, None)
+    with tempfile.TemporaryDirectory(prefix="cloudx-cpa-communication-canary-") as temporary:
+        completed = run_command(
+            [
+                str(codex_binary),
+                "exec",
+                "--skip-git-repo-check",
+                "Reply with exactly %s" % COMMUNICATION_CANARY_TEXT,
+            ],
+            check=False,
+            timeout=COMMUNICATION_CANARY_TIMEOUT_SECONDS,
+            environment=environment,
+            cwd=pathlib.Path(temporary),
+        )
+    output = completed.stdout + "\n" + completed.stderr
+    if completed.returncode != 0 or COMMUNICATION_CANARY_TEXT not in output:
+        raise CpaPolicyInstallRejected("local CPA real Codex communication canary failed")
+    return "passed"
 
 
 def backup_snapshot(root: pathlib.Path, name: str, snapshots: Dict[str, Snapshot], *, uid: int, gid: int) -> pathlib.Path:
@@ -532,11 +589,15 @@ def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
     uid = os.geteuid()
     gid = os.getegid()
     domain = "gui/%d" % uid
-    launchctl_print(domain, value["serviceLabel"])
+    launch_before = launchctl_print(domain, value["serviceLabel"])
+    if launcher_before.data != launcher_after and str(value["baselineBinary"]) not in launch_before.stdout:
+        raise CpaPolicyInstallRejected("local CPA service does not select the pinned baseline")
+    probe_local_communication(value)
     if launcher_before.data == launcher_after:
         pid = wait_launchd(domain, value["serviceLabel"], value["stagedBinary"])
         status, policy = probe_policy(value["config"])
-        return {"schema": RESULT_SCHEMA, "status": "already-active", "target": "local", "pid": pid, "httpStatus": status, "policy": policy}
+        communication = probe_local_communication(value)
+        return {"schema": RESULT_SCHEMA, "status": "already-active", "target": "local", "pid": pid, "httpStatus": status, "policy": policy, "communicationCanary": communication}
     ensure_directory(value["failureDirectory"], mode=0o700, uid=uid, gid=gid)
     backup = backup_snapshot(value["backupRoot"], "local", {"launcher": launcher_before}, uid=uid, gid=gid)
     service = "%s/%s" % (domain, value["serviceLabel"])
@@ -554,12 +615,19 @@ def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
         status, policy = probe_policy(value["config"])
         if sha256_bytes(safe_snapshot(value["baselineBinary"], maximum=MAX_CANDIDATE_BYTES, required=True).data) != value["baselineSha256"]:
             raise CpaPolicyInstallRejected("local CPA baseline changed during activation")
+        communication = probe_local_communication(value)
     except Exception as exc:
-        restore_snapshot(value["launcher"], launcher_before)
-        run_command(["launchctl", "bootout", service], check=False)
-        run_command(["launchctl", "bootstrap", domain, str(value["launcher"])], check=False)
-        wait_launchd(domain, value["serviceLabel"], value["baselineBinary"])
-        probe_health(value["config"])
+        try:
+            restore_snapshot(value["launcher"], launcher_before)
+            run_command(["launchctl", "bootout", service], check=False)
+            run_command(["launchctl", "bootstrap", domain, str(value["launcher"])], check=False)
+            wait_launchd(domain, value["serviceLabel"], value["baselineBinary"])
+            probe_health(value["config"])
+            probe_local_communication(value)
+        except Exception as recovery_exc:
+            raise CpaPolicyInstallRejected(
+                "local CPA activation failed; baseline restoration communication canary also failed"
+            ) from recovery_exc
         raise CpaPolicyInstallRejected("local CPA activation failed and was rolled back") from exc
     return {
         "schema": RESULT_SCHEMA,
@@ -569,6 +637,7 @@ def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
         "pid": pid,
         "httpStatus": status,
         "policy": policy,
+        "communicationCanary": communication,
         "backupName": backup.name,
         "externalServiceManaged": False,
         "operatorApprovedRestart": True,
