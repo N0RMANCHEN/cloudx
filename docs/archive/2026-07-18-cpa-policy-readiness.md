@@ -53,14 +53,15 @@ Each candidate was rebuilt independently from a fresh clean exact checkout with 
 ## Communication Continuity And Cloud Import Evidence
 
 - The exact OpenAI OAuth CPA-export wrapper was first rejected by installed Cloudx `0.1.13` because the outer `type=oauth` was treated as a provider. An in-memory, non-persistent normalization to Codex records produced an accepted dry-run for ten writes; the separately authorized atomic import then wrote ten records, and the repeated dry-run reported ten skipped with zero writes.
-- The ten imported token records are bound to one `k12` workspace, contain no refresh token, and have access JWTs whose cryptographic expiry is still in the future. Real cloud traffic produced explicit upstream `deactivated_workspace` and then the scheduler-level `auth_unavailable` mask. They are therefore not usable cloud capacity and were not manually removed or archived; the future policy must still require its normal two-signal, digest-bound permanent-failure evidence.
+- The ten imported token records are bound to one `k12` workspace, contain no refresh token, and have access JWTs whose cryptographic expiry is still in the future. Real cloud traffic produced explicit upstream `deactivated_workspace` and then the scheduler-level `auth_unavailable` mask. At this readiness checkpoint they were not manually removed or archived. A later operator-authorized sequential probe classified all 45 cloud records through the declared proxy as explicit `deactivated_workspace` and reversibly archived all 45; see `2026-07-18-cloud-cpa-sequential-archive.md`.
 - Cloud import and canary activity left `cliproxy.service` at PID `977036`, restart count `0`, and its baseline binary. A successful direct `soul0` official-Codex canary proves an independent non-CPA recovery path. A separate real official-Codex request through the current local `api` profile also passed before any local service action.
 - Source now recognizes only the exact `platform=openai`, `type=oauth`, nested-credentials wrapper and retains rejection for another platform. Local activation now requires a real `api` Codex request before restart and after candidate selection; failure restores the original launcher/binary and requires the real request again. The default scheduler remains non-authorizing, delays an exactly confirmed local activation by 180 seconds, and runs from a private detached job so the CPA-backed authorizing turn can finish before restart.
 
 ## Remaining Gates
 
-1. stage and activate published signed Cloudx `0.1.16` locally while retaining signed `0.1.13` as N-1
-2. activate cloud first and local second CPA using the distinct exact `ACTIVATE ... CPA POLICY ...` confirmations
-3. accept natural-traffic evidence for maximum-two concurrency, quota non-archive, permanent-failure archive, and exact restore
+1. publish and activate signed Cloudx `0.1.17` cloud-first and local-second while retaining signed N-1
+2. separately stage revised `.policy.2` candidates; retain the inactive staged `.policy.1` candidates as superseded evidence
+3. activate `.policy.2` cloud first and local second using the distinct exact `ACTIVATE ... CPA POLICY ...` confirmations only after matching Cloudx `0.1.17` activation
+4. accept natural-traffic evidence for maximum-two concurrency, quota non-archive, direct conclusive permanent-failure archive, and exact restore
 
 No build, test, publication, `/tmp` copy, or readiness evidence above grants those later actions.

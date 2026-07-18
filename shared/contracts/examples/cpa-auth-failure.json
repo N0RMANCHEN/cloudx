@@ -3,7 +3,7 @@
   "authFile": "codex-example.json",
   "authSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "reason": "refresh_invalid_grant",
-  "failureCount": 2,
+  "failureCount": 1,
   "permanentAuthFailure": true,
   "weeklyQuota": false,
   "observedAt": "2026-07-18T06:00:00Z"

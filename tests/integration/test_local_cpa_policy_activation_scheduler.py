@@ -23,12 +23,15 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
         document = MODULE.plan(180)
         self.assertEqual(document["deferredSeconds"], 180)
         self.assertFalse(document["currentTurnRestarted"])
+        self.assertFalse(document["codexProcessesStopped"])
+        self.assertTrue(document["sharedCPAUnavailableDuringRestart"])
+        self.assertFalse(document["inFlightRequestContinuityGuaranteed"])
         self.assertTrue(document["realCodexCanaryBeforeActivation"])
         self.assertTrue(document["realCodexCanaryAfterActivation"])
         self.assertTrue(document["realCodexCanaryAfterRollback"])
         self.assertTrue(document["automaticRollback"])
         self.assertFalse(document["automaticAction"])
-        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.16")
+        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.17")
         self.assertTrue(document["confirmation"].startswith("ACTIVATE LOCAL CPA POLICY"))
 
     def test_current_cloudx_version_requires_a_real_selector(self) -> None:
@@ -51,7 +54,7 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
                     "jobId": "test-job",
                     "executeAfterEpoch": 0,
                     "confirmation": "ACTIVATE LOCAL CPA POLICY test abcdef123456",
-                    "requiredActiveCloudxVersion": "0.1.16",
+                    "requiredActiveCloudxVersion": "0.1.17",
                     "candidateVersion": "test-policy.1",
                     "candidateSha256": "a" * 64,
                     "installerSha256": MODULE.sha256(files["installer"].read_bytes()),
@@ -65,7 +68,7 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
                 stdout=json.dumps({"status": "active", "communicationCanary": "passed"}),
                 stderr="",
             )
-            with mock.patch.object(MODULE, "current_cloudx_version", return_value="0.1.16"), mock.patch.object(
+            with mock.patch.object(MODULE, "current_cloudx_version", return_value="0.1.17"), mock.patch.object(
                 MODULE.subprocess,
                 "run",
                 return_value=completed,

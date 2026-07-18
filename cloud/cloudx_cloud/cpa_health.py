@@ -9,7 +9,6 @@ import pathlib
 import re
 import stat
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -29,7 +28,7 @@ MAX_FAILURE_RECEIPT_BYTES = 16 * 1024
 MAX_FAILURE_RECEIPTS = 2048
 MAX_FAILURE_RECEIPT_AGE_SECONDS = 30 * 60
 MAX_FAILURE_RECEIPT_FUTURE_SKEW_SECONDS = 5 * 60
-MIN_RUNTIME_FAILURE_CONFIRMATIONS = 2
+MIN_RUNTIME_FAILURE_CONFIRMATIONS = 1
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 PERMANENT_RUNTIME_FAILURES = {
     "account_deactivated",
@@ -53,6 +52,7 @@ class CpaRuntime:
     contexts: Callable[..., List[Dict[str, Any]]]
     payload_auth: Callable[..., Dict[str, Any]]
     probe: Callable[..., Optional[Dict[str, Any]]]
+    transport: Callable[..., Dict[str, Any]]
 
 
 def utc_now() -> datetime:
@@ -67,6 +67,7 @@ def native_runtime() -> CpaRuntime:
         contexts=cpa_auth.auth_contexts,
         payload_auth=cpa_auth.payload_auth,
         probe=cpa_quota.probe_account_quota_http,
+        transport=cpa_quota.probe_transport_http,
     )
 
 
@@ -75,6 +76,7 @@ def cloudx_config(
     archive_dir: pathlib.Path,
     *,
     failure_confirmations: int,
+    proxy_url: str = "",
 ) -> Dict[str, Any]:
     return {
         "cliproxy": {
@@ -82,6 +84,7 @@ def cloudx_config(
             "auth_dir": str(auth_dir),
             "quarantine_dir": str(archive_dir),
             "failure_confirmations": max(1, failure_confirmations),
+            "proxy_url": str(proxy_url or "").strip(),
         }
     }
 
@@ -114,6 +117,7 @@ def summarize_probes(
     statuses = Counter(str((item or {}).get("status") or "unavailable") for item in probes)
     available = statuses["ready"] + statuses["warning"]
     limited = statuses["limited"]
+    invalid = statuses["invalid"]
     failed = len(probes) - available - limited
     reset_times = sorted(
         str(item.get("unavailable_until"))
@@ -145,6 +149,7 @@ def summarize_probes(
         "ready": statuses["ready"],
         "warning": statuses["warning"],
         "limited": limited,
+        "invalid": invalid,
         "failed": failed,
         "zero_quota": sum(1 for value in remaining if value <= 0),
         "low_quota": sum(1 for value in remaining if 0 < value <= 10),
@@ -157,40 +162,78 @@ def probe_accounts(
     config: Dict[str, Any],
     *,
     warning_available_accounts: int,
-    max_workers: int = 8,
-) -> Tuple[Dict[str, Any], List[str]]:
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     contexts = runtime.contexts(config, "api")
     if not isinstance(contexts, list) or any(not isinstance(item, dict) for item in contexts):
         raise CpaHealthUnavailable("CPA runtime returned invalid account contexts")
-    with ThreadPoolExecutor(max_workers=min(max_workers, max(1, len(contexts)))) as pool:
-        probes = list(pool.map(lambda context: probe_context(runtime, config, context), contexts))
-    login_candidates: List[str] = []
-    for context, item in zip(contexts, probes):
-        if not isinstance(item, dict) or item.get("status") != "login":
-            continue
-        payload = context.get("payload") if isinstance(context.get("payload"), dict) else {}
-        auth = runtime.payload_auth(payload)
-        if not isinstance(auth, dict):
-            raise CpaHealthUnavailable("CPA runtime returned invalid auth context")
-        tokens = auth.get("tokens", {})
-        if isinstance(tokens, dict) and not str(tokens.get("refresh_token") or "").strip():
-            login_candidates.append(str(context.get("path") or ""))
-    return (
-        summarize_probes(
-            probes,
+    if not contexts:
+        summary = summarize_probes(
+            [],
             warning_available_accounts=warning_available_accounts,
             checked_at=utc_now().isoformat(),
-        ),
-        login_candidates,
+        )
+        summary.update({"probe_gate": "no_accounts", "probe_concurrency": 1})
+        return summary, []
+    transport = runtime.transport(config, timeout_seconds=5)
+    transport_status = str(transport.get("status") or "transport_error") if isinstance(transport, dict) else "transport_error"
+    if transport_status != "reachable":
+        summary = summarize_probes(
+            [None] * len(contexts),
+            warning_available_accounts=warning_available_accounts,
+            checked_at=utc_now().isoformat(),
+        )
+        summary.update({"probe_gate": transport_status, "probe_concurrency": 1})
+        return summary, []
+
+    probes: List[Optional[Dict[str, Any]]] = []
+    digests: List[str] = []
+    for context in contexts:
+        path = pathlib.Path(str(context.get("path") or ""))
+        try:
+            digest = _sha256(path)
+        except OSError:
+            digest = ""
+        digests.append(digest)
+        probes.append(probe_context(runtime, config, context))
+    grouped: Dict[str, List[Tuple[Optional[Dict[str, Any]], str]]] = {}
+    for context, item, digest in zip(contexts, probes, digests):
+        grouped.setdefault(str(context.get("path") or ""), []).append((item, digest))
+    permanent_candidates: List[Dict[str, Any]] = []
+    for path, observations in sorted(grouped.items()):
+        reasons: List[str] = []
+        digests_for_path = {digest for unused_item, digest in observations if digest}
+        for item, unused_digest in observations:
+            if (
+                not isinstance(item, dict)
+                or item.get("permanent_auth_failure") is not True
+                or item.get("weekly_quota") is not False
+            ):
+                reasons = []
+                break
+            reason = str(item.get("failure_reason") or "")
+            if reason not in cpa_quota.PERMANENT_AUTH_FAILURE_REASONS:
+                reasons = []
+                break
+            reasons.append(reason)
+        if (
+            not path
+            or len(reasons) != len(observations)
+            or len(digests_for_path) != 1
+            or any(not digest for unused_item, digest in observations)
+        ):
+            continue
+        permanent_candidates.append({
+            "path": path,
+            "auth_sha256": next(iter(digests_for_path)),
+            "reason": sorted(set(reasons))[0],
+        })
+    summary = summarize_probes(
+        probes,
+        warning_available_accounts=warning_available_accounts,
+        checked_at=utc_now().isoformat(),
     )
-
-
-def load_state(path: pathlib.Path) -> Dict[str, Any]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
+    summary.update({"probe_gate": "reachable", "probe_concurrency": 1})
+    return summary, permanent_candidates
 
 
 def save_state(path: pathlib.Path, summary: Dict[str, Any]) -> None:
@@ -238,17 +281,11 @@ def archive_static_failures(
     ]
 
 
-def archive_confirmed_login_failures(
+def archive_permanent_probe_failures(
     runtime: CpaRuntime,
     config: Dict[str, Any],
-    login_candidates: List[str],
-    previous: Dict[str, Any],
-    *,
-    confirmations: int,
-) -> Tuple[List[str], Dict[str, Any]]:
-    previous_candidates = previous.get("archive_candidates")
-    if not isinstance(previous_candidates, dict):
-        previous_candidates = {}
+    candidates: List[Dict[str, Any]],
+) -> Tuple[List[str], int]:
     scanned = runtime.scan(config)
     if not isinstance(scanned, list):
         raise CpaHealthUnavailable("CPA runtime returned invalid account records")
@@ -257,31 +294,35 @@ def archive_confirmed_login_failures(
         for record in scanned
         if isinstance(record, dict)
     }
-    now = utc_now().isoformat()
-    next_candidates: Dict[str, Any] = {}
     archived: List[str] = []
-    for path in sorted(set(login_candidates)):
+    stale = 0
+    now = utc_now().isoformat()
+    for candidate in sorted(candidates, key=lambda item: str(item.get("path") or "")):
+        path = str(candidate.get("path") or "")
         record = records.get(path)
         if not record or not pathlib.Path(path).is_file():
+            stale += 1
             continue
-        old = previous_candidates.get(path)
-        old_count = int(old.get("failure_count") or 0) if isinstance(old, dict) else 0
-        failure_count = old_count + 1
-        if failure_count < confirmations:
-            next_candidates[path] = {
-                "failure_count": failure_count,
-                "last_reason": "usage-endpoint-login-without-refresh-token",
-                "last_failed_at": now,
-            }
+        try:
+            digest = _sha256(pathlib.Path(path))
+        except OSError:
+            stale += 1
+            continue
+        reason = str(candidate.get("reason") or "")
+        if (
+            digest != str(candidate.get("auth_sha256") or "")
+            or reason not in cpa_quota.PERMANENT_AUTH_FAILURE_REASONS
+        ):
+            stale += 1
             continue
         moved = runtime.quarantine(
             config,
             record,
-            reason="confirmed-login-failure-without-refresh-token",
+            reason="probe-%s" % reason,
             moved_at=now,
         )
         archived.append(pathlib.Path(str(moved.get("moved_from") or path)).name)
-    return archived, next_candidates
+    return archived, stale
 
 
 def _safe_file_bytes(path: pathlib.Path, maximum: int) -> Optional[bytes]:
@@ -444,6 +485,15 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--state-dir", type=pathlib.Path, default=DEFAULT_STATE_DIR)
     parser.add_argument("--failure-dir", type=pathlib.Path, default=DEFAULT_FAILURE_DIR)
     parser.add_argument(
+        "--proxy-url",
+        default=(
+            os.environ.get("CLOUDX_CPA_PROXY_URL")
+            or os.environ.get("HTTPS_PROXY")
+            or os.environ.get("https_proxy")
+            or ""
+        ),
+    )
+    parser.add_argument(
         "--warning-available-accounts",
         type=int,
         default=int(
@@ -475,6 +525,7 @@ def run(args: argparse.Namespace, runtime: Optional[CpaRuntime] = None) -> int:
         args.auth_dir,
         args.archive_dir,
         failure_confirmations=args.failure_confirmations,
+        proxy_url=str(getattr(args, "proxy_url", "") or ""),
     )
     if args.check:
         summary, unused_candidates = probe_accounts(
@@ -492,28 +543,26 @@ def run(args: argparse.Namespace, runtime: Optional[CpaRuntime] = None) -> int:
     with lock_path.open("a+", encoding="utf-8") as lock:
         lock_path.chmod(0o600)
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-        previous = load_state(state_path)
         static_archived = archive_static_failures(active_runtime, config, args.state_dir)
         runtime_archived, rejected_receipts, stale_receipts = archive_runtime_failures(
             active_runtime,
             config,
             args.failure_dir,
         )
-        summary, login_candidates = probe_accounts(
+        summary, probe_candidates = probe_accounts(
             active_runtime,
             config,
             warning_available_accounts=args.warning_available_accounts,
         )
-        live_archived, archive_candidates = archive_confirmed_login_failures(
+        probe_archived, stale_probe_candidates = archive_permanent_probe_failures(
             active_runtime,
             config,
-            login_candidates,
-            previous,
-            confirmations=max(1, args.failure_confirmations),
+            probe_candidates,
         )
-        summary["archived_files"] = sorted(set(static_archived + runtime_archived + live_archived))
-        summary["archive_candidates"] = archive_candidates
+        summary["archived_files"] = sorted(set(static_archived + runtime_archived + probe_archived))
         summary["runtime_failure_archived_count"] = len(runtime_archived)
+        summary["probe_failure_archived_count"] = len(probe_archived)
+        summary["stale_probe_candidates"] = stale_probe_candidates
         summary["rejected_failure_receipts"] = rejected_receipts
         summary["stale_failure_receipts"] = stale_receipts
         save_state(state_path, summary)

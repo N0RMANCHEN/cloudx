@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import pathlib
 import sys
@@ -21,12 +22,13 @@ def jwt(expires_at: int) -> str:
     return "header.%s.signature" % payload
 
 
-def auth(expires_at: int = 4102444800) -> dict:
+def auth(expires_at: int = 4102444800, *, refresh: bool = False) -> dict:
     return {
         "auth_mode": "chatgpt",
         "tokens": {
             "access_token": jwt(expires_at),
             "account_id": "account-sanitized",
+            "refresh_token": "refresh-sanitized" if refresh else "",
         },
     }
 
@@ -103,17 +105,65 @@ class CpaQuotaTests(unittest.TestCase):
         self.assertEqual((limited["status"], limited["warning_window"]), ("limited", "7d"))
         self.assertEqual(limited["unavailable_until"], "2100-01-01T00:00:00+00:00")
 
-    def test_http_401_and_429_are_primary_truth(self) -> None:
-        for code, expected in ((401, "login"), (429, "limited")):
+    def test_http_401_requires_refresh_or_archives_immediately(self) -> None:
+        def opener(request: object, timeout: float) -> Response:
+            raise urllib.error.HTTPError(request.full_url, 401, "fixture", {}, None)
+
+        refreshable = cpa_quota.probe_account_quota_http(
+            {}, {}, auth_override=auth(refresh=True), url_opener=opener
+        )
+        permanent = cpa_quota.probe_account_quota_http(
+            {}, {}, auth_override=auth(), url_opener=opener
+        )
+
+        self.assertEqual(refreshable["status"], "login")
+        self.assertNotIn("permanent_auth_failure", refreshable)
+        self.assertEqual(permanent["status"], "invalid")
+        self.assertTrue(permanent["permanent_auth_failure"])
+        self.assertEqual(permanent["failure_reason"], "authentication_unauthorized")
+
+    def test_http_429_and_quota_body_are_never_permanent(self) -> None:
+        for code, payload in (
+            (429, {}),
+            (402, {"error": {"code": "usage_limit_reached"}}),
+        ):
             with self.subTest(code=code):
-                def opener(request: object, timeout: float, status: int = code) -> Response:
-                    raise urllib.error.HTTPError(request.full_url, status, "fixture", {}, None)
+                def opener(request: object, timeout: float, status: int = code, body: object = payload) -> Response:
+                    raise urllib.error.HTTPError(
+                        request.full_url,
+                        status,
+                        "fixture",
+                        {},
+                        io.BytesIO(json.dumps(body).encode("utf-8")),
+                    )
 
                 probe = cpa_quota.probe_account_quota_http(
                     {}, {}, auth_override=auth(), url_opener=opener
                 )
-                self.assertEqual(probe["status"], expected)
-                self.assertEqual(probe["exit_code"], code)
+                self.assertEqual(probe["status"], "limited")
+                self.assertNotIn("permanent_auth_failure", probe)
+
+    def test_deactivated_workspace_402_is_permanent_without_raw_body(self) -> None:
+        body = {"error": {"code": "deactivated_workspace", "message": "private fixture"}}
+
+        def opener(request: object, timeout: float) -> Response:
+            raise urllib.error.HTTPError(
+                request.full_url,
+                402,
+                "fixture",
+                {},
+                io.BytesIO(json.dumps(body).encode("utf-8")),
+            )
+
+        probe = cpa_quota.probe_account_quota_http(
+            {}, {}, auth_override=auth(), url_opener=opener
+        )
+
+        self.assertEqual(probe["status"], "invalid")
+        self.assertEqual(probe["failure_reason"], "deactivated_workspace")
+        self.assertTrue(probe["permanent_auth_failure"])
+        self.assertFalse(probe["weekly_quota"])
+        self.assertNotIn("private fixture", json.dumps(probe))
 
     def test_generic_endpoint_failure_falls_back_to_codex_usage(self) -> None:
         endpoints = []
@@ -141,6 +191,9 @@ class CpaQuotaTests(unittest.TestCase):
             calls.append(request)
             return Response({})
 
+        refreshable = cpa_quota.probe_account_quota_http(
+            {}, {}, auth_override=auth(1, refresh=True), url_opener=opener
+        )
         expired = cpa_quota.probe_account_quota_http(
             {}, {}, auth_override=auth(1), url_opener=opener
         )
@@ -151,9 +204,38 @@ class CpaQuotaTests(unittest.TestCase):
             url_opener=opener,
         )
 
-        self.assertEqual(expired["status"], "login")
+        self.assertEqual(refreshable["status"], "login")
+        self.assertEqual(expired["status"], "invalid")
+        self.assertTrue(expired["permanent_auth_failure"])
         self.assertIsNone(unsupported)
         self.assertEqual(calls, [])
+
+    def test_transport_gate_blocks_provider_or_network_outage(self) -> None:
+        def provider_error(request: object, timeout: float) -> Response:
+            raise urllib.error.HTTPError(request.full_url, 503, "fixture", {}, None)
+
+        def transport_error(request: object, timeout: float) -> Response:
+            raise OSError("fixture")
+
+        self.assertEqual(
+            cpa_quota.probe_transport_http({}, url_opener=provider_error)["status"],
+            "provider_error",
+        )
+        self.assertEqual(
+            cpa_quota.probe_transport_http({}, url_opener=transport_error)["status"],
+            "transport_error",
+        )
+
+    def test_explicit_proxy_url_is_validated(self) -> None:
+        self.assertIsNotNone(cpa_quota.url_opener_for_proxy("http://127.0.0.1:7890"))
+        for value in (
+            "socks5://127.0.0.1:7890",
+            "http://user:secret@127.0.0.1:7890",
+            "http://127.0.0.1:99999",
+            "relative",
+        ):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                cpa_quota.url_opener_for_proxy(value)
 
     def test_oversized_or_malformed_responses_fail_without_payload_output(self) -> None:
         class Oversized(Response):

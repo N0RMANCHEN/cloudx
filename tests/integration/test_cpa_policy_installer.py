@@ -29,8 +29,12 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertNotEqual(document["stageConfirmation"], document["activationConfirmation"])
         self.assertFalse(document["stageChangesService"])
         self.assertTrue(document["activationRestartsExternalCPA"])
+        self.assertFalse(document["activationStopsCodexProcesses"])
+        self.assertTrue(document["gracefulCPAServiceRestart"])
+        self.assertFalse(document["inFlightRequestContinuityGuaranteed"])
         self.assertTrue(document["localActivationRequiresRealCodexCanary"])
         self.assertTrue(document["localActivationRollsBackOnCommunicationFailure"])
+        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.17")
         self.assertFalse(document["weeklyQuotaArchived"])
 
     def test_cloud_drop_ins_select_exact_candidate_and_private_failure_dir(self) -> None:
@@ -95,8 +99,24 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         cloud = contract["targets"]["cloud"]
         self.assertEqual(local["baselineSha256"], "cf9641b3e50ae486aec1698dec88f735589680f9ae98558c29cde184daac3a96")
         self.assertEqual(cloud["baselineSha256"], "1d0abbc6316b1869f74896109c0efb5e19c8197b8226f48a74212ed0a6f5a39d")
-        self.assertEqual(local["candidateSha256"], "70439565f25307c22fd93c8aa897871489dc32b1700ebc2390c07896e7b6de01")
-        self.assertEqual(cloud["candidateSha256"], "67baab69ecc507c794f1336197a78e52c0126679a780e1c064cae453966c6a67")
+        self.assertEqual(local["candidateSha256"], "f288838053f43a82c50d2ab23bcb096c627a848fdf662413544a483f908f236d")
+        self.assertEqual(cloud["candidateSha256"], "7c9603a380f9fbd7bdbe1c8ecbf938504f6055677ba4d4de2cd7004398a02229")
+
+    def test_activation_rejects_an_older_receipt_consumer(self) -> None:
+        value = MODULE.expanded_target("local", MODULE.load_contract(MODULE.DEFAULT_CONTRACT))
+        completed = MODULE.subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout='{"schema":"cloudx.self-check.v1","status":"ok","version":"0.1.16"}',
+            stderr="",
+        )
+        with mock.patch.object(MODULE, "safe_snapshot"), mock.patch.object(
+            MODULE,
+            "run_command",
+            return_value=completed,
+        ):
+            with self.assertRaisesRegex(MODULE.CpaPolicyInstallRejected, "receipt consumer"):
+                MODULE.require_active_cloudx("local", value)
 
     def test_local_communication_canary_uses_pinned_official_codex_profile(self) -> None:
         value = MODULE.expanded_target("local", MODULE.load_contract(MODULE.DEFAULT_CONTRACT))

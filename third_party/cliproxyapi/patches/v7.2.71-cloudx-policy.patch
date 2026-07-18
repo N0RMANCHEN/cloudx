@@ -315,7 +315,7 @@ index 0000000000000000000000000000000000000000..79fe91d42b2b5430e4c48dbe6ecfcd62
 +		return "refresh_invalid_grant"
 +	case strings.Contains(raw, "refresh token revoked") || strings.Contains(raw, "refresh_token_revoked") || strings.Contains(raw, "token has been revoked"):
 +		return "refresh_token_revoked"
-+	case strings.Contains(raw, "account deactivated") || strings.Contains(raw, "account has been deactivated") || strings.Contains(raw, "account disabled") || strings.Contains(raw, "account has been disabled") || strings.Contains(raw, "account deleted"):
++	case strings.Contains(raw, "deactivated_workspace") || strings.Contains(raw, "account_deactivated") || strings.Contains(raw, "account deactivated") || strings.Contains(raw, "account has been deactivated") || strings.Contains(raw, "account disabled") || strings.Contains(raw, "account has been disabled") || strings.Contains(raw, "account deleted"):
 +		return "account_deactivated"
 +	case strings.Contains(raw, "refresh token is required") || strings.Contains(raw, "missing refresh token"):
 +		return "missing_token"
@@ -358,7 +358,7 @@ index 0000000000000000000000000000000000000000..79fe91d42b2b5430e4c48dbe6ecfcd62
 +		state.reason = reason
 +	}
 +	cloudxFailureTracker.entries[authFile] = state
-+	if state.count < 2 || !state.conclusive {
++	if !state.conclusive {
 +		return
 +	}
 +	cloudxWriteFailureReceipt(failureDir, cloudxFailureReceipt{
@@ -548,11 +548,11 @@ index 0000000000000000000000000000000000000000..ad3440384918fda2fe503db45cceed8f
 +	}
 +}
 +
-+func TestCloudxFailureReceiptConfirmsRepeatedUnauthorizedWithoutRefresh(t *testing.T) {
++func TestCloudxFailureReceiptArchivesExplicitDeactivationImmediately(t *testing.T) {
 +	auth, receiptPath := cloudxFailureFixture(t, false)
-+	result := Result{Error: &Error{HTTPStatus: http.StatusUnauthorized, Message: "invalid or expired token"}}
++	result := Result{Error: &Error{HTTPStatus: http.StatusPaymentRequired, Code: "deactivated_workspace"}}
 +	cloudxRecordResult(auth, result)
-+	cloudxRecordResult(auth, result)
++	// One explicit permanent failure is sufficient.
 +	var receipt cloudxFailureReceipt
 +	raw, err := os.ReadFile(receiptPath)
 +	if err != nil {
@@ -561,7 +561,7 @@ index 0000000000000000000000000000000000000000..ad3440384918fda2fe503db45cceed8f
 +	if err := json.Unmarshal(raw, &receipt); err != nil {
 +		t.Fatal(err)
 +	}
-+	if receipt.Reason != "authentication_unauthorized" || receipt.FailureCount != 2 {
++	if receipt.Reason != "account_deactivated" || receipt.FailureCount != 1 {
 +		t.Fatalf("unexpected receipt: %+v", receipt)
 +	}
 +}
@@ -570,7 +570,7 @@ index 0000000000000000000000000000000000000000..ad3440384918fda2fe503db45cceed8f
 +	auth, receiptPath := cloudxFailureFixture(t, false)
 +	result := Result{Error: &Error{HTTPStatus: http.StatusUnauthorized, Message: "unauthorized"}}
 +	cloudxRecordResult(auth, result)
-+	cloudxRecordResult(auth, result)
++	// A conclusive no-refresh 401 writes immediately.
 +	if _, err := os.Stat(receiptPath); err != nil {
 +		t.Fatal(err)
 +	}

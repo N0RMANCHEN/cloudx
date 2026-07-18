@@ -78,7 +78,7 @@ class LocalCpaMaintenanceTests(unittest.TestCase):
         reason: str = "authentication_unauthorized",
         weekly: bool = False,
         digest: str = "",
-        failures: int = 2,
+        failures: int = 1,
     ) -> pathlib.Path:
         self.failure_dir.mkdir(parents=True, mode=0o700, exist_ok=True)
         receipt = self.failure_dir / (hashlib.sha256(auth.name.encode("utf-8")).hexdigest() + ".json")

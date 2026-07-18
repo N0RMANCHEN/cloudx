@@ -11,11 +11,13 @@ do not consume a slot.
 
 The patches can also emit private `cloudx.cpa-auth-failure.v1` receipts. Receipt
 emission is disabled unless both `CLIPROXY_AUTH_DIR` and
-`CLIPROXY_AUTH_FAILURE_DIR` name absolute directories. A receipt requires two
-pieces of evidence within ten minutes and at least one conclusive permanent
-authentication signal. Weekly or ordinary quota exhaustion, HTTP 429, network
-errors, timeouts, and 5xx responses never produce a receipt. A later successful
-request or refresh clears pending evidence and any receipt.
+`CLIPROXY_AUTH_FAILURE_DIR` name absolute directories. One conclusive permanent
+authentication result is sufficient; a provisional refreshable 401 is not.
+Explicit `deactivated_workspace`, account disable/delete, non-refreshable 401,
+refresh invalid-grant/reuse/revocation, and missing-token results are supported.
+Weekly or ordinary quota exhaustion, HTTP 429, network errors, timeouts, and 5xx
+responses never produce a receipt. A later successful request or refresh clears
+pending evidence and any receipt.
 
 Cloudx maintenance code independently validates receipt age, schema, flags,
 top-level filename, and the SHA-256 of the still-active auth file before moving

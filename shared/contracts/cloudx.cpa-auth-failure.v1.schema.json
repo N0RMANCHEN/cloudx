@@ -31,7 +31,7 @@
         "refresh_token_revoked"
       ]
     },
-    "failureCount": {"type": "integer", "minimum": 2},
+    "failureCount": {"type": "integer", "minimum": 1},
     "permanentAuthFailure": {"const": true},
     "weeklyQuota": {"const": false},
     "observedAt": {"type": "string", "format": "date-time"}

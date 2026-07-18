@@ -22,9 +22,13 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         self.assertEqual(local["upstreamCommit"], "15ac7fb9324095330e60f522147b8a8e81f16ab5")
         self.assertEqual(cloud["upstreamCommit"], "5b7f2361ee27d195f6514dde08656f6e4773a9a4")
         self.assertEqual(manifest["policy"]["maxConcurrentAPIRequests"], 2)
+        self.assertEqual(manifest["policy"]["minimumFailureEvidence"], 1)
+        self.assertTrue(manifest["policy"]["permanentFailureArchivesImmediately"])
+        self.assertFalse(manifest["policy"]["provisionalFailureArchived"])
+        self.assertEqual(manifest["policy"]["accountProbeConcurrency"], 1)
         self.assertFalse(manifest["policy"]["weeklyQuotaArchived"])
-        self.assertEqual(local["candidateSha256"], "70439565f25307c22fd93c8aa897871489dc32b1700ebc2390c07896e7b6de01")
-        self.assertEqual(cloud["candidateSha256"], "67baab69ecc507c794f1336197a78e52c0126679a780e1c064cae453966c6a67")
+        self.assertEqual(local["candidateSha256"], "f288838053f43a82c50d2ab23bcb096c627a848fdf662413544a483f908f236d")
+        self.assertEqual(cloud["candidateSha256"], "7c9603a380f9fbd7bdbe1c8ecbf938504f6055677ba4d4de2cd7004398a02229")
 
     def test_patch_digests_are_bound_by_manifest(self) -> None:
         manifest = MODULE.load_manifest()
@@ -54,7 +58,9 @@ class CpaPolicyCandidateTests(unittest.TestCase):
             patch = MODULE.verified_patch(MODULE.target_config(target, manifest)).read_text(encoding="utf-8")
             self.assertIn("cloudxMaxConcurrentAPIRequests = 2", patch)
             self.assertIn('"weekly quota"', patch)
+            self.assertIn('"deactivated_workspace"', patch)
             self.assertIn("status == http.StatusTooManyRequests", patch)
+            self.assertIn("if !state.conclusive", patch)
             self.assertIn("FailureCount:         state.count", patch)
 
 

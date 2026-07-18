@@ -181,6 +181,8 @@ def expanded_target(target: str, contract: Dict[str, Any]) -> Dict[str, Any]:
         raise CpaPolicyInstallRejected("CPA candidate digest is invalid")
     if not SHA256_RE.fullmatch(str(value.get("baselineSha256") or "")):
         raise CpaPolicyInstallRejected("CPA baseline digest is invalid")
+    if not VERSION_RE.fullmatch(str(value.get("requiredActiveCloudxVersion") or "")):
+        raise CpaPolicyInstallRejected("required active Cloudx version is invalid")
     if target == "local":
         home = pathlib.Path.home().resolve()
         for key in (
@@ -237,16 +239,40 @@ def plan_document(target: str, value: Dict[str, Any]) -> Dict[str, Any]:
         "target": target,
         "version": value["version"],
         "candidateSha256": value["candidateSha256"],
+        "requiredActiveCloudxVersion": value["requiredActiveCloudxVersion"],
         "stageConfirmation": stage_confirmation,
         "activationConfirmation": activate_confirmation,
         "maxConcurrentAPIRequests": 2,
         "weeklyQuotaArchived": False,
         "stageChangesService": False,
         "activationRestartsExternalCPA": True,
+        "activationStopsCodexProcesses": False,
+        "gracefulCPAServiceRestart": True,
+        "inFlightRequestContinuityGuaranteed": False,
         "localActivationRequiresRealCodexCanary": target == "local",
         "localActivationRollsBackOnCommunicationFailure": target == "local",
         "automaticAction": False,
     }
+
+
+def require_active_cloudx(target: str, value: Dict[str, Any]) -> None:
+    artifact = (
+        pathlib.Path.home() / ".local/lib/cloudx/current/cloudx-local.pyz"
+        if target == "local"
+        else pathlib.Path("/opt/cloudx/current/cloudx-cloud.pyz")
+    )
+    safe_snapshot(artifact, maximum=MAX_CANDIDATE_BYTES, required=True)
+    completed = run_command([sys.executable, str(artifact), "self-check"], timeout=30.0)
+    try:
+        document = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise CpaPolicyInstallRejected("active Cloudx self-check is invalid") from exc
+    if (
+        document.get("schema") != "cloudx.self-check.v1"
+        or document.get("status") != "ok"
+        or document.get("version") != value["requiredActiveCloudxVersion"]
+    ):
+        raise CpaPolicyInstallRejected("required signed Cloudx receipt consumer is not active")
 
 
 def verify_candidate(path: pathlib.Path, value: Dict[str, Any]) -> Snapshot:
@@ -481,6 +507,7 @@ def cloud_drop_ins(value: Dict[str, Any]) -> Tuple[bytes, bytes]:
 def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
     if os.geteuid() != 0 or sys.platform != "linux":
         raise CpaPolicyInstallRejected("cloud CPA activation requires root on Linux")
+    require_active_cloudx("cloud", value)
     verify_candidate(value["stagedBinary"], value)
     baseline = safe_snapshot(value["baselineBinary"], maximum=MAX_CANDIDATE_BYTES, required=True)
     if sha256_bytes(baseline.data) != value["baselineSha256"]:
@@ -580,6 +607,7 @@ def wait_launchd(domain: str, label: str, expected_binary: pathlib.Path) -> int:
 def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
     if sys.platform != "darwin" or os.geteuid() == 0:
         raise CpaPolicyInstallRejected("local CPA activation requires the macOS login user")
+    require_active_cloudx("local", value)
     verify_candidate(value["stagedBinary"], value)
     baseline = safe_snapshot(value["baselineBinary"], maximum=MAX_CANDIDATE_BYTES, required=True)
     if sha256_bytes(baseline.data) != value["baselineSha256"]:

@@ -157,8 +157,11 @@ The command performs the same bounded gateway probe and aggregate account-state 
 The CPA-health probe can be inspected without state or quarantine writes:
 
 ```bash
-sudo /usr/bin/python3 /opt/cloudx/current/cloudx-cloud.pyz cpa-health --check
+sudo /usr/bin/python3 /opt/cloudx/current/cloudx-cloud.pyz \
+  cpa-health --check --proxy-url http://127.0.0.1:7890
 ```
+
+The explicit proxy argument makes an interactive check use the same declared external mihomo path as the installed oneshot unit. The probe first checks that path without account authority. A transport/provider outage skips all account archive decisions. When the path is reachable, accounts are checked sequentially with concurrency one; explicit deactivation/deletion, non-refreshable unauthorized, and conclusive refresh revocation/invalid-grant results are immediately eligible, while quota/429, refreshable 401, network/TLS/DNS/timeout/5xx, and unknown results are retained. Output remains aggregate-only.
 
 After a native CPA-health release is explicitly activated, restore one quarantined file only with its exact private archive filename repeated as confirmation:
 
@@ -331,7 +334,7 @@ python3 scripts/install_cpa_policy_candidate.py --target cloud
 
 Stage and activation have different exact confirmations. Stage verifies the pinned candidate bytes and copies them under the target's dedicated `cliproxy-cloudx/releases` tree; it does not edit a launcher or unit and does not restart CPA. Activation remains unapproved until the operator repeats the exact printed `ACTIVATE ... CPA POLICY ...` string. It retains the original binary, snapshots the prior launcher or drop-ins, configures private auth/failure directories, restarts only the selected external CPA, and requires `/healthz` plus `X-CPA-Max-Concurrent-API-Requests: 2`. Any failed canary restores the prior service selection automatically.
 
-Do not invoke synchronous local activation from a Codex turn that is itself using the local CPA. After signed Cloudx `0.1.16` is active locally, inspect the non-authorizing deferred plan:
+Do not invoke synchronous local activation from a Codex turn that is itself using the local CPA. The revised `.policy.2` candidates require signed Cloudx `0.1.17` on the matching endpoint before activation. After that release is active locally, inspect the non-authorizing deferred plan:
 
 ```bash
 python3 scripts/schedule_local_cpa_policy_activation.py
@@ -339,7 +342,9 @@ python3 scripts/schedule_local_cpa_policy_activation.py
 
 Its exact-confirmation apply copies only the installer and pinned contract into a private job directory, returns without restarting CPA, waits 180 seconds so the current turn can finish, and then runs the local activation from a detached worker. The worker requires a real official-Codex request through the current `api` profile before restart and after candidate selection. If the post-activation request fails, the installer restores the original LaunchAgent and binary and requires the same real request to recover before recording failure. The worker receipt is aggregate-only and contains no credential or model response content.
 
-The signed Cloudx release containing the receipt consumer must be active before production acceptance. Local automatic maintenance then uses the existing `codexx api refresh --apply` LaunchAgent; cloud maintenance consumes receipts on the existing CPA-health timer. Manual local preview and reversible restore are:
+Local activation never terminates a `codex`, Codex App, terminal, workspace, or project process. It sends the shared CPA a normal service stop/start; upstream CPA handles SIGTERM with graceful HTTP shutdown for active requests before the new process binds the same port. All `codexx api` projects share that bridge, so idle projects continue and reconnect, but zero interruption for a request that overlaps the restart cannot be guaranteed. Such a request may finish during graceful shutdown or may require retry; automatic rollback can cause a second short CPA restart. Installing a Cloudx local release is separate and does not restart CPA at all.
+
+The matching signed Cloudx receipt consumer must be active before production acceptance. Local automatic maintenance then uses the existing `codexx api refresh --apply` LaunchAgent; cloud maintenance owns its infrastructure gate, sequential account probe, receipt consumption, and reversible archive on the existing CPA-health timer. Phi may read the resulting aggregate health and notify, but cannot probe or move credentials. Manual local preview and reversible restore are:
 
 ```bash
 codexx api refresh --dry-run --json
@@ -347,7 +352,7 @@ codexx api refresh --apply --json
 codexx api restore <archived-file> --confirm <archived-file>
 ```
 
-An access token that is merely expired but still has a refresh token is retained. Weekly quota, HTTP 429, transient limits, network failures, timeouts, and 5xx never create an accepted receipt. CPA never moves the auth file; Cloudx performs the digest-bound same-filesystem archive and keeps the private manifest outside release directories.
+An access token that is merely expired but still has a refresh token is retained. A provisional refreshable 401 is also retained until refresh produces a conclusive permanent result. Weekly quota, HTTP 429, transient limits, network failures, timeouts, and 5xx never create an accepted receipt. CPA never moves the auth file; Cloudx performs the digest-bound same-filesystem archive and keeps the private manifest outside release directories.
 
 ## Stage
 

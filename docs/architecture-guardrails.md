@@ -19,6 +19,7 @@ Forbidden directions:
 - Cloudx receiving Phi Device, Task, lease, approval, local-path, transfer-content, or Artifact metadata
 - a Phi device using Mesh membership as a Cloudx gateway credential
 - Phi privileged automation reading Cloudx auth or invoking Cloudx import, gateway mutation, or release mutation
+- Phi probing CPA credentials, deciding archive eligibility, consuming private failure receipts, or moving/restoring Cloudx auth files
 - shared contracts importing either endpoint
 - release code reading runtime credentials or session state
 
@@ -33,6 +34,8 @@ Cloud runtime stdout, stderr, and published public state must use `cloudx_cloud.
 Release directories are immutable code. Configuration and state live outside them. Activation changes an atomic `current` symlink only after explicit confirmation. Existing processes continue using the release from which they started.
 
 CLIProxyAPI remains an external dependency. Exact-version policy patches live only under `third_party/cliproxyapi`, are excluded from Cloudx release runtime code, and must bind a clean upstream commit, patch digest, Go version, target platform, and deterministic candidate digest. Building or staging such a candidate grants no launcher, unit, process, listener, credential, or archive authority; external CPA activation requires its own exact confirmation and rollback transaction.
+
+CPA outage diagnosis remains inside the Cloudx endpoint implementation. It gates on the declared external HTTPS/proxy dependency, probes accounts sequentially, publishes only aggregate classifications, and performs digest-bound reversible archive itself. Phi observes the versioned aggregate health contract only; it is never an archive worker or credential oracle.
 
 ## File Size
 

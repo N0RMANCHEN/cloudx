@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -16,6 +17,36 @@ USAGE_METHOD = "http-usage"
 WARNING_PERCENT_THRESHOLD = 25
 ACCESS_TOKEN_REFRESH_SKEW_SECONDS = 5 * 60
 MAX_USAGE_RESPONSE_BYTES = 1024 * 1024
+PERMANENT_AUTH_FAILURE_MARKERS = (
+    ("deactivated_workspace", "deactivated_workspace"),
+    ("account_deactivated", "account_deactivated"),
+    ("account has been deactivated", "account_deactivated"),
+    ("account deactivated", "account_deactivated"),
+    ("account has been disabled", "account_deactivated"),
+    ("account disabled", "account_deactivated"),
+    ("account deleted", "account_deactivated"),
+    ("refresh_token_reused", "refresh_token_reused"),
+    ("refresh token reused", "refresh_token_reused"),
+    ("invalid_grant", "refresh_invalid_grant"),
+    ("refresh_token_revoked", "refresh_token_revoked"),
+    ("refresh token revoked", "refresh_token_revoked"),
+    ("token has been revoked", "refresh_token_revoked"),
+    ("refresh token is required", "missing_token"),
+    ("missing refresh token", "missing_token"),
+)
+PERMANENT_AUTH_FAILURE_REASONS = frozenset(
+    reason for unused_marker, reason in PERMANENT_AUTH_FAILURE_MARKERS
+)
+QUOTA_FAILURE_MARKERS = (
+    "weekly limit",
+    "weekly quota",
+    "usage_limit",
+    "usage limit",
+    "rate_limit",
+    "rate limit",
+    "quota",
+    "too many requests",
+)
 
 
 def _now_utc() -> datetime:
@@ -273,6 +304,149 @@ def _perform_request(
         return status_code, body
 
 
+def url_opener_for_proxy(proxy_url: str) -> Optional[Callable[..., object]]:
+    value = str(proxy_url or "").strip()
+    if not value:
+        return None
+    parsed = urllib.parse.urlsplit(value)
+    try:
+        _port = parsed.port
+    except ValueError as exc:
+        raise ValueError("CPA probe proxy URL is invalid") from exc
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("CPA probe proxy URL is invalid")
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({"http": value, "https": value})
+    )
+    return opener.open
+
+
+def _configured_url_opener(
+    config: Dict[str, Any],
+    url_opener: Optional[Callable[..., object]],
+) -> Optional[Callable[..., object]]:
+    if url_opener is not None:
+        return url_opener
+    cliproxy = config.get("cliproxy") if isinstance(config.get("cliproxy"), dict) else {}
+    return url_opener_for_proxy(str(cliproxy.get("proxy_url") or ""))
+
+
+def _bounded_error_body(error: urllib.error.HTTPError) -> bytes:
+    try:
+        body = error.read(MAX_USAGE_RESPONSE_BYTES + 1)
+    except Exception:
+        return b""
+    if not isinstance(body, bytes) or len(body) > MAX_USAGE_RESPONSE_BYTES:
+        return b""
+    return body
+
+
+def _body_classification(body: bytes) -> Tuple[str, str]:
+    value = body.decode("utf-8", "ignore").casefold()
+    if any(marker in value for marker in QUOTA_FAILURE_MARKERS):
+        return "quota", ""
+    for marker, reason in PERMANENT_AUTH_FAILURE_MARKERS:
+        if marker in value:
+            return "permanent", reason
+    return "", ""
+
+
+def _classified_http_failure(
+    status_code: int,
+    body: bytes,
+    *,
+    started: datetime,
+    endpoint: str,
+    has_refresh_token: bool,
+) -> Optional[Dict[str, Any]]:
+    classification, reason = _body_classification(body)
+    if status_code == 429 or classification == "quota":
+        result = _build_probe_error(
+            "limited",
+            started,
+            "usage endpoint reported exhausted or rate-limited capacity",
+            status_code or None,
+        )
+        result["endpoint"] = endpoint
+        return result
+    if classification == "permanent":
+        result = _build_probe_error(
+            "invalid",
+            started,
+            "usage endpoint reported a permanent authentication failure",
+            status_code or None,
+        )
+        result.update({
+            "endpoint": endpoint,
+            "failure_reason": reason,
+            "permanent_auth_failure": True,
+            "weekly_quota": False,
+        })
+        return result
+    if status_code == 401:
+        if has_refresh_token:
+            result = _build_probe_error(
+                "login",
+                started,
+                "usage endpoint rejected the access token before refresh",
+                status_code,
+            )
+            result["endpoint"] = endpoint
+            return result
+        result = _build_probe_error(
+            "invalid",
+            started,
+            "usage endpoint rejected a credential without refresh capability",
+            status_code,
+        )
+        result.update({
+            "endpoint": endpoint,
+            "failure_reason": "authentication_unauthorized",
+            "permanent_auth_failure": True,
+            "weekly_quota": False,
+        })
+        return result
+    return None
+
+
+def probe_transport_http(
+    config: Dict[str, Any],
+    *,
+    timeout_seconds: float = 5,
+    url_opener: Optional[Callable[..., object]] = None,
+) -> Dict[str, Any]:
+    opener = _configured_url_opener(config, url_opener) or urllib.request.urlopen
+    request = urllib.request.Request(
+        USAGE_ENDPOINT_CHATGPT,
+        headers={"Accept": "application/json", "User-Agent": "codex-cli"},
+        method="GET",
+    )
+    try:
+        with opener(request, timeout=timeout_seconds) as response:  # type: ignore[attr-defined]
+            status_code = int(
+                getattr(response, "status", None)
+                or getattr(response, "code", 0)
+                or 0
+            )
+    except urllib.error.HTTPError as exc:
+        status_code = int(getattr(exc, "code", 0) or 0)
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        return {"status": "transport_error", "exit_code": None}
+    except Exception:
+        return {"status": "transport_error", "exit_code": None}
+    if status_code == 429 or status_code >= 500:
+        return {"status": "provider_error", "exit_code": status_code or None}
+    return {"status": "reachable", "exit_code": status_code or None}
+
+
 def probe_account_quota_http(
     config: Dict[str, Any],
     account: Dict[str, Any],
@@ -282,46 +456,63 @@ def probe_account_quota_http(
     auth_override: Optional[Dict[str, Any]] = None,
     allow_auth_refresh: bool = False,
 ) -> Optional[Dict[str, Any]]:
-    del config, account, allow_auth_refresh
+    del account, allow_auth_refresh
     started = _now_utc()
     auth = auth_override if isinstance(auth_override, dict) else {}
-    access_token, unused_refresh_token, unused_id_token = auth_tokens(auth)
+    access_token, refresh_token, unused_id_token = auth_tokens(auth)
     account_id = auth_account_id(auth)
     if not _token_supported(access_token):
         return None
     if _token_needs_refresh(access_token, now=started):
+        if not refresh_token:
+            result = _build_probe_error(
+                "invalid",
+                started,
+                "access token expired without refresh capability",
+            )
+            result.update({
+                "failure_reason": "missing_token",
+                "permanent_auth_failure": True,
+                "weekly_quota": False,
+            })
+            return result
         return _build_probe_error("login", started, "access token needs refresh")
 
+    active_opener = _configured_url_opener(config, url_opener)
     for endpoint in _endpoint_candidates(auth):
         try:
             status_code, body = _perform_request(
                 endpoint,
                 _usage_headers(endpoint, access_token, account_id),
                 timeout_seconds,
-                url_opener=url_opener,
+                url_opener=active_opener,
             )
         except urllib.error.HTTPError as exc:
             code = int(getattr(exc, "code", 0) or 0)
-            if code == 401:
-                return _build_probe_error(
-                    "login",
-                    started,
-                    "usage endpoint rejected token (HTTP 401)",
-                    401,
-                )
-            if code == 429:
-                return _build_probe_error(
-                    "limited",
-                    started,
-                    "usage endpoint returned HTTP 429",
-                    429,
-                )
+            classified = _classified_http_failure(
+                code,
+                _bounded_error_body(exc),
+                started=started,
+                endpoint=endpoint,
+                has_refresh_token=bool(refresh_token),
+            )
+            if classified is not None:
+                return classified
             continue
         except (urllib.error.URLError, TimeoutError, OSError, ValueError):
             continue
         except Exception:
             continue
         if status_code and status_code >= 400:
+            classified = _classified_http_failure(
+                status_code,
+                body,
+                started=started,
+                endpoint=endpoint,
+                has_refresh_token=bool(refresh_token),
+            )
+            if classified is not None:
+                return classified
             continue
         try:
             payload = json.loads(body.decode("utf-8"))

@@ -28,6 +28,7 @@ def runtime(**overrides: object) -> cpa_health.CpaRuntime:
         "contexts": mock.Mock(return_value=[]),
         "payload_auth": mock.Mock(return_value={"tokens": {}}),
         "probe": mock.Mock(return_value=None),
+        "transport": mock.Mock(return_value={"status": "reachable", "exit_code": 401}),
     }
     defaults.update(overrides)
     return cpa_health.CpaRuntime(**defaults)
@@ -82,10 +83,11 @@ class CpaHealthTests(unittest.TestCase):
             self.assertEqual(public["archived_count"], 1)
             self.assertEqual(public["pending_archive_candidates"], 1)
 
-    def test_confirmed_login_failure_uses_reversible_quarantine(self) -> None:
+    def test_permanent_probe_failure_archives_immediately_with_digest_binding(self) -> None:
         with tempfile.TemporaryDirectory() as value:
             account = pathlib.Path(value) / "account.json"
             account.write_text("{}", encoding="utf-8")
+            digest = hashlib.sha256(account.read_bytes()).hexdigest()
             quarantine = mock.Mock(return_value={"moved_from": str(account)})
             active_runtime = runtime(
                 quarantine=quarantine,
@@ -97,25 +99,110 @@ class CpaHealthTests(unittest.TestCase):
                 failure_confirmations=2,
             )
 
-            archived, candidates = cpa_health.archive_confirmed_login_failures(
+            archived, stale = cpa_health.archive_permanent_probe_failures(
                 active_runtime,
                 config,
-                [str(account)],
-                {},
-                confirmations=2,
+                [{
+                    "path": str(account),
+                    "auth_sha256": digest,
+                    "reason": "deactivated_workspace",
+                }],
             )
-            self.assertEqual(archived, [])
-            self.assertEqual(candidates[str(account)]["failure_count"], 1)
-            archived, candidates = cpa_health.archive_confirmed_login_failures(
-                active_runtime,
-                config,
-                [str(account)],
-                {"archive_candidates": candidates},
-                confirmations=2,
-            )
-            self.assertEqual(archived, ["account.json"])
-            self.assertEqual(candidates, {})
+            self.assertEqual((archived, stale), (["account.json"], 0))
             quarantine.assert_called_once()
+
+            quarantine.reset_mock()
+            account.write_text("changed", encoding="utf-8")
+            archived, stale = cpa_health.archive_permanent_probe_failures(
+                active_runtime,
+                config,
+                [{
+                    "path": str(account),
+                    "auth_sha256": digest,
+                    "reason": "deactivated_workspace",
+                }],
+            )
+            self.assertEqual((archived, stale), ([], 1))
+            quarantine.assert_not_called()
+
+    def test_probe_gate_and_account_probes_are_single_concurrency(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            contexts = []
+            for index in range(3):
+                path = root / ("account-%d.json" % index)
+                path.write_text("{}", encoding="utf-8")
+                contexts.append({"path": path, "state_key": str(index), "payload": {}})
+            active = 0
+            maximum = 0
+            order = []
+
+            def probe(unused_config: object, account: dict, **unused_kwargs: object) -> dict:
+                nonlocal active, maximum
+                active += 1
+                maximum = max(maximum, active)
+                order.append(account["name"])
+                active -= 1
+                return {"status": "ready", "remaining_percents": [80]}
+
+            active_runtime = runtime(
+                contexts=mock.Mock(return_value=contexts),
+                probe=probe,
+            )
+            summary, candidates = cpa_health.probe_accounts(
+                active_runtime,
+                cpa_health.cloudx_config(root, root / "archive", failure_confirmations=1),
+                warning_available_accounts=1,
+            )
+
+            self.assertEqual(maximum, 1)
+            self.assertEqual(order, ["0", "1", "2"])
+            self.assertEqual(summary["probe_concurrency"], 1)
+            self.assertEqual(summary["probe_gate"], "reachable")
+            self.assertEqual(candidates, [])
+
+    def test_transport_or_provider_failure_skips_every_account_probe(self) -> None:
+        active_runtime = runtime(
+            contexts=mock.Mock(return_value=[{"path": "/tmp/one.json", "payload": {}}]),
+            transport=mock.Mock(return_value={"status": "transport_error"}),
+        )
+        summary, candidates = cpa_health.probe_accounts(
+            active_runtime,
+            cpa_health.cloudx_config(pathlib.Path("/tmp"), pathlib.Path("/tmp/archive"), failure_confirmations=1),
+            warning_available_accounts=1,
+        )
+
+        self.assertEqual(summary["probe_gate"], "transport_error")
+        self.assertEqual(candidates, [])
+        active_runtime.probe.assert_not_called()
+
+    def test_mixed_bundle_never_archives_the_shared_auth_file(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            account = pathlib.Path(value) / "bundle.json"
+            account.write_text("{}", encoding="utf-8")
+            contexts = [
+                {"path": account, "state_key": "invalid", "payload": {}},
+                {"path": account, "state_key": "ready", "payload": {}},
+            ]
+
+            def probe(unused_config: object, selected: dict, **unused_kwargs: object) -> dict:
+                if selected["name"] == "invalid":
+                    return {
+                        "status": "invalid",
+                        "failure_reason": "deactivated_workspace",
+                        "permanent_auth_failure": True,
+                        "weekly_quota": False,
+                    }
+                return {"status": "ready", "remaining_percents": [80]}
+
+            summary, candidates = cpa_health.probe_accounts(
+                runtime(contexts=mock.Mock(return_value=contexts), probe=probe),
+                cpa_health.cloudx_config(account.parent, account.parent / "archive", failure_confirmations=1),
+                warning_available_accounts=1,
+            )
+
+            self.assertEqual(summary["total"], 2)
+            self.assertEqual(candidates, [])
 
     def test_confirmed_runtime_auth_failure_archives_but_weekly_quota_does_not(self) -> None:
         with tempfile.TemporaryDirectory() as value:
@@ -139,7 +226,7 @@ class CpaHealthTests(unittest.TestCase):
                 "authFile": account.name,
                 "authSha256": digest,
                 "reason": "authentication_unauthorized",
-                "failureCount": 2,
+                "failureCount": 1,
                 "permanentAuthFailure": True,
                 "weeklyQuota": False,
                 "observedAt": datetime.now(timezone.utc).isoformat(),
@@ -243,6 +330,7 @@ class CpaHealthTests(unittest.TestCase):
                 state_dir=state_dir,
                 warning_available_accounts=3,
                 failure_confirmations=3,
+                proxy_url="",
             )
             output = StringIO()
             with redirect_stdout(output):
@@ -262,6 +350,7 @@ class CpaHealthTests(unittest.TestCase):
             active_runtime.contexts,
             active_runtime.payload_auth,
             active_runtime.probe,
+            active_runtime.transport,
         ):
             self.assertTrue(callback.__module__.startswith("cloudx_cloud.cpa_"))
 
