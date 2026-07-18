@@ -40,13 +40,14 @@ Each candidate was rebuilt independently from a fresh clean exact checkout with 
 
 ## Acceptance Evidence
 
-- Cloudx `./verify.sh`: architecture gates passed, 352 tests passed, local/cloud 0.1.16 artifacts built.
+- Final source and CI verification: architecture gates passed, 360 tests passed, and local/cloud 0.1.16 artifacts built from exact release source `ec77369a990418f2a990874d1d7bd4b9d2c7fe04`.
 - CPA focused Go tests passed for both exact revisions: global two-slot middleware, control-endpoint exclusion, permanent-auth receipt confirmation, weekly-quota exclusion, success cleanup, repeated no-refresh 401 handling, and local fast-tier mapping.
 - The cloud Linux candidate was copied only to remote `/tmp`; its remote SHA-256 and `-h` runtime identity matched. Active `cliproxy.service` retained PID `977036`, restart count `0`, and active/running state.
 - The local Darwin candidate ran only on `127.0.0.1:18427` with an empty temporary auth directory and a temporary API key. Two incomplete authenticated requests occupied both slots. A third request with a complete body produced no response while those slots remained occupied; after the first request completed, the third proceeded. All three responses reported `X-CPA-Max-Concurrent-API-Requests: 2`. The temporary process was stopped and no listener remained.
 - During build, isolated canary, and durable-stage acceptance, production local CPA retained PID `38189`. No production account, archive, launcher, config, port, Cloudx selector, broker, Codex process, or service was changed by those actions.
 - After the exact `STAGE LOCAL CPA POLICY 7.0.1-codexx-fast-service-tier-cloudx-policy.1 70439565f253` confirmation, the local candidate was durably staged at `/Users/hirohi/.local/lib/cliproxy-cloudx/releases/7.0.1-codexx-fast-service-tier-cloudx-policy.1/cli-proxy-api`. Its manifest records 41,468,178 bytes and SHA-256 `70439565f25307c22fd93c8aa897871489dc32b1700ebc2390c07896e7b6de01`; stage output reported `externalServiceRestarted=false`, and PID `38189` continued to execute the baseline `/Users/hirohi/.local/bin/cli-proxy-api`.
 - After the exact `STAGE CLOUD CPA POLICY 7.2.71-cloudx-policy.1 67baab69ecc5` confirmation, the cloud candidate was durably staged at `/opt/cliproxy-cloudx/releases/7.2.71-cloudx-policy.1/cli-proxy-api`. Its manifest records 45,314,210 bytes and SHA-256 `67baab69ecc507c794f1336197a78e52c0126679a780e1c064cae453966c6a67`; stage output reported `externalServiceRestarted=false`, and `cliproxy.service` remained active/running with PID `977036`, restart count `0`, and baseline `/usr/local/bin/cli-proxy-api` selection.
+- After the exact `PUBLISH CLOUDX 0.1.16 SIGNED RELEASE WITHOUT ACTIVATION` confirmation, annotated tag `v0.1.16` and workflow `29640659405` published immutable artifact ref `9513ff87b3b2e45d2b3609f0746248a7422d34b2` and stable ref `bba9f619fc2d3e57cbd1b2808fe97ac58e805aef`. Fresh clones and seven downloaded GitHub assets passed current-root verification, previous-root rejection, byte comparison, both component self-checks, stable-index acceptance, and selector-free `staged -> already-staged` transactions. No real endpoint was staged or activated.
 
 ## Communication Continuity And Cloud Import Evidence
 
@@ -57,8 +58,8 @@ Each candidate was rebuilt independently from a fresh clean exact checkout with 
 
 ## Remaining Gates
 
-1. publish and activate the signed Cloudx release containing both receipt consumers and retain signed N-1
-2. activate cloud first and local second using the distinct exact `ACTIVATE ... CPA POLICY ...` confirmations
+1. stage and activate published signed Cloudx `0.1.16` on cloud first and local second while retaining signed N-1
+2. activate cloud first and local second CPA using the distinct exact `ACTIVATE ... CPA POLICY ...` confirmations
 3. accept natural-traffic evidence for maximum-two concurrency, quota non-archive, permanent-failure archive, and exact restore
 
-No build, test, `/tmp` copy, or readiness evidence above grants those later actions.
+No build, test, publication, `/tmp` copy, or readiness evidence above grants those later actions.

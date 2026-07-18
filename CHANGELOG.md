@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Advance repository development to `0.1.17` immediately after immutable signed `0.1.16` publication, preventing later source changes from rebuilding the released identity.
+- Pin the deferred local CPA activation prerequisite to the published signed receipt-consumer release `0.1.16`, rather than the mutable repository development version, so post-publication version advancement cannot block the approved rollout order.
+
+## 0.1.16 - 2026-07-18
+
+- Publish immutable signed `0.1.16` from source `ec77369a990418f2a990874d1d7bd4b9d2c7fe04` after exact confirmation; verify CI run `29637937166`, tag workflow `29640659405`, artifact ref `9513ff87b3b2e45d2b3609f0746248a7422d34b2`, stable ref `bba9f619fc2d3e57cbd1b2808fe97ac58e805aef`, seven GitHub Release assets, current-root acceptance, previous-root rejection, and idempotent isolated local/cloud staging without endpoint activation.
 - Advance repository development to `0.1.16` immediately after immutable signed `0.1.15` publication, preventing later source changes from rebuilding the released identity.
 - Bind legacy-health bridge evidence to published `0.1.15` source/artifact/manifest/signer identities and reduce its truthful runtime blockers from three to the two remaining production gates: inactive unit installation and rollback/cutover acceptance.
 - Add strict local/cloud CPA failure receipts and reversible archive consumption: only fresh digest-bound permanent authentication evidence is accepted, while weekly quota, ordinary 429, transient/network/timeout/5xx failures, and refreshable expired access tokens are retained; local maintenance restores the previously broken `codexx api refresh --apply` compatibility path.

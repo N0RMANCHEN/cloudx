@@ -22,7 +22,7 @@ from typing import Any, Dict, Optional, Sequence
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / "scripts/install_cpa_policy_candidate.py"
 CONTRACT = ROOT / "third_party/cliproxyapi/deployment-contract.json"
-VERSION_FILE = ROOT / "VERSION"
+REQUIRED_ACTIVE_CLOUDX_VERSION = "0.1.16"
 PLAN_SCHEMA = "cloudx.local-cpa-policy-activation-schedule-plan.v1"
 SCHEDULE_SCHEMA = "cloudx.local-cpa-policy-activation-schedule.v1"
 JOB_SCHEMA = "cloudx.local-cpa-policy-activation-job.v1"
@@ -141,14 +141,13 @@ def plan(delay_seconds: int) -> Dict[str, Any]:
     module = installer_module()
     value = module.expanded_target("local", module.load_contract(CONTRACT))
     unused_stage, activation = module.confirmations("local", value)
-    required_cloudx = VERSION_FILE.read_text(encoding="utf-8").strip()
     return {
         "schema": PLAN_SCHEMA,
         "status": "confirmation-required",
         "confirmation": activation,
         "candidateVersion": value["version"],
         "candidateSha256": value["candidateSha256"],
-        "requiredActiveCloudxVersion": required_cloudx,
+        "requiredActiveCloudxVersion": REQUIRED_ACTIVE_CLOUDX_VERSION,
         "deferredSeconds": delay_seconds,
         "currentTurnRestarted": False,
         "realCodexCanaryBeforeActivation": True,

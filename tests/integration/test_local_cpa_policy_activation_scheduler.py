@@ -28,6 +28,7 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
         self.assertTrue(document["realCodexCanaryAfterRollback"])
         self.assertTrue(document["automaticRollback"])
         self.assertFalse(document["automaticAction"])
+        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.16")
         self.assertTrue(document["confirmation"].startswith("ACTIVATE LOCAL CPA POLICY"))
 
     def test_current_cloudx_version_requires_a_real_selector(self) -> None:

@@ -59,6 +59,14 @@ Fresh remote clones verified the manifest and stable signatures with the replace
 
 Installed `0.1.13`/`0.1.12` and lagging `0.1.8/0.1.7` artifacts embed the previous trust root, so they cannot be assumed to accept the newly signed stable index. Use the separately confirmed repository-root stage-only recovery or an exact candidate-verified offline bundle transaction for `0.1.15`; do not bypass signature checks or move a selector as part of publication.
 
+## Published Release 0.1.16
+
+The immutable annotated tag `v0.1.16` identifies source `ec77369a990418f2a990874d1d7bd4b9d2c7fe04`. Main CI run `29637937166` passed the complete Ubuntu/macOS and Python 3.9/3.12 matrix after CI checkout was corrected to fetch annotated release history. Tag workflow `29640659405` then completed repository verification, exact tag verification, key loading, signed build, release evidence verification, signed-ref publication, and GitHub Release publication successfully.
+
+The immutable artifact ref is `9513ff87b3b2e45d2b3609f0746248a7422d34b2`; stable is `bba9f619fc2d3e57cbd1b2808fe97ac58e805aef`. The release manifest SHA-256 is `9ac48648b9e00bc0fcdbc33517cb3f97bb545211829626e6423281549f7b4fee`. Local artifact, cloud artifact, and offline bundle SHA-256 values are respectively `b8fb5d72192d140b212fcc3aacef05066972bdfb720a83b507b069b47920c323`, `b6257a5bbe128f159019ea0592be6eb3f3f5e38d5e109bdb293af06230ed8cfe`, and `7679bfd25a308d3390cd2476492ecadb97cdc4dab19bc85a97b534c711e4919f`.
+
+Fresh remote clones and seven downloaded release assets verified the current signer and exact source, rejected the release with the previous signer, matched every non-bundle asset byte-for-byte, passed both component self-checks, accepted the stable index, and repeated local/cloud `staged -> already-staged` transactions in selector-free isolated roots. Publication did not stage or activate a real endpoint and did not restart any service. Real endpoint install still requires the separate exact `INSTALL CLOUDX CLOUD 0.1.16` and `INSTALL CLOUDX LOCAL 0.1.16` confirmations in cloud-first order.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:
