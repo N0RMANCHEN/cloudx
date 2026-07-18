@@ -20,6 +20,43 @@ SPEC.loader.exec_module(MODULE)
 
 
 class CpaPolicyInstallerTests(unittest.TestCase):
+    def test_health_canary_retries_until_the_listener_is_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            config = pathlib.Path(temporary) / "config.yaml"
+            config.write_text("host: 127.0.0.1\nport: 8317\n", encoding="utf-8")
+            response = mock.Mock(status=200)
+            response.read.return_value = b'{"status":"ok"}'
+            connection = mock.Mock()
+            connection.getresponse.return_value = response
+            with mock.patch.object(
+                MODULE.http.client,
+                "HTTPConnection",
+                side_effect=[ConnectionRefusedError("listener race"), connection],
+            ) as constructor, mock.patch.object(MODULE.time, "sleep"):
+                MODULE.probe_health(config)
+        self.assertEqual(constructor.call_count, 2)
+        connection.request.assert_called_once_with("GET", "/healthz")
+
+    def test_policy_rollback_removes_only_empty_directories_created_by_activation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            failure = root / "failures"
+            sweep = root / "sweeps"
+            failure.mkdir()
+            sweep.mkdir()
+            MODULE.remove_created_empty_directories([failure, sweep])
+            self.assertFalse(failure.exists())
+            self.assertFalse(sweep.exists())
+
+    def test_policy_rollback_refuses_to_remove_runtime_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = pathlib.Path(temporary) / "failures"
+            directory.mkdir()
+            (directory / "receipt.json").write_text("{}", encoding="utf-8")
+            with self.assertRaisesRegex(MODULE.CpaPolicyInstallRejected, "not empty or safe"):
+                MODULE.remove_created_empty_directories([directory])
+            self.assertTrue(directory.exists())
+
     def test_plan_requires_distinct_stage_and_activation_confirmations(self) -> None:
         contract = MODULE.load_contract(MODULE.DEFAULT_CONTRACT)
         value = MODULE.expanded_target("local", contract)

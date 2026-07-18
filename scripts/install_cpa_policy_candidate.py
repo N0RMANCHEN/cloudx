@@ -33,6 +33,8 @@ SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$")
 COMMUNICATION_CANARY_TEXT = "LOCAL_CPA_POLICY_COMMUNICATION_OK"
 COMMUNICATION_CANARY_TIMEOUT_SECONDS = 180.0
+CPA_CANARY_READY_TIMEOUT_SECONDS = 20.0
+CPA_CANARY_RETRY_INTERVAL_SECONDS = 0.25
 
 
 class CpaPolicyInstallRejected(RuntimeError):
@@ -127,6 +129,25 @@ def ensure_directory(path: pathlib.Path, *, mode: int, uid: int, gid: int) -> No
         raise CpaPolicyInstallRejected("CPA policy directory is unsafe")
     os.chown(path, uid, gid)
     path.chmod(mode)
+
+
+def remove_created_empty_directories(paths: Sequence[pathlib.Path]) -> None:
+    for path in paths:
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            continue
+        if path.is_symlink() or not stat.S_ISDIR(info.st_mode) or any(path.iterdir()):
+            raise CpaPolicyInstallRejected("CPA policy rollback directory is not empty or safe")
+    for path in reversed(paths):
+        try:
+            path.rmdir()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise CpaPolicyInstallRejected("CPA policy rollback directory could not be removed") from exc
+        if path.parent.is_dir():
+            fsync_directory(path.parent)
 
 
 def run_command(
@@ -369,43 +390,66 @@ def top_level_config(path: pathlib.Path) -> Tuple[str, int]:
 
 def probe_health(config: pathlib.Path) -> None:
     host, port = top_level_config(config)
-    try:
-        connection = http.client.HTTPConnection(host, port, timeout=5.0)
-        connection.request("GET", "/healthz")
-        health = connection.getresponse()
-        health_body = health.read(4096)
-        connection.close()
-        if health.status != 200 or b'"status":"ok"' not in health_body.replace(b" ", b""):
-            raise CpaPolicyInstallRejected("CPA health canary failed")
-    except (OSError, http.client.HTTPException) as exc:
-        raise CpaPolicyInstallRejected("CPA health canary could not connect") from exc
+    deadline = time.monotonic() + CPA_CANARY_READY_TIMEOUT_SECONDS
+    saw_response = False
+    last_error: Optional[BaseException] = None
+    while True:
+        connection: Optional[http.client.HTTPConnection] = None
+        try:
+            connection = http.client.HTTPConnection(host, port, timeout=5.0)
+            connection.request("GET", "/healthz")
+            health = connection.getresponse()
+            health_body = health.read(4096)
+            saw_response = True
+            if health.status == 200 and b'"status":"ok"' in health_body.replace(b" ", b""):
+                return
+        except (OSError, http.client.HTTPException) as exc:
+            last_error = exc
+        finally:
+            if connection is not None:
+                connection.close()
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(CPA_CANARY_RETRY_INTERVAL_SECONDS)
+    if saw_response:
+        raise CpaPolicyInstallRejected("CPA health canary failed")
+    raise CpaPolicyInstallRejected("CPA health canary could not connect") from last_error
 
 
 def probe_policy(config: pathlib.Path) -> Tuple[int, str]:
     probe_health(config)
     host, port = top_level_config(config)
-    try:
-
-        connection = http.client.HTTPConnection(host, port, timeout=5.0)
-        connection.request(
-            "POST",
-            "/v1/responses",
-            body=b"{}",
-            headers={
-                "Authorization": "Bearer cloudx-policy-invalid-canary",
-                "Content-Type": "application/json",
-            },
-        )
-        response = connection.getresponse()
-        response.read(4096)
-        policy = response.getheader("X-CPA-Max-Concurrent-API-Requests", "")
-        status = response.status
-        connection.close()
-    except (OSError, http.client.HTTPException) as exc:
-        raise CpaPolicyInstallRejected("CPA policy canary could not connect") from exc
-    if status not in {400, 401, 403} or policy != "2":
-        raise CpaPolicyInstallRejected("CPA concurrency policy canary failed")
-    return status, policy
+    deadline = time.monotonic() + CPA_CANARY_READY_TIMEOUT_SECONDS
+    last_error: Optional[BaseException] = None
+    while True:
+        connection: Optional[http.client.HTTPConnection] = None
+        try:
+            connection = http.client.HTTPConnection(host, port, timeout=5.0)
+            connection.request(
+                "POST",
+                "/v1/responses",
+                body=b"{}",
+                headers={
+                    "Authorization": "Bearer cloudx-policy-invalid-canary",
+                    "Content-Type": "application/json",
+                },
+            )
+            response = connection.getresponse()
+            response.read(4096)
+            policy = response.getheader("X-CPA-Max-Concurrent-API-Requests", "")
+            status = response.status
+            if status not in {400, 401, 403} or policy != "2":
+                raise CpaPolicyInstallRejected("CPA concurrency policy canary failed")
+            return status, policy
+        except (OSError, http.client.HTTPException) as exc:
+            last_error = exc
+        finally:
+            if connection is not None:
+                connection.close()
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(CPA_CANARY_RETRY_INTERVAL_SECONDS)
+    raise CpaPolicyInstallRejected("CPA policy canary could not connect") from last_error
 
 
 def probe_local_communication(value: Dict[str, Any]) -> str:
@@ -537,6 +581,9 @@ def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
         status, policy = probe_policy(value["config"])
         return {"schema": RESULT_SCHEMA, "status": "already-active", "target": "cloud", "pid": pid, "httpStatus": status, "policy": policy}
     cliproxy = pwd.getpwnam("cliproxy")
+    created_directories = [
+        path for path in (value["failureDirectory"], value["sweepDirectory"]) if not path.exists()
+    ]
     ensure_directory(value["failureDirectory"], mode=0o700, uid=cliproxy.pw_uid, gid=cliproxy.pw_gid)
     ensure_directory(value["sweepDirectory"], mode=0o700, uid=cliproxy.pw_uid, gid=cliproxy.pw_gid)
     backup = backup_snapshot(
@@ -559,12 +606,18 @@ def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
         if sha256_bytes(safe_snapshot(value["baselineBinary"], maximum=MAX_CANDIDATE_BYTES, required=True).data) != value["baselineSha256"]:
             raise CpaPolicyInstallRejected("cloud CPA baseline changed during activation")
     except Exception as exc:
-        restore_snapshot(value["gatewayDropIn"], gateway_before)
-        restore_snapshot(value["healthDropIn"], health_before)
-        run_command(["systemctl", "daemon-reload"], check=False)
-        run_command(["systemctl", "restart", value["service"]], check=False)
-        wait_systemd_active(value["service"])
-        probe_health(value["config"])
+        try:
+            restore_snapshot(value["gatewayDropIn"], gateway_before)
+            restore_snapshot(value["healthDropIn"], health_before)
+            run_command(["systemctl", "daemon-reload"], check=False)
+            run_command(["systemctl", "restart", value["service"]], check=False)
+            wait_systemd_active(value["service"])
+            probe_health(value["config"])
+            remove_created_empty_directories(created_directories)
+        except Exception as recovery_exc:
+            raise CpaPolicyInstallRejected(
+                "cloud CPA activation failed; baseline restoration verification failed"
+            ) from recovery_exc
         raise CpaPolicyInstallRejected("cloud CPA activation failed and was rolled back") from exc
     return {
         "schema": RESULT_SCHEMA,
@@ -640,6 +693,9 @@ def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
         status, policy = probe_policy(value["config"])
         communication = probe_local_communication(value)
         return {"schema": RESULT_SCHEMA, "status": "already-active", "target": "local", "pid": pid, "httpStatus": status, "policy": policy, "communicationCanary": communication}
+    created_directories = [
+        path for path in (value["failureDirectory"], value["sweepDirectory"]) if not path.exists()
+    ]
     ensure_directory(value["failureDirectory"], mode=0o700, uid=uid, gid=gid)
     ensure_directory(value["sweepDirectory"], mode=0o700, uid=uid, gid=gid)
     backup = backup_snapshot(value["backupRoot"], "local", {"launcher": launcher_before}, uid=uid, gid=gid)
@@ -667,9 +723,10 @@ def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
             wait_launchd(domain, value["serviceLabel"], value["baselineBinary"])
             probe_health(value["config"])
             probe_local_communication(value)
+            remove_created_empty_directories(created_directories)
         except Exception as recovery_exc:
             raise CpaPolicyInstallRejected(
-                "local CPA activation failed; baseline restoration communication canary also failed"
+                "local CPA activation failed; baseline restoration verification failed"
             ) from recovery_exc
         raise CpaPolicyInstallRejected("local CPA activation failed and was rolled back") from exc
     return {
