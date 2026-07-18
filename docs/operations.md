@@ -69,6 +69,14 @@ Fresh remote clones and seven downloaded release assets verified the current sig
 
 The separately confirmed cloud install is now complete. Because the cloud host could not fetch GitHub directly, the canonical installer consumed a complete Git bundle whose local and remote SHA-256 was `b77928f9d7e7e88cfa7871b660c79c077e4da16b2bcc3879c8669395c75f4540` and whose sole release ref resolved to immutable artifact commit `9513ff87b3b2e45d2b3609f0746248a7422d34b2`. Cloud `current=0.1.16`, `previous=0.1.13`; self-check, release status, and handshake passed. The next natural CPA-health timer invocation exited `0` and truthfully reported aggregate `probe_error` with all 45 auth files retained and the archive empty. CPA PID `977036` and restart count `0` were preserved. Local install still requires the separate exact `INSTALL CLOUDX LOCAL 0.1.16` confirmation.
 
+## Published Release 0.1.17
+
+The immutable annotated tag `v0.1.17` identifies source `0bf7461c9c421b55031c8d17c0951bc8321a0ba9`. Main CI run `29646011920` passed the complete Ubuntu/macOS and Python 3.9/3.12 matrix, and non-publishing signed-build canary `29646089414` passed while leaving release refs unchanged. Tag workflow `29646167279` then completed repository verification, exact tag verification, key loading, signed build, release evidence verification, signed-ref publication, and GitHub Release publication successfully.
+
+The immutable artifact ref is `d720979dc46ff5a7b4cb1ba121aca92849e0e09a`; stable is `82a35ff57ae97c4fd655d14ce2bf28c4304cd31b`. The release manifest SHA-256 is `9ea06875527f31cf1ca2577b33afe480a331f25f3e0718935f1d28771ef69aed`. Local artifact, cloud artifact, and offline bundle SHA-256 values are respectively `b375e12ed9bfede2005bc18efb777135ebf373001bc4bbf311184ad444a52caa`, `bc94accbfcdbff3cf8d33a370e748cf6a25b52546cb15a0b313c5b5274a98480`, and `d3c6e726b651e345935821a3605d5fb0eddf7845a1a9deb55c7737009a37a9e9`.
+
+Fresh remote clones and all seven downloaded Release assets verified the current signer and exact source, rejected the release with the previous signer, matched every artifact and offline-bundle member byte-for-byte, passed both component self-checks, accepted stable, and repeated local/cloud `staged -> already-staged` transactions in selector-free isolated roots. Publication itself did not install or activate a real endpoint, restart CPA, or modify a credential/archive. Cloud remained `0.1.16/0.1.13` with CPA PID `977036` and restart count `0`; local remained `0.1.13/0.1.12` with CPA PID `38189`. Real installation requires separate `INSTALL CLOUDX CLOUD 0.1.17` and `INSTALL CLOUDX LOCAL 0.1.17` confirmations in that order.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:

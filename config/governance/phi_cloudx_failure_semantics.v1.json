@@ -1,6 +1,6 @@
 {
   "schema": "cloudx.phi-failure-semantics-evidence.v1",
-  "capturedAt": "2026-07-18T10:20:07Z",
+  "capturedAt": "2026-07-18T13:28:00Z",
   "expectedStatus": "blocked",
   "phiSnapshot": {
     "sourceRef": "3f125abf16fec1e7c17d2ccff0f6ce0a2414193e",
@@ -32,7 +32,7 @@
     ]
   },
   "cloudx": {
-    "version": "0.1.17",
+    "version": "0.1.18",
     "protocol": {
       "min": 1,
       "max": 1

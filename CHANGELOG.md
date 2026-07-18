@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Advance repository development to `0.1.18` immediately after immutable signed `0.1.17` publication, preventing later source changes from rebuilding the released identity while all CPA policy and watcher prerequisites remain pinned to signed `0.1.17`.
+
+## 0.1.17 - 2026-07-18
+
+- Publish immutable signed `0.1.17` from source `0bf7461c9c421b55031c8d17c0951bc8321a0ba9` after exact confirmation; verify main CI run `29646011920`, non-publishing signing canary `29646089414`, tag workflow `29646167279`, artifact ref `d720979dc46ff5a7b4cb1ba121aca92849e0e09a`, stable ref `82a35ff57ae97c4fd655d14ce2bf28c4304cd31b`, seven GitHub Release assets, current-root acceptance, previous-root rejection, byte-identical offline-bundle contents, and idempotent isolated local/cloud staging without endpoint activation.
 - Advance repository development to `0.1.17` immediately after immutable signed `0.1.16` publication, preventing later source changes from rebuilding the released identity.
 - Pin revised CPA policy activation to signed Cloudx `0.1.17`, ensuring the one-conclusive-failure receipt producer cannot be selected while the older `0.1.16` two-evidence consumer remains active.
 - Install signed Cloudx `0.1.16` on the cloud endpoint after exact confirmation, retaining signed `0.1.13` as N-1. The canonical installer recovered from unavailable remote GitHub fetch by consuming a hash-verified complete offline Git bundle of the immutable artifact ref; post-activation self-check, release status, and handshake passed, while the natural CPA-health timer exited `0` with truthful aggregate `probe_error` and no CPA restart or auth archive.
