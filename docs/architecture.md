@@ -15,7 +15,7 @@ Local API/CPA diagnosis uses the external gateway's retained error files as a co
 
 Local CPA maintenance scans only top-level auth JSON. It retains expired access tokens when a refresh token exists, consumes only fresh `cloudx.cpa-auth-failure.v1` receipts bound to the current file digest, and moves accepted records into a private same-filesystem archive with a rollback-safe manifest. `codexx api restore` requires the exact archived filename. The external CPA is neither restarted nor managed by these commands.
 
-Receipt consumption has a fast path independent of full account probing. The local maintenance LaunchAgent can watch the private receipt directory with a two-minute timer fallback; cloud uses a signed systemd path plus a network-isolated oneshot consumer. Full cloud probes first gate on the declared HTTPS/proxy dependency, use at most two account requests concurrently, and release the archive lock while waiting on the network. Watcher activation is a separate exact-confirmation transaction and never restarts CPA, Codex, or Phi.
+Receipt consumption has a fast path independent of full account probing. The local maintenance LaunchAgent watches both the private receipt directory and the aggregate sweep trigger, with a two-minute missed-trigger fallback. Cloud uses distinct signed systemd path/oneshot pairs: the receipt consumer is network-isolated, while the aggregate `auth_unavailable` consumer is network-capable and first gates the declared HTTPS/proxy dependency. Full sweeps never run periodically without a trigger, use a separately bounded high-concurrency probe pool rather than the two-request business limiter, deduplicate identical credentials, and release the archive lock while waiting on the network. Watcher activation is a separate exact-confirmation transaction and never restarts CPA, Codex, or Phi.
 
 ## Cloud Component
 
@@ -33,7 +33,7 @@ The cloud artifact owns:
 
 CLIProxyAPI remains the gateway runtime. Cloudx checks its contract but does not bundle or silently upgrade it.
 
-The optional operator-built CPA policy patch is pinned independently to each already deployed upstream commit. Its process-global middleware holds at most two proxied API requests until each handler, including streaming handlers, returns. Its failure observer writes no token, request, response, email, or account label; it emits only the top-level auth filename, SHA-256, enumerated permanent reason, evidence count, fixed non-quota flags, and observation time into a private directory. Cloudx revalidates every field before reversible archive.
+The optional operator-built CPA policy patch is pinned independently to each already deployed upstream commit. Its process-global middleware holds at most two proxied API requests until each handler, including streaming handlers, returns. Its account failure observer writes no token, request, response, email, or account label; it emits only the top-level auth filename, SHA-256, enumerated permanent reason, evidence count, fixed non-quota flags, and observation time into a private directory. A final aggregate `auth_unavailable` emits a separate identity-free trigger, and successful traffic emits an identity-free available observation. Cloudx revalidates every field before reversible archive and owns all probing outside CPA's business semaphore.
 
 ## Shared Contracts
 

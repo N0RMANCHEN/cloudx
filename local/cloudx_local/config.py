@@ -62,6 +62,8 @@ class LocalConfig:
     local_cpa_auth_dir: Optional[pathlib.Path] = None
     local_cpa_archive_dir: Optional[pathlib.Path] = None
     local_cpa_failure_dir: Optional[pathlib.Path] = None
+    local_cpa_sweep_dir: Optional[pathlib.Path] = None
+    local_cpa_proxy_url: str = ""
 
     @classmethod
     def load(cls) -> "LocalConfig":
@@ -111,6 +113,16 @@ class LocalConfig:
                 or local_cpa.get("failureDir")
                 or home / ".local/state/cloudx/cpa-auth-failures"
             )).expanduser(),
+            local_cpa_sweep_dir=pathlib.Path(str(
+                os.environ.get("CLOUDX_LOCAL_CPA_SWEEP_DIR")
+                or local_cpa.get("sweepDir")
+                or home / ".local/state/cloudx/cpa-auth-sweeps"
+            )).expanduser(),
+            local_cpa_proxy_url=str(
+                os.environ.get("CLOUDX_LOCAL_CPA_PROXY_URL")
+                or local_cpa.get("proxyUrl")
+                or ""
+            ).strip(),
         )
 
     @property

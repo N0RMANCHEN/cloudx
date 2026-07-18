@@ -158,6 +158,31 @@ class ContractTests(unittest.TestCase):
         for forbidden in ("access_token", "refresh_token", "id_token", "api_key", "email"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_cpa_sweep_contracts_are_identity_free_and_non_authorizing(self) -> None:
+        trigger = json.loads((CONTRACTS / "examples/cpa-sweep-trigger.json").read_text(encoding="utf-8"))
+        observation = json.loads(
+            (CONTRACTS / "examples/cpa-pool-observation.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(trigger, {
+            "schema": "cloudx.cpa-sweep-trigger.v1",
+            "reason": "auth_unavailable",
+            "observedAt": "2026-07-18T12:30:00Z",
+        })
+        self.assertEqual(observation["schema"], "cloudx.cpa-pool-observation.v1")
+        self.assertIn(observation["state"], {"available", "unavailable"})
+        serialized = json.dumps({"trigger": trigger, "observation": observation}).casefold()
+        for forbidden in (
+            "token",
+            "email",
+            "authfile",
+            "authsha256",
+            "account",
+            "provider",
+            "model",
+            "archive",
+        ):
+            self.assertNotIn(forbidden, serialized)
+
     def test_manifest_forbids_automatic_activation(self) -> None:
         schema = json.loads((CONTRACTS / "cloudx.release-manifest.v1.schema.json").read_text(encoding="utf-8"))
         automatic = schema["properties"]["activation"]["properties"]["automatic"]

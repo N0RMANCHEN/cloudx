@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .config import LocalConfig
 from .files import atomic_json, ensure_private_directory
+from . import local_cpa_probe, local_cpa_sweep
 from .local_cpa_import import _auth_dir, _auth_tokens, _decode_jwt_payload, _iso_from_epoch
 
 
@@ -183,6 +184,13 @@ def _configured_failure_dir(config: LocalConfig) -> pathlib.Path:
     path = pathlib.Path(config.local_cpa_failure_dir or config.state_dir / "cpa-auth-failures").expanduser()
     if not path.is_absolute():
         raise LocalCpaMaintenanceRejected("local CPA failure directory must be absolute")
+    return path
+
+
+def _configured_sweep_dir(config: LocalConfig) -> pathlib.Path:
+    path = pathlib.Path(config.local_cpa_sweep_dir or config.state_dir / "cpa-auth-sweeps").expanduser()
+    if not path.is_absolute():
+        raise LocalCpaMaintenanceRejected("local CPA sweep directory must be absolute")
     return path
 
 
@@ -359,6 +367,7 @@ def refresh_document(config: LocalConfig, *, apply: bool) -> Dict[str, Any]:
     auth_dir = _auth_dir(config)
     archive_dir = _configured_archive_dir(config, auth_dir)
     failure_dir = _configured_failure_dir(config)
+    sweep_dir = _configured_sweep_dir(config)
     now = datetime.now(timezone.utc)
     records = scan_active_auth(auth_dir, now=now)
     static = [
@@ -370,19 +379,73 @@ def refresh_document(config: LocalConfig, *, apply: bool) -> Dict[str, Any]:
     by_name: Dict[str, ArchiveCandidate] = {item.record.path.name: item for item in runtime}
     for item in static:
         by_name[item.record.path.name] = item
-    candidates = [by_name[name] for name in sorted(by_name)]
-    archived = archive_candidates(archive_dir, candidates, moved_at=now.isoformat()) if apply else 0
+    direct_candidates = [by_name[name] for name in sorted(by_name)]
+    direct_archived = (
+        archive_candidates(archive_dir, direct_candidates, moved_at=now.isoformat())
+        if apply
+        else 0
+    )
+
+    trigger, trigger_status = local_cpa_sweep.load(sweep_dir, now=now)
+    probe_summary: Dict[str, Any] = {
+        "gate": "not_triggered",
+        "total": 0,
+        "concurrency": 0,
+        "available": 0,
+        "limited": 0,
+        "invalid": 0,
+        "failed": 0,
+    }
+    probe_candidates: List[ArchiveCandidate] = []
+    probe_archived = 0
+    if trigger is not None:
+        try:
+            requested_concurrency = int(os.environ.get(
+                "CLOUDX_LOCAL_CPA_SWEEP_CONCURRENCY",
+                str(local_cpa_probe.DEFAULT_CONCURRENCY),
+            ))
+        except ValueError:
+            requested_concurrency = local_cpa_probe.DEFAULT_CONCURRENCY
+        probe_summary, selected = local_cpa_probe.probe_all(
+            auth_dir,
+            config.local_cpa_proxy_url,
+            requested_concurrency,
+        )
+        current_records = scan_active_auth(auth_dir)
+        for candidate in selected:
+            record = current_records.get(candidate.path.name)
+            if (
+                record is not None
+                and record.path == candidate.path
+                and record.digest == candidate.digest
+            ):
+                probe_candidates.append(
+                    ArchiveCandidate(record=record, reason="probe-%s" % candidate.reason)
+                )
+        if apply:
+            probe_archived = archive_candidates(
+                archive_dir,
+                probe_candidates,
+                moved_at=datetime.now(timezone.utc).isoformat(),
+            )
+            if probe_summary["gate"] in {"reachable", "no_accounts"}:
+                trigger_status = "consumed" if local_cpa_sweep.consume(trigger) else "retained"
+            else:
+                trigger_status = "retained"
     return {
         "schema": RESULT_SCHEMA,
         "status": "accepted",
         "mode": "apply" if apply else "dry-run",
         "activeAuthFiles": len(records),
-        "eligibleForArchive": len(candidates),
-        "archived": archived,
+        "eligibleForArchive": len(direct_candidates) + len(probe_candidates),
+        "archived": direct_archived + probe_archived,
         "rejectedFailureReceipts": rejected,
         "staleFailureReceipts": stale,
         "weeklyQuotaArchived": 0,
         "nestedAuthDirectoriesScanned": 0,
+        "sweepTriggered": trigger is not None,
+        "sweepTriggerStatus": trigger_status,
+        "sweep": probe_summary,
         "externalService": {"managed": False, "restarted": False},
     }
 

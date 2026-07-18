@@ -126,19 +126,23 @@ class CpaHealthTests(unittest.TestCase):
             self.assertEqual((archived, stale), ([], 1))
             quarantine.assert_not_called()
 
-    def test_probe_gate_bounds_account_probes_at_two(self) -> None:
+    def test_incident_probe_uses_adaptive_high_concurrency(self) -> None:
         with tempfile.TemporaryDirectory() as value:
             root = pathlib.Path(value)
             contexts = []
-            for index in range(3):
+            for index in range(33):
                 path = root / ("account-%d.json" % index)
                 path.write_text("{}", encoding="utf-8")
-                contexts.append({"path": path, "state_key": str(index), "payload": {}})
+                contexts.append({
+                    "path": path,
+                    "state_key": str(index),
+                    "payload": {"access_token": "token-%d" % index},
+                })
             active = 0
             maximum = 0
             order = []
             lock = threading.Lock()
-            first_pair = threading.Barrier(2)
+            first_wave = threading.Barrier(32)
 
             def probe(unused_config: object, account: dict, **unused_kwargs: object) -> dict:
                 nonlocal active, maximum
@@ -146,28 +150,65 @@ class CpaHealthTests(unittest.TestCase):
                     active += 1
                     maximum = max(maximum, active)
                     order.append(account["name"])
-                if account["name"] in {"0", "1"}:
-                    first_pair.wait(timeout=2)
+                if int(account["name"]) < 32:
+                    first_wave.wait(timeout=3)
                 with lock:
                     active -= 1
                 return {"status": "ready", "remaining_percents": [80]}
 
             active_runtime = runtime(
                 contexts=mock.Mock(return_value=contexts),
+                payload_auth=lambda payload: payload,
                 probe=probe,
             )
             summary, candidates = cpa_health.probe_accounts(
                 active_runtime,
                 cpa_health.cloudx_config(root, root / "archive", failure_confirmations=1),
                 warning_available_accounts=1,
-                probe_concurrency=99,
+                probe_concurrency=32,
             )
 
-            self.assertEqual(maximum, 2)
-            self.assertEqual(sorted(order), ["0", "1", "2"])
-            self.assertEqual(summary["probe_concurrency"], 2)
+            self.assertEqual(maximum, 32)
+            self.assertEqual(len(order), 33)
+            self.assertEqual(summary["probe_concurrency"], 32)
+            self.assertEqual(summary["unique_probe_credentials"], 33)
             self.assertEqual(summary["probe_gate"], "reachable")
             self.assertEqual(candidates, [])
+
+    def test_incident_probe_deduplicates_identical_credentials(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            first = root / "first.json"
+            second = root / "second.json"
+            first.write_text("{}", encoding="utf-8")
+            second.write_text("{}", encoding="utf-8")
+            payload = {"access_token": "same-token", "account_id": "same-account"}
+            contexts = [
+                {"path": first, "state_key": "first", "payload": payload},
+                {"path": second, "state_key": "second", "payload": payload},
+            ]
+            probe = mock.Mock(return_value={
+                "status": "invalid",
+                "failure_reason": "deactivated_workspace",
+                "permanent_auth_failure": True,
+                "weekly_quota": False,
+            })
+
+            summary, candidates = cpa_health.probe_accounts(
+                runtime(
+                    contexts=mock.Mock(return_value=contexts),
+                    payload_auth=lambda item: item,
+                    probe=probe,
+                ),
+                cpa_health.cloudx_config(root, root / "archive", failure_confirmations=1),
+                warning_available_accounts=1,
+            )
+
+            self.assertEqual(probe.call_count, 1)
+            self.assertEqual(summary["total"], 2)
+            self.assertEqual(summary["unique_probe_credentials"], 1)
+            self.assertEqual(summary["probe_concurrency"], 1)
+            self.assertEqual({pathlib.Path(item["path"]).name for item in candidates}, {"first.json", "second.json"})
 
     def test_transport_or_provider_failure_skips_every_account_probe(self) -> None:
         active_runtime = runtime(
@@ -189,8 +230,8 @@ class CpaHealthTests(unittest.TestCase):
             account = pathlib.Path(value) / "bundle.json"
             account.write_text("{}", encoding="utf-8")
             contexts = [
-                {"path": account, "state_key": "invalid", "payload": {}},
-                {"path": account, "state_key": "ready", "payload": {}},
+                {"path": account, "state_key": "invalid", "payload": {"access_token": "invalid"}},
+                {"path": account, "state_key": "ready", "payload": {"access_token": "ready"}},
             ]
 
             def probe(unused_config: object, selected: dict, **unused_kwargs: object) -> dict:
@@ -204,7 +245,11 @@ class CpaHealthTests(unittest.TestCase):
                 return {"status": "ready", "remaining_percents": [80]}
 
             summary, candidates = cpa_health.probe_accounts(
-                runtime(contexts=mock.Mock(return_value=contexts), probe=probe),
+                runtime(
+                    contexts=mock.Mock(return_value=contexts),
+                    payload_auth=lambda payload: payload,
+                    probe=probe,
+                ),
                 cpa_health.cloudx_config(account.parent, account.parent / "archive", failure_confirmations=1),
                 warning_available_accounts=1,
             )
@@ -378,6 +423,134 @@ class CpaHealthTests(unittest.TestCase):
             self.assertEqual(document["network_probes"], 0)
             active_runtime.refresh.assert_not_called()
             active_runtime.transport.assert_not_called()
+            active_runtime.probe.assert_not_called()
+
+    def test_automatic_maintenance_does_not_probe_without_pool_failure_trigger(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            account = root / "auth/account.json"
+            account.parent.mkdir()
+            account.write_text("{}", encoding="utf-8")
+            active_runtime = runtime(
+                contexts=mock.Mock(return_value=[{"path": account, "state_key": "one", "payload": {}}]),
+            )
+            args = argparse.Namespace(
+                check=False,
+                sweep_if_triggered=True,
+                runtime_failures_only=False,
+                auth_dir=account.parent,
+                archive_dir=root / "archive",
+                state_dir=root / "state",
+                failure_dir=root / "failures",
+                sweep_dir=root / "sweeps",
+                warning_available_accounts=3,
+                failure_confirmations=1,
+                probe_concurrency=32,
+                proxy_url="",
+            )
+            output = StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(cpa_health.run(args, runtime=active_runtime), 0)
+
+            document = json.loads(output.getvalue())
+            self.assertFalse(document["sweep_triggered"])
+            self.assertEqual(document["sweep_trigger_status"], "absent")
+            self.assertEqual(document["probe_concurrency"], 0)
+            active_runtime.transport.assert_not_called()
+            active_runtime.probe.assert_not_called()
+
+    def test_pool_unavailable_trigger_runs_fast_sweep_and_archives_permanent_account(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            auth_dir = root / "auth"
+            sweep_dir = root / "sweeps"
+            auth_dir.mkdir()
+            sweep_dir.mkdir()
+            account = auth_dir / "account.json"
+            account.write_text("{}", encoding="utf-8")
+            (sweep_dir / "trigger.json").write_text(json.dumps({
+                "schema": "cloudx.cpa-sweep-trigger.v1",
+                "reason": "auth_unavailable",
+                "observedAt": datetime.now(timezone.utc).isoformat(),
+            }), encoding="utf-8")
+            quarantine = mock.Mock(return_value={"moved_from": str(account)})
+            active_runtime = runtime(
+                quarantine=quarantine,
+                scan=mock.Mock(return_value=[{"path": str(account)}]),
+                contexts=mock.Mock(return_value=[{"path": account, "state_key": "one", "payload": {}}]),
+                probe=mock.Mock(return_value={
+                    "status": "invalid",
+                    "failure_reason": "deactivated_workspace",
+                    "permanent_auth_failure": True,
+                    "weekly_quota": False,
+                }),
+            )
+            args = argparse.Namespace(
+                check=False,
+                sweep_if_triggered=True,
+                runtime_failures_only=False,
+                auth_dir=auth_dir,
+                archive_dir=root / "archive",
+                state_dir=root / "state",
+                failure_dir=root / "failures",
+                sweep_dir=sweep_dir,
+                warning_available_accounts=3,
+                failure_confirmations=1,
+                probe_concurrency=32,
+                proxy_url="",
+            )
+            output = StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(cpa_health.run(args, runtime=active_runtime), 0)
+
+            document = json.loads(output.getvalue())
+            self.assertTrue(document["sweep_triggered"])
+            self.assertEqual(document["sweep_trigger_status"], "consumed")
+            self.assertEqual(document["probe_concurrency"], 1)
+            self.assertEqual(document["probe_failure_archived_count"], 1)
+            self.assertFalse((sweep_dir / "trigger.json").exists())
+            quarantine.assert_called_once()
+
+    def test_infrastructure_failure_retains_sweep_trigger_without_account_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            auth_dir = root / "auth"
+            sweep_dir = root / "sweeps"
+            auth_dir.mkdir()
+            sweep_dir.mkdir()
+            account = auth_dir / "account.json"
+            account.write_text("{}", encoding="utf-8")
+            (sweep_dir / "trigger.json").write_text(json.dumps({
+                "schema": "cloudx.cpa-sweep-trigger.v1",
+                "reason": "auth_unavailable",
+                "observedAt": datetime.now(timezone.utc).isoformat(),
+            }), encoding="utf-8")
+            active_runtime = runtime(
+                contexts=mock.Mock(return_value=[{"path": account, "state_key": "one", "payload": {}}]),
+                transport=mock.Mock(return_value={"status": "provider_error"}),
+            )
+            args = argparse.Namespace(
+                check=False,
+                sweep_if_triggered=True,
+                runtime_failures_only=False,
+                auth_dir=auth_dir,
+                archive_dir=root / "archive",
+                state_dir=root / "state",
+                failure_dir=root / "failures",
+                sweep_dir=sweep_dir,
+                warning_available_accounts=3,
+                failure_confirmations=1,
+                probe_concurrency=32,
+                proxy_url="",
+            )
+            output = StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(cpa_health.run(args, runtime=active_runtime), 0)
+
+            document = json.loads(output.getvalue())
+            self.assertEqual(document["probe_gate"], "provider_error")
+            self.assertEqual(document["sweep_trigger_status"], "retained")
+            self.assertTrue((sweep_dir / "trigger.json").exists())
             active_runtime.probe.assert_not_called()
 
     def test_full_network_probe_does_not_hold_the_archive_lock(self) -> None:

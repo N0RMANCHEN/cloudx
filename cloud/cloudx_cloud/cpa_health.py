@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
-from . import cpa_auth, cpa_quota
+from . import cpa_auth, cpa_quota, cpa_sweep
 from .public_metadata import emit_json, validate_public_document
 
 
@@ -23,10 +23,11 @@ DEFAULT_AUTH_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth")
 DEFAULT_ARCHIVE_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth-archive")
 DEFAULT_STATE_DIR = pathlib.Path("/var/lib/cloudx/cpa-health")
 DEFAULT_FAILURE_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth-failures")
+DEFAULT_SWEEP_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth-sweeps")
 DEFAULT_WARNING_AVAILABLE_ACCOUNTS = 3
 DEFAULT_FAILURE_CONFIRMATIONS = 3
-DEFAULT_PROBE_CONCURRENCY = 2
-MAX_PROBE_CONCURRENCY = 2
+DEFAULT_PROBE_CONCURRENCY = 32
+MAX_PROBE_CONCURRENCY = 64
 FAILURE_RECEIPT_SCHEMA = "cloudx.cpa-auth-failure.v1"
 MAX_FAILURE_RECEIPT_BYTES = 16 * 1024
 MAX_FAILURE_RECEIPTS = 2048
@@ -96,11 +97,11 @@ def cloudx_config(
 def probe_context(
     runtime: CpaRuntime,
     config: Dict[str, Any],
-    context: Dict[str, Any],
+    context: Dict[str, Any], *, auth_override: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     state_key = str(context.get("state_key") or "account")
     payload = context.get("payload") if isinstance(context.get("payload"), dict) else {}
-    auth = runtime.payload_auth(payload)
+    auth = auth_override if auth_override is not None else runtime.payload_auth(payload)
     if not isinstance(auth, dict):
         raise CpaHealthUnavailable("CPA runtime returned invalid auth context")
     return runtime.probe(
@@ -178,7 +179,7 @@ def probe_accounts(
             warning_available_accounts=warning_available_accounts,
             checked_at=utc_now().isoformat(),
         )
-        summary.update({"probe_gate": "no_accounts", "probe_concurrency": concurrency})
+        summary.update({"probe_gate": "no_accounts", "probe_concurrency": 0})
         return summary, []
     transport = runtime.transport(config, timeout_seconds=5)
     transport_status = str(transport.get("status") or "transport_error") if isinstance(transport, dict) else "transport_error"
@@ -188,7 +189,7 @@ def probe_accounts(
             warning_available_accounts=warning_available_accounts,
             checked_at=utc_now().isoformat(),
         )
-        summary.update({"probe_gate": transport_status, "probe_concurrency": concurrency})
+        summary.update({"probe_gate": transport_status, "probe_concurrency": 0})
         return summary, []
 
     digests: List[str] = []
@@ -199,8 +200,24 @@ def probe_accounts(
         except OSError:
             digest = ""
         digests.append(digest)
-    with ThreadPoolExecutor(max_workers=concurrency, thread_name_prefix="cloudx-cpa-probe") as executor:
-        probes = list(executor.map(lambda context: probe_context(runtime, config, context), contexts))
+    probe_keys: List[str] = []
+    unique_contexts: Dict[str, Tuple[Dict[str, Any], Dict[str, Any]]] = {}
+    for context in contexts:
+        payload = context.get("payload") if isinstance(context.get("payload"), dict) else {}
+        auth = runtime.payload_auth(payload)
+        if not isinstance(auth, dict):
+            raise CpaHealthUnavailable("CPA runtime returned invalid auth context")
+        key = cpa_sweep.credential_key(auth)
+        probe_keys.append(key)
+        unique_contexts.setdefault(key, (context, auth))
+    active_concurrency = min(concurrency, len(unique_contexts))
+    with ThreadPoolExecutor(max_workers=active_concurrency, thread_name_prefix="cloudx-cpa-probe") as executor:
+        keys = list(unique_contexts)
+        unique_probes = executor.map(lambda item: probe_context(
+            runtime, config, item[0], auth_override=item[1]
+        ), unique_contexts.values())
+        probes_by_key = dict(zip(keys, unique_probes))
+    probes = [probes_by_key[key] for key in probe_keys]
     grouped: Dict[str, List[Tuple[Optional[Dict[str, Any]], str]]] = {}
     for context, item, digest in zip(contexts, probes, digests):
         grouped.setdefault(str(context.get("path") or ""), []).append((item, digest))
@@ -238,7 +255,7 @@ def probe_accounts(
         warning_available_accounts=warning_available_accounts,
         checked_at=utc_now().isoformat(),
     )
-    summary.update({"probe_gate": "reachable", "probe_concurrency": concurrency})
+    summary.update({"probe_gate": "reachable", "probe_concurrency": active_concurrency, "unique_probe_credentials": len(unique_contexts)})
     return summary, permanent_candidates
 
 
@@ -495,6 +512,141 @@ def monitor_lock(state_dir: pathlib.Path) -> Iterator[None]:
         yield
 
 
+@contextmanager
+def sweep_lock(state_dir: pathlib.Path) -> Iterator[bool]:
+    state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path = state_dir / "sweep.lock"
+    with path.open("a+", encoding="utf-8") as lock:
+        path.chmod(0o600)
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            yield False
+            return
+        yield True
+
+
+def passive_pool_summary(
+    runtime: CpaRuntime,
+    config: Dict[str, Any],
+    sweep_dir: pathlib.Path,
+    *,
+    warning_available_accounts: int,
+) -> Dict[str, Any]:
+    contexts = runtime.contexts(config, "api")
+    if not isinstance(contexts, list) or any(not isinstance(item, dict) for item in contexts):
+        raise CpaHealthUnavailable("CPA runtime returned invalid account contexts")
+    observation = cpa_sweep.load_pool_observation(sweep_dir)
+    probes: List[Optional[Dict[str, Any]]] = [None] * len(contexts)
+    checked_at = utc_now().isoformat()
+    pool_state = "unobserved"
+    if observation is not None:
+        pool_state = str(observation["state"])
+        checked_at = observation["observed_at"].astimezone(timezone.utc).isoformat()
+        if pool_state == "available" and probes:
+            probes[0] = {"status": "ready", "remaining_percents": []}
+    summary = summarize_probes(
+        probes,
+        warning_available_accounts=warning_available_accounts,
+        checked_at=checked_at,
+    )
+    summary.update({
+        "probe_gate": "not_triggered",
+        "probe_concurrency": 0,
+        "pool_observation": pool_state,
+        "sweep_triggered": False,
+    })
+    return summary
+
+
+def triggered_sweep_run(
+    args: argparse.Namespace,
+    runtime: CpaRuntime,
+    config: Dict[str, Any],
+) -> int:
+    state_path = args.state_dir / "state.json"
+    with monitor_lock(args.state_dir):
+        static_archived = archive_static_failures(runtime, config, args.state_dir)
+        runtime_archived, rejected_receipts, stale_receipts = archive_runtime_failures(
+            runtime,
+            config,
+            args.failure_dir,
+        )
+    trigger, trigger_status = cpa_sweep.load_trigger(args.sweep_dir)
+    if trigger is None:
+        summary = passive_pool_summary(
+            runtime,
+            config,
+            args.sweep_dir,
+            warning_available_accounts=args.warning_available_accounts,
+        )
+        summary.update({
+            "archived_files": sorted(set(static_archived + runtime_archived)),
+            "runtime_failure_archived_count": len(set(runtime_archived)),
+            "probe_failure_archived_count": 0,
+            "stale_probe_candidates": 0,
+            "rejected_failure_receipts": rejected_receipts,
+            "stale_failure_receipts": stale_receipts,
+            "sweep_trigger_status": trigger_status,
+        })
+        with monitor_lock(args.state_dir):
+            save_state(state_path, summary)
+        emit_json(public_summary(summary), ensure_ascii=False)
+        return 0
+
+    with sweep_lock(args.state_dir) as acquired:
+        if not acquired:
+            summary = passive_pool_summary(
+                runtime,
+                config,
+                args.sweep_dir,
+                warning_available_accounts=args.warning_available_accounts,
+            )
+            summary.update({
+                "archived_files": sorted(set(static_archived + runtime_archived)),
+                "runtime_failure_archived_count": len(set(runtime_archived)),
+                "probe_failure_archived_count": 0,
+                "stale_probe_candidates": 0,
+                "rejected_failure_receipts": rejected_receipts,
+                "stale_failure_receipts": stale_receipts,
+                "sweep_trigger_status": "busy",
+            })
+            emit_json(public_summary(summary), ensure_ascii=False)
+            return 0
+        summary, probe_candidates = probe_accounts(
+            runtime,
+            config,
+            warning_available_accounts=args.warning_available_accounts,
+            probe_concurrency=getattr(args, "probe_concurrency", DEFAULT_PROBE_CONCURRENCY),
+        )
+        with monitor_lock(args.state_dir):
+            later_archived, later_rejected, later_stale = archive_runtime_failures(
+                runtime,
+                config,
+                args.failure_dir,
+            )
+            probe_archived, stale_probe_candidates = archive_permanent_probe_failures(
+                runtime,
+                config,
+                probe_candidates,
+            )
+            runtime_archived = sorted(set(runtime_archived + later_archived))
+            summary["archived_files"] = sorted(set(static_archived + runtime_archived + probe_archived))
+            summary["runtime_failure_archived_count"] = len(runtime_archived)
+            summary["probe_failure_archived_count"] = len(probe_archived)
+            summary["stale_probe_candidates"] = stale_probe_candidates
+            summary["rejected_failure_receipts"] = max(rejected_receipts, later_rejected)
+            summary["stale_failure_receipts"] = max(stale_receipts, later_stale)
+            summary["sweep_triggered"] = True
+            consumed = False
+            if summary["probe_gate"] in {"reachable", "no_accounts"}:
+                consumed = cpa_sweep.consume_trigger(trigger)
+            summary["sweep_trigger_status"] = "consumed" if consumed else "retained"
+            save_state(state_path, summary)
+    emit_json(public_summary(summary), ensure_ascii=False)
+    return 0
+
+
 def add_arguments(parser: argparse.ArgumentParser) -> None:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true", help="probe only; do not write state or isolate accounts")
@@ -503,10 +655,16 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="consume permanent runtime-failure receipts without network probes",
     )
+    mode.add_argument(
+        "--sweep-if-triggered",
+        action="store_true",
+        help="probe every account only after a fresh pool-unavailable trigger",
+    )
     parser.add_argument("--auth-dir", type=pathlib.Path, default=DEFAULT_AUTH_DIR)
     parser.add_argument("--archive-dir", type=pathlib.Path, default=DEFAULT_ARCHIVE_DIR)
     parser.add_argument("--state-dir", type=pathlib.Path, default=DEFAULT_STATE_DIR)
     parser.add_argument("--failure-dir", type=pathlib.Path, default=DEFAULT_FAILURE_DIR)
+    parser.add_argument("--sweep-dir", type=pathlib.Path, default=DEFAULT_SWEEP_DIR)
     parser.add_argument(
         "--proxy-url",
         default=(
@@ -536,7 +694,12 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--probe-concurrency",
         type=int,
-        default=int(os.environ.get("CLOUDX_CPA_PROBE_CONCURRENCY", str(DEFAULT_PROBE_CONCURRENCY))),
+        default=int(
+            os.environ.get(
+                "CLOUDX_CPA_SWEEP_CONCURRENCY",
+                os.environ.get("CLOUDX_CPA_PROBE_CONCURRENCY", str(DEFAULT_PROBE_CONCURRENCY)),
+            )
+        ),
     )
 
 
@@ -564,6 +727,9 @@ def run(args: argparse.Namespace, runtime: Optional[CpaRuntime] = None) -> int:
         )
         emit_json(public_summary(summary), ensure_ascii=False)
         return 0
+
+    if getattr(args, "sweep_if_triggered", False):
+        return triggered_sweep_run(args, active_runtime, config)
 
     if getattr(args, "runtime_failures_only", False):
         with monitor_lock(args.state_dir):

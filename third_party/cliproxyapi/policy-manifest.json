@@ -10,12 +10,16 @@
       "local-model-list"
     ],
     "failureReceiptSchema": "cloudx.cpa-auth-failure.v1",
+    "sweepTriggerSchema": "cloudx.cpa-sweep-trigger.v1",
+    "poolObservationSchema": "cloudx.cpa-pool-observation.v1",
     "authDirectoryEnvironment": "CLIPROXY_AUTH_DIR",
     "failureDirectoryEnvironment": "CLIPROXY_AUTH_FAILURE_DIR",
+    "sweepDirectoryEnvironment": "CLIPROXY_AUTH_SWEEP_DIR",
     "minimumFailureEvidence": 1,
     "permanentFailureArchivesImmediately": true,
     "provisionalFailureArchived": false,
-    "accountProbeConcurrency": 2,
+    "periodicAccountProbe": false,
+    "incidentProbeConcurrency": "adaptive-up-to-32",
     "weeklyQuotaArchived": false
   },
   "targets": {
@@ -25,14 +29,20 @@
       "upstreamCommit": "15ac7fb9324095330e60f522147b8a8e81f16ab5",
       "patch": "patches/v7.0.1-cloudx-policy.patch",
       "patchSha256": "d0b6f68273bbe7c8aa8db477ec7c22efb26f902b0987370b53fd535682acae22",
+      "supplementalPatches": [
+        {
+          "path": "patches/cloudx-pool-sweep-trigger.patch",
+          "sha256": "cdfefe3058784dd836fb2d4c48610310660db8d39062f654784d1d92e4fd4bdc"
+        }
+      ],
       "goVersion": "1.26.0",
       "goos": "darwin",
       "goarch": "arm64",
-      "version": "7.0.1-codexx-fast-service-tier-cloudx-policy.2",
-      "commitLabel": "15ac7fb+cloudx-cpa-policy2",
-      "buildDate": "2026-07-18T11:20:00Z",
-      "candidateSha256": "f288838053f43a82c50d2ab23bcb096c627a848fdf662413544a483f908f236d",
-      "candidateSize": 41468178,
+      "version": "7.0.1-codexx-fast-service-tier-cloudx-policy.3",
+      "commitLabel": "15ac7fb+cloudx-cpa-policy3",
+      "buildDate": "2026-07-18T12:30:00Z",
+      "candidateSha256": "1cff3152e34666d2753add54ce7f5f96dbd643e607c1f136a9052cd28eba9ecd",
+      "candidateSize": 41484930,
       "preservesLocalFastServiceTier": true
     },
     "cloud": {
@@ -41,14 +51,20 @@
       "upstreamCommit": "5b7f2361ee27d195f6514dde08656f6e4773a9a4",
       "patch": "patches/v7.2.71-cloudx-policy.patch",
       "patchSha256": "7b98a55b2c20f0c0867f2aa352c398fbac073064e48c94dde9b6a5a71ef29a40",
+      "supplementalPatches": [
+        {
+          "path": "patches/cloudx-pool-sweep-trigger.patch",
+          "sha256": "cdfefe3058784dd836fb2d4c48610310660db8d39062f654784d1d92e4fd4bdc"
+        }
+      ],
       "goVersion": "1.26.0",
       "goos": "linux",
       "goarch": "amd64",
-      "version": "7.2.71-cloudx-policy.2",
-      "commitLabel": "5b7f2361+cloudx-cpa-policy2",
-      "buildDate": "2026-07-18T11:20:00Z",
-      "candidateSha256": "7c9603a380f9fbd7bdbe1c8ecbf938504f6055677ba4d4de2cd7004398a02229",
-      "candidateSize": 45314210,
+      "version": "7.2.71-cloudx-policy.3",
+      "commitLabel": "5b7f2361+cloudx-cpa-policy3",
+      "buildDate": "2026-07-18T12:30:00Z",
+      "candidateSha256": "453df72d15235ea51e5fdf66d27692bb5249bd262800fd628af3638246021a2b",
+      "candidateSize": 45322402,
       "preservesLocalFastServiceTier": false
     }
   }

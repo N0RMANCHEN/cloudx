@@ -79,7 +79,9 @@ class ShadowSystemdTemplateTests(unittest.TestCase):
         self.assertIn("ReadOnlyPaths=/opt/cloudx/releases", service)
         self.assertIn("ReadWritePaths=/var/lib/cloudx/cpa-health", service)
         self.assertIn("/var/lib/codex-gateway/cliproxy-auth-failures", service)
-        self.assertIn("CLOUDX_CPA_PROBE_CONCURRENCY=2", service)
+        self.assertIn("CLOUDX_CPA_SWEEP_CONCURRENCY=32", service)
+        self.assertIn("cpa-health --sweep-if-triggered", service)
+        self.assertIn("/var/lib/codex-gateway/cliproxy-auth-sweeps", service)
         self.assertNotIn("/home/", service)
         self.assertNotIn("send-email", service)
         self.assertIn("OnActiveSec=2min", timer)
@@ -95,6 +97,16 @@ class ShadowSystemdTemplateTests(unittest.TestCase):
         self.assertIn("PathChanged=/var/lib/codex-gateway/cliproxy-auth-failures", path)
         self.assertIn("Unit=cloudx-cpa-failure.service", path)
         self.assertNotIn("phi", path.casefold())
+
+    def test_cpa_pool_failure_triggers_rapid_networked_sweep(self) -> None:
+        service = (ACTIVE_SYSTEMD / "cloudx-cpa-sweep.service").read_text(encoding="utf-8")
+        path = (ACTIVE_SYSTEMD / "cloudx-cpa-sweep.path").read_text(encoding="utf-8")
+        self.assertIn("cpa-health --sweep-if-triggered", service)
+        self.assertIn("CLOUDX_CPA_SWEEP_CONCURRENCY=32", service)
+        self.assertIn("CLOUDX_CPA_PROXY_URL=http://127.0.0.1:7890", service)
+        self.assertNotIn("PrivateNetwork=true", service)
+        self.assertIn("PathChanged=/var/lib/codex-gateway/cliproxy-auth-sweeps/trigger.json", path)
+        self.assertIn("Unit=cloudx-cpa-sweep.service", path)
 
     def test_legacy_health_bridge_is_fixed_to_a_signed_artifact_and_off_network(self) -> None:
         canary = (ACTIVE_SYSTEMD / "cloudx-legacy-health-bridge-canary.service").read_text(encoding="utf-8")

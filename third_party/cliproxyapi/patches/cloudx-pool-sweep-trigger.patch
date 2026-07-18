@@ -1,0 +1,357 @@
+diff --git a/sdk/api/handlers/cloudx_sweep_trigger.go b/sdk/api/handlers/cloudx_sweep_trigger.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..3cdd07b5deb5fe69b23271a545bbf719e279224c
+--- /dev/null
++++ b/sdk/api/handlers/cloudx_sweep_trigger.go
+@@ -0,0 +1,115 @@
++package handlers
++
++import (
++	"encoding/json"
++	"os"
++	"path/filepath"
++	"strings"
++	"sync"
++	"time"
++)
++
++const (
++	cloudxSweepTriggerSchema = "cloudx.cpa-sweep-trigger.v1"
++	cloudxPoolStateSchema    = "cloudx.cpa-pool-observation.v1"
++	cloudxSweepWriteInterval = 30 * time.Second
++	cloudxSweepTriggerName   = "trigger.json"
++	cloudxPoolStateName      = "pool-state.json"
++)
++
++type cloudxSweepTrigger struct {
++	Schema     string `json:"schema"`
++	Reason     string `json:"reason"`
++	ObservedAt string `json:"observedAt"`
++}
++
++type cloudxPoolObservation struct {
++	Schema     string `json:"schema"`
++	State      string `json:"state"`
++	ObservedAt string `json:"observedAt"`
++}
++
++var cloudxSweepWriter = struct {
++	sync.Mutex
++	lastWrite time.Time
++}{}
++
++func cloudxWriteSweepTrigger() {
++	dir, ok := cloudxSweepDirectory()
++	if !ok {
++		return
++	}
++	now := time.Now().UTC()
++	cloudxSweepWriter.Lock()
++	if !cloudxSweepWriter.lastWrite.IsZero() && now.Sub(cloudxSweepWriter.lastWrite) < cloudxSweepWriteInterval {
++		cloudxSweepWriter.Unlock()
++		return
++	}
++	cloudxSweepWriter.lastWrite = now
++	cloudxSweepWriter.Unlock()
++
++	cloudxWritePrivateJSON(dir, cloudxPoolStateName, cloudxPoolObservation{
++		Schema: cloudxPoolStateSchema, State: "unavailable", ObservedAt: now.Format(time.RFC3339Nano),
++	})
++	cloudxWritePrivateJSON(dir, cloudxSweepTriggerName, cloudxSweepTrigger{
++		Schema: cloudxSweepTriggerSchema, Reason: "auth_unavailable", ObservedAt: now.Format(time.RFC3339Nano),
++	})
++}
++
++func cloudxSweepDirectory() (string, bool) {
++	dir := strings.TrimSpace(os.Getenv("CLIPROXY_AUTH_SWEEP_DIR"))
++	if !filepath.IsAbs(dir) {
++		return "", false
++	}
++	dir = filepath.Clean(dir)
++	if err := os.MkdirAll(dir, 0o700); err != nil {
++		return "", false
++	}
++	info, err := os.Lstat(dir)
++	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
++		return "", false
++	}
++	if err := os.Chmod(dir, 0o700); err != nil {
++		return "", false
++	}
++	return dir, true
++}
++
++func cloudxWritePrivateJSON(dir, name string, value any) {
++	raw, err := json.Marshal(value)
++	if err != nil {
++		return
++	}
++	temporary, err := os.CreateTemp(dir, "."+name+".tmp-")
++	if err != nil {
++		return
++	}
++	temporaryPath := temporary.Name()
++	keep := false
++	defer func() {
++		_ = temporary.Close()
++		if !keep {
++			_ = os.Remove(temporaryPath)
++		}
++	}()
++	if err = temporary.Chmod(0o600); err != nil {
++		return
++	}
++	if _, err = temporary.Write(append(raw, '\n')); err != nil {
++		return
++	}
++	if err = temporary.Sync(); err != nil {
++		return
++	}
++	if err = temporary.Close(); err != nil {
++		return
++	}
++	if err = os.Rename(temporaryPath, filepath.Join(dir, name)); err != nil {
++		return
++	}
++	keep = true
++	if handle, openErr := os.Open(dir); openErr == nil {
++		_ = handle.Sync()
++		_ = handle.Close()
++	}
++}
+diff --git a/sdk/api/handlers/cloudx_sweep_trigger_test.go b/sdk/api/handlers/cloudx_sweep_trigger_test.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..6eb6ae5c6f410c8e35d6c5623c26b5a301f61fa1
+--- /dev/null
++++ b/sdk/api/handlers/cloudx_sweep_trigger_test.go
+@@ -0,0 +1,64 @@
++package handlers
++
++import (
++	"encoding/json"
++	"net/http"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++
++	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
++)
++
++func cloudxSweepFixture(t *testing.T) string {
++	t.Helper()
++	dir := filepath.Join(t.TempDir(), "sweeps")
++	t.Setenv("CLIPROXY_AUTH_SWEEP_DIR", dir)
++	cloudxSweepWriter.Lock()
++	cloudxSweepWriter.lastWrite = cloudxSweepWriter.lastWrite.Add(-2 * cloudxSweepWriteInterval)
++	cloudxSweepWriter.Unlock()
++	return dir
++}
++
++func TestCloudxAuthUnavailableWritesIdentityFreeSweepTrigger(t *testing.T) {
++	dir := cloudxSweepFixture(t)
++	err := &coreauth.Error{Code: "auth_unavailable", Message: "no auth available", HTTPStatus: http.StatusServiceUnavailable}
++	_ = enrichAuthSelectionError(err, []string{"private-provider"}, "private-model")
++
++	raw, readErr := os.ReadFile(filepath.Join(dir, cloudxSweepTriggerName))
++	if readErr != nil {
++		t.Fatal(readErr)
++	}
++	var trigger cloudxSweepTrigger
++	if errJSON := json.Unmarshal(raw, &trigger); errJSON != nil {
++		t.Fatal(errJSON)
++	}
++	if trigger.Schema != cloudxSweepTriggerSchema || trigger.Reason != "auth_unavailable" || trigger.ObservedAt == "" {
++		t.Fatalf("unexpected trigger: %+v", trigger)
++	}
++	if strings.Contains(string(raw), "private-provider") || strings.Contains(string(raw), "private-model") {
++		t.Fatalf("trigger leaked routing identity: %s", raw)
++	}
++
++	poolRaw, readPoolErr := os.ReadFile(filepath.Join(dir, cloudxPoolStateName))
++	if readPoolErr != nil {
++		t.Fatal(readPoolErr)
++	}
++	var pool cloudxPoolObservation
++	if errJSON := json.Unmarshal(poolRaw, &pool); errJSON != nil {
++		t.Fatal(errJSON)
++	}
++	if pool.Schema != cloudxPoolStateSchema || pool.State != "unavailable" {
++		t.Fatalf("unexpected pool observation: %+v", pool)
++	}
++}
++
++func TestCloudxAuthNotFoundDoesNotTriggerSweep(t *testing.T) {
++	dir := cloudxSweepFixture(t)
++	err := &coreauth.Error{Code: "auth_not_found", Message: "no auth configured", HTTPStatus: http.StatusServiceUnavailable}
++	_ = enrichAuthSelectionError(err, nil, "private-model")
++	if _, statErr := os.Stat(filepath.Join(dir, cloudxSweepTriggerName)); !os.IsNotExist(statErr) {
++		t.Fatalf("auth_not_found created sweep trigger: %v", statErr)
++	}
++}
+diff --git a/sdk/api/handlers/handlers.go b/sdk/api/handlers/handlers.go
+index 92c1f46ce194ac7dc58a1c9a15efaeb79c4cdb91..290c767b991b4a4a3a284fbff170b6913d3ef02b 100644
+--- a/sdk/api/handlers/handlers.go
++++ b/sdk/api/handlers/handlers.go
+@@ -2141,6 +2141,9 @@ func enrichAuthSelectionError(err error, providers []string, model string) error
+ 	if code != "auth_not_found" && code != "auth_unavailable" {
+ 		return err
+ 	}
++	if code == "auth_unavailable" {
++		cloudxWriteSweepTrigger()
++	}
+ 
+ 	providerText := strings.Join(providers, ",")
+ 	if providerText == "" {
+diff --git a/sdk/cliproxy/auth/cloudx_failure_receipts.go b/sdk/cliproxy/auth/cloudx_failure_receipts.go
+index 5091a55263d2756d07ff8d2bad4f65ce3fb896b1..9d1f4c1dbcd99ca5eea89bc5cdfaa2714fee6e5f 100644
+--- a/sdk/cliproxy/auth/cloudx_failure_receipts.go
++++ b/sdk/cliproxy/auth/cloudx_failure_receipts.go
+@@ -53,6 +53,7 @@ func cloudxRecordResult(auth *Auth, result Result) {
+ 		return
+ 	}
+ 	if result.Success {
++		cloudxWritePoolAvailableObservation()
+ 		cloudxClearFailure(auth)
+ 		return
+ 	}
+diff --git a/sdk/cliproxy/auth/cloudx_pool_observation.go b/sdk/cliproxy/auth/cloudx_pool_observation.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..43aee4044dca7b1c903b5173239fd12232e8b3ae
+--- /dev/null
++++ b/sdk/cliproxy/auth/cloudx_pool_observation.go
+@@ -0,0 +1,93 @@
++package auth
++
++import (
++	"encoding/json"
++	"os"
++	"path/filepath"
++	"strings"
++	"sync"
++	"time"
++)
++
++const (
++	cloudxPoolObservationSchema = "cloudx.cpa-pool-observation.v1"
++	cloudxPoolObservationName   = "pool-state.json"
++	cloudxPoolWriteInterval     = 30 * time.Second
++)
++
++type cloudxPoolObservation struct {
++	Schema     string `json:"schema"`
++	State      string `json:"state"`
++	ObservedAt string `json:"observedAt"`
++}
++
++var cloudxPoolWriter = struct {
++	sync.Mutex
++	lastWrite time.Time
++}{}
++
++func cloudxWritePoolAvailableObservation() {
++	dir := strings.TrimSpace(os.Getenv("CLIPROXY_AUTH_SWEEP_DIR"))
++	if !filepath.IsAbs(dir) {
++		return
++	}
++	dir = filepath.Clean(dir)
++	if err := os.MkdirAll(dir, 0o700); err != nil {
++		return
++	}
++	info, err := os.Lstat(dir)
++	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
++		return
++	}
++	if err = os.Chmod(dir, 0o700); err != nil {
++		return
++	}
++
++	now := time.Now().UTC()
++	cloudxPoolWriter.Lock()
++	if !cloudxPoolWriter.lastWrite.IsZero() && now.Sub(cloudxPoolWriter.lastWrite) < cloudxPoolWriteInterval {
++		cloudxPoolWriter.Unlock()
++		return
++	}
++	cloudxPoolWriter.lastWrite = now
++	cloudxPoolWriter.Unlock()
++
++	raw, err := json.Marshal(cloudxPoolObservation{
++		Schema: cloudxPoolObservationSchema, State: "available", ObservedAt: now.Format(time.RFC3339Nano),
++	})
++	if err != nil {
++		return
++	}
++	temporary, err := os.CreateTemp(dir, "."+cloudxPoolObservationName+".tmp-")
++	if err != nil {
++		return
++	}
++	temporaryPath := temporary.Name()
++	keep := false
++	defer func() {
++		_ = temporary.Close()
++		if !keep {
++			_ = os.Remove(temporaryPath)
++		}
++	}()
++	if err = temporary.Chmod(0o600); err != nil {
++		return
++	}
++	if _, err = temporary.Write(append(raw, '\n')); err != nil {
++		return
++	}
++	if err = temporary.Sync(); err != nil {
++		return
++	}
++	if err = temporary.Close(); err != nil {
++		return
++	}
++	if err = os.Rename(temporaryPath, filepath.Join(dir, cloudxPoolObservationName)); err != nil {
++		return
++	}
++	keep = true
++	if handle, openErr := os.Open(dir); openErr == nil {
++		_ = handle.Sync()
++		_ = handle.Close()
++	}
++}
+diff --git a/sdk/cliproxy/auth/cloudx_pool_observation_test.go b/sdk/cliproxy/auth/cloudx_pool_observation_test.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..b0044353eb064b12328d73a9f94582be7c52fdde
+--- /dev/null
++++ b/sdk/cliproxy/auth/cloudx_pool_observation_test.go
+@@ -0,0 +1,34 @@
++package auth
++
++import (
++	"encoding/json"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++)
++
++func TestCloudxSuccessWritesIdentityFreePoolObservation(t *testing.T) {
++	dir := filepath.Join(t.TempDir(), "sweeps")
++	t.Setenv("CLIPROXY_AUTH_SWEEP_DIR", dir)
++	cloudxPoolWriter.Lock()
++	cloudxPoolWriter.lastWrite = cloudxPoolWriter.lastWrite.Add(-2 * cloudxPoolWriteInterval)
++	cloudxPoolWriter.Unlock()
++	auth := &Auth{ID: "private-auth-id", FileName: "private-auth.json"}
++	cloudxRecordResult(auth, Result{Success: true})
++
++	raw, err := os.ReadFile(filepath.Join(dir, cloudxPoolObservationName))
++	if err != nil {
++		t.Fatal(err)
++	}
++	var observation cloudxPoolObservation
++	if errJSON := json.Unmarshal(raw, &observation); errJSON != nil {
++		t.Fatal(errJSON)
++	}
++	if observation.Schema != cloudxPoolObservationSchema || observation.State != "available" || observation.ObservedAt == "" {
++		t.Fatalf("unexpected observation: %+v", observation)
++	}
++	if strings.Contains(string(raw), "private-auth") {
++		t.Fatalf("pool observation leaked auth identity: %s", raw)
++	}
++}
+

@@ -37,6 +37,9 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertTrue(document["eventDrivenArchiveWatcherActivationSeparate"])
         self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.17")
         self.assertFalse(document["weeklyQuotaArchived"])
+        self.assertFalse(document["periodicAccountProbe"])
+        self.assertTrue(document["incidentSweepTrigger"])
+        self.assertEqual(document["incidentProbeConcurrency"], "adaptive-up-to-32")
 
     def test_cloud_drop_ins_select_exact_candidate_and_private_failure_dir(self) -> None:
         value = MODULE.expanded_target("cloud", MODULE.load_contract(MODULE.DEFAULT_CONTRACT))
@@ -46,7 +49,9 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertIn("ExecStart=\nExecStart=%s" % value["stagedBinary"], gateway_text)
         self.assertIn("CLIPROXY_AUTH_DIR=%s" % value["authDirectory"], gateway_text)
         self.assertIn("CLIPROXY_AUTH_FAILURE_DIR=%s" % value["failureDirectory"], gateway_text)
+        self.assertIn("CLIPROXY_AUTH_SWEEP_DIR=%s" % value["sweepDirectory"], gateway_text)
         self.assertIn("ReadWritePaths=%s" % value["failureDirectory"], health_text)
+        self.assertIn(str(value["sweepDirectory"]), health_text)
         self.assertNotIn("systemctl", gateway_text + health_text)
 
     def test_local_plist_preserves_launcher_fields_and_adds_only_policy_environment(self) -> None:
@@ -67,6 +72,10 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertEqual(
             updated["EnvironmentVariables"]["CLIPROXY_AUTH_FAILURE_DIR"],
             str(value["failureDirectory"]),
+        )
+        self.assertEqual(
+            updated["EnvironmentVariables"]["CLIPROXY_AUTH_SWEEP_DIR"],
+            str(value["sweepDirectory"]),
         )
 
     def test_local_stage_is_side_by_side_and_idempotent_without_service_action(self) -> None:
@@ -100,8 +109,8 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         cloud = contract["targets"]["cloud"]
         self.assertEqual(local["baselineSha256"], "cf9641b3e50ae486aec1698dec88f735589680f9ae98558c29cde184daac3a96")
         self.assertEqual(cloud["baselineSha256"], "1d0abbc6316b1869f74896109c0efb5e19c8197b8226f48a74212ed0a6f5a39d")
-        self.assertEqual(local["candidateSha256"], "f288838053f43a82c50d2ab23bcb096c627a848fdf662413544a483f908f236d")
-        self.assertEqual(cloud["candidateSha256"], "7c9603a380f9fbd7bdbe1c8ecbf938504f6055677ba4d4de2cd7004398a02229")
+        self.assertEqual(local["candidateSha256"], "1cff3152e34666d2753add54ce7f5f96dbd643e607c1f136a9052cd28eba9ecd")
+        self.assertEqual(cloud["candidateSha256"], "453df72d15235ea51e5fdf66d27692bb5249bd262800fd628af3638246021a2b")
 
     def test_activation_rejects_an_older_receipt_consumer(self) -> None:
         value = MODULE.expanded_target("local", MODULE.load_contract(MODULE.DEFAULT_CONTRACT))

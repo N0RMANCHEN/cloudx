@@ -27,8 +27,10 @@ RESULT_SCHEMA = "cloudx.cpa-failure-watcher.v1"
 MAX_FILE_BYTES = 2 * 1024 * 1024
 LOCAL_FALLBACK_SECONDS = 120
 LOCAL_THROTTLE_SECONDS = 5
-CLOUD_SERVICE_UNIT = "cloudx-cpa-failure.service"
-CLOUD_PATH_UNIT = "cloudx-cpa-failure.path"
+CLOUD_FAILURE_SERVICE_UNIT = "cloudx-cpa-failure.service"
+CLOUD_FAILURE_PATH_UNIT = "cloudx-cpa-failure.path"
+CLOUD_SWEEP_SERVICE_UNIT = "cloudx-cpa-sweep.service"
+CLOUD_SWEEP_PATH_UNIT = "cloudx-cpa-sweep.path"
 
 
 class FailureWatcherRejected(RuntimeError):
@@ -154,6 +156,7 @@ def target_value(target: str, contract_path: pathlib.Path) -> Dict[str, Any]:
         home = pathlib.Path.home().resolve()
         keys = (
             "failureDirectory",
+            "sweepDirectory",
             "launcher",
             "maintenanceLauncher",
             "stageRoot",
@@ -164,9 +167,12 @@ def target_value(target: str, contract_path: pathlib.Path) -> Dict[str, Any]:
     else:
         keys = (
             "failureDirectory",
+            "sweepDirectory",
             "gatewayDropIn",
             "failureServiceUnit",
             "failurePathUnit",
+            "sweepServiceUnit",
+            "sweepPathUnit",
             "stageRoot",
             "watcherBackupRoot",
         )
@@ -215,6 +221,7 @@ def require_receipt_producer(target: str, value: Dict[str, Any]) -> None:
             or arguments[0] != str(value["stagedBinary"])
             or not isinstance(environment, dict)
             or environment.get("CLIPROXY_AUTH_FAILURE_DIR") != str(value["failureDirectory"])
+            or environment.get("CLIPROXY_AUTH_SWEEP_DIR") != str(value["sweepDirectory"])
         ):
             raise FailureWatcherRejected("local CPA failure-receipt producer is not active")
         domain = "gui/%d" % os.geteuid()
@@ -228,6 +235,7 @@ def require_receipt_producer(target: str, value: Dict[str, Any]) -> None:
         raise FailureWatcherRejected("cloud CPA receipt-producer drop-in is invalid") from exc
     if (
         "CLIPROXY_AUTH_FAILURE_DIR=%s" % value["failureDirectory"] not in drop_in
+        or "CLIPROXY_AUTH_SWEEP_DIR=%s" % value["sweepDirectory"] not in drop_in
         or str(value["stagedBinary"]) not in drop_in
     ):
         raise FailureWatcherRejected("cloud CPA failure-receipt producer is not active")
@@ -252,21 +260,43 @@ def local_launcher(raw: bytes, value: Dict[str, Any]) -> bytes:
     document["RunAtLoad"] = True
     document["StartInterval"] = LOCAL_FALLBACK_SECONDS
     document["ThrottleInterval"] = LOCAL_THROTTLE_SECONDS
-    document["WatchPaths"] = [str(value["failureDirectory"])]
+    document["WatchPaths"] = [
+        str(value["failureDirectory"]),
+        str(value["sweepDirectory"] / "trigger.json"),
+    ]
     return plistlib.dumps(document, fmt=plistlib.FMT_XML, sort_keys=False)
 
 
-def signed_cloud_units(artifact: pathlib.Path, value: Dict[str, Any]) -> Tuple[bytes, bytes]:
-    service = run_command([sys.executable, str(artifact), "systemd-template", CLOUD_SERVICE_UNIT]).stdout
-    path = run_command([sys.executable, str(artifact), "systemd-template", CLOUD_PATH_UNIT]).stdout
+def signed_cloud_units(artifact: pathlib.Path, value: Dict[str, Any]) -> Tuple[bytes, bytes, bytes, bytes]:
+    failure_service = run_command(
+        [sys.executable, str(artifact), "systemd-template", CLOUD_FAILURE_SERVICE_UNIT]
+    ).stdout
+    failure_path = run_command(
+        [sys.executable, str(artifact), "systemd-template", CLOUD_FAILURE_PATH_UNIT]
+    ).stdout
+    sweep_service = run_command(
+        [sys.executable, str(artifact), "systemd-template", CLOUD_SWEEP_SERVICE_UNIT]
+    ).stdout
+    sweep_path = run_command(
+        [sys.executable, str(artifact), "systemd-template", CLOUD_SWEEP_PATH_UNIT]
+    ).stdout
     if (
-        "cpa-health --runtime-failures-only" not in service
-        or "PrivateNetwork=true" not in service
-        or "PathChanged=%s" % value["failureDirectory"] not in path
-        or "Unit=%s" % CLOUD_SERVICE_UNIT not in path
+        "cpa-health --runtime-failures-only" not in failure_service
+        or "PrivateNetwork=true" not in failure_service
+        or "PathChanged=%s" % value["failureDirectory"] not in failure_path
+        or "Unit=%s" % CLOUD_FAILURE_SERVICE_UNIT not in failure_path
+        or "cpa-health --sweep-if-triggered" not in sweep_service
+        or "CLOUDX_CPA_SWEEP_CONCURRENCY=32" not in sweep_service
+        or "PathChanged=%s/trigger.json" % value["sweepDirectory"] not in sweep_path
+        or "Unit=%s" % CLOUD_SWEEP_SERVICE_UNIT not in sweep_path
     ):
         raise FailureWatcherRejected("signed Cloudx failure-watcher templates are invalid")
-    return service.encode("utf-8"), path.encode("utf-8")
+    return (
+        failure_service.encode("utf-8"),
+        failure_path.encode("utf-8"),
+        sweep_service.encode("utf-8"),
+        sweep_path.encode("utf-8"),
+    )
 
 
 def backup(root: pathlib.Path, snapshots: Dict[str, Snapshot], *, uid: int, gid: int) -> pathlib.Path:
@@ -302,9 +332,11 @@ def plan_document(target: str, value: Dict[str, Any]) -> Dict[str, Any]:
         "confirmation": "ACTIVATE %s CPA FAILURE WATCHER %s" % (target.upper(), REQUIRED_CLOUDX_VERSION),
         "requiredActiveCloudxVersion": REQUIRED_CLOUDX_VERSION,
         "requiredActivePolicyVersion": value["version"],
-        "trigger": "failure-directory-change",
+        "trigger": "permanent-receipt-or-pool-unavailable",
         "fallbackSeconds": LOCAL_FALLBACK_SECONDS if target == "local" else 300,
-        "networkProbeOnReceipt": False,
+        "networkProbeOnPermanentReceipt": False,
+        "networkProbeOnPoolUnavailable": True,
+        "incidentProbeConcurrency": "adaptive-up-to-32",
         "restartsExternalCPA": False,
         "stopsCodexProcesses": False,
         "automaticAction": False,
@@ -321,6 +353,7 @@ def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
     uid = os.geteuid()
     gid = os.getegid()
     ensure_directory(value["failureDirectory"], mode=0o700, uid=uid, gid=gid)
+    ensure_directory(value["sweepDirectory"], mode=0o700, uid=uid, gid=gid)
     domain = "gui/%d" % uid
     service = "%s/%s" % (domain, value["maintenanceLabel"])
     was_loaded = run_command(["launchctl", "print", service], check=False).returncode == 0
@@ -359,13 +392,13 @@ def unit_state(name: str) -> Tuple[bool, bool]:
     return enabled, active
 
 
-def restore_cloud_state(enabled: bool, active: bool) -> None:
-    run_command(["systemctl", "disable", "--now", CLOUD_PATH_UNIT], check=False)
+def restore_cloud_state(name: str, enabled: bool, active: bool) -> None:
+    run_command(["systemctl", "disable", "--now", name], check=False)
     if enabled:
-        run_command(["systemctl", "enable", CLOUD_PATH_UNIT])
+        run_command(["systemctl", "enable", name])
     if active:
-        run_command(["systemctl", "start", CLOUD_PATH_UNIT])
-    if unit_state(CLOUD_PATH_UNIT) != (enabled, active):
+        run_command(["systemctl", "start", name])
+    if unit_state(name) != (enabled, active):
         raise FailureWatcherRejected("cloud failure-watcher prior unit state was not restored")
 
 
@@ -374,34 +407,61 @@ def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
         raise FailureWatcherRejected("cloud failure-watcher activation requires root on Linux")
     artifact = require_active_cloudx("cloud")
     require_receipt_producer("cloud", value)
-    service_after, path_after = signed_cloud_units(artifact, value)
-    service_before = safe_snapshot(value["failureServiceUnit"], required=False)
-    path_before = safe_snapshot(value["failurePathUnit"], required=False)
-    was_enabled, was_active = unit_state(CLOUD_PATH_UNIT)
-    if service_before.data == service_after and path_before.data == path_after and was_enabled and was_active:
+    failure_service_after, failure_path_after, sweep_service_after, sweep_path_after = signed_cloud_units(
+        artifact,
+        value,
+    )
+    failure_service_before = safe_snapshot(value["failureServiceUnit"], required=False)
+    failure_path_before = safe_snapshot(value["failurePathUnit"], required=False)
+    sweep_service_before = safe_snapshot(value["sweepServiceUnit"], required=False)
+    sweep_path_before = safe_snapshot(value["sweepPathUnit"], required=False)
+    failure_state = unit_state(CLOUD_FAILURE_PATH_UNIT)
+    sweep_state = unit_state(CLOUD_SWEEP_PATH_UNIT)
+    if (
+        failure_service_before.data == failure_service_after
+        and failure_path_before.data == failure_path_after
+        and sweep_service_before.data == sweep_service_after
+        and sweep_path_before.data == sweep_path_after
+        and failure_state == (True, True)
+        and sweep_state == (True, True)
+    ):
         return {"schema": RESULT_SCHEMA, "status": "already-active", "target": "cloud"}
     cliproxy = pwd.getpwnam("cliproxy")
     ensure_directory(value["failureDirectory"], mode=0o700, uid=cliproxy.pw_uid, gid=cliproxy.pw_gid)
+    ensure_directory(value["sweepDirectory"], mode=0o700, uid=cliproxy.pw_uid, gid=cliproxy.pw_gid)
     destination = backup(
         value["watcherBackupRoot"],
-        {"failure-service": service_before, "failure-path": path_before},
+        {
+            "failure-service": failure_service_before,
+            "failure-path": failure_path_before,
+            "sweep-service": sweep_service_before,
+            "sweep-path": sweep_path_before,
+        },
         uid=0,
         gid=0,
     )
     try:
-        atomic_write(value["failureServiceUnit"], service_after, mode=0o644, uid=0, gid=0)
-        atomic_write(value["failurePathUnit"], path_after, mode=0o644, uid=0, gid=0)
+        atomic_write(value["failureServiceUnit"], failure_service_after, mode=0o644, uid=0, gid=0)
+        atomic_write(value["failurePathUnit"], failure_path_after, mode=0o644, uid=0, gid=0)
+        atomic_write(value["sweepServiceUnit"], sweep_service_after, mode=0o644, uid=0, gid=0)
+        atomic_write(value["sweepPathUnit"], sweep_path_after, mode=0o644, uid=0, gid=0)
         run_command(["systemctl", "daemon-reload"])
-        run_command(["systemctl", "enable", "--now", CLOUD_PATH_UNIT])
-        if unit_state(CLOUD_PATH_UNIT) != (True, True):
-            raise FailureWatcherRejected("cloud failure-watcher path unit did not become active")
+        run_command(["systemctl", "enable", "--now", CLOUD_FAILURE_PATH_UNIT, CLOUD_SWEEP_PATH_UNIT])
+        if unit_state(CLOUD_FAILURE_PATH_UNIT) != (True, True) or unit_state(CLOUD_SWEEP_PATH_UNIT) != (True, True):
+            raise FailureWatcherRejected("cloud failure-watcher path units did not become active")
     except Exception as exc:
         try:
-            run_command(["systemctl", "disable", "--now", CLOUD_PATH_UNIT], check=False)
-            restore_snapshot(value["failureServiceUnit"], service_before)
-            restore_snapshot(value["failurePathUnit"], path_before)
+            run_command(
+                ["systemctl", "disable", "--now", CLOUD_FAILURE_PATH_UNIT, CLOUD_SWEEP_PATH_UNIT],
+                check=False,
+            )
+            restore_snapshot(value["failureServiceUnit"], failure_service_before)
+            restore_snapshot(value["failurePathUnit"], failure_path_before)
+            restore_snapshot(value["sweepServiceUnit"], sweep_service_before)
+            restore_snapshot(value["sweepPathUnit"], sweep_path_before)
             run_command(["systemctl", "daemon-reload"])
-            restore_cloud_state(was_enabled, was_active)
+            restore_cloud_state(CLOUD_FAILURE_PATH_UNIT, *failure_state)
+            restore_cloud_state(CLOUD_SWEEP_PATH_UNIT, *sweep_state)
         except Exception as recovery_exc:
             raise FailureWatcherRejected(
                 "cloud failure-watcher activation failed and rollback was incomplete"

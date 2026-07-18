@@ -201,6 +201,17 @@ class CloudHealthTests(unittest.TestCase):
         self.assertIn("--runtime-failures-only", failure_output.getvalue())
         self.assertIn("PrivateNetwork=true", failure_output.getvalue())
 
+        sweep_path_output = StringIO()
+        with redirect_stdout(sweep_path_output):
+            self.assertEqual(main(["systemd-template", "cloudx-cpa-sweep.path"]), 0)
+        self.assertIn("Unit=cloudx-cpa-sweep.service", sweep_path_output.getvalue())
+
+        sweep_service_output = StringIO()
+        with redirect_stdout(sweep_service_output):
+            self.assertEqual(main(["systemd-template", "cloudx-cpa-sweep.service"]), 0)
+        self.assertIn("--sweep-if-triggered", sweep_service_output.getvalue())
+        self.assertIn("CLOUDX_CPA_SWEEP_CONCURRENCY=32", sweep_service_output.getvalue())
+
     def test_signed_artifact_emits_fixed_release_legacy_bridge_templates(self) -> None:
         canary_output = StringIO()
         with redirect_stdout(canary_output):

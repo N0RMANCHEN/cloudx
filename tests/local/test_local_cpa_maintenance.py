@@ -16,7 +16,7 @@ from unittest import mock
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "local"))
 
-from cloudx_local import codexx_cli, local_cpa_maintenance  # noqa: E402
+from cloudx_local import codexx_cli, local_cpa_maintenance, local_cpa_probe  # noqa: E402
 from cloudx_local.config import LocalConfig  # noqa: E402
 
 
@@ -28,6 +28,7 @@ class LocalCpaMaintenanceTests(unittest.TestCase):
         self.auth_dir = self.home / ".cli-proxy-api"
         self.archive_dir = self.home / ".cli-proxy-api-archive"
         self.failure_dir = self.home / ".local/state/cloudx/cpa-auth-failures"
+        self.sweep_dir = self.home / ".local/state/cloudx/cpa-auth-sweeps"
         self.config = LocalConfig(
             home=self.home,
             config_path=self.home / ".config/cloudx/config.json",
@@ -49,6 +50,7 @@ class LocalCpaMaintenanceTests(unittest.TestCase):
             local_cpa_auth_dir=self.auth_dir,
             local_cpa_archive_dir=self.archive_dir,
             local_cpa_failure_dir=self.failure_dir,
+            local_cpa_sweep_dir=self.sweep_dir,
         )
 
     def tearDown(self) -> None:
@@ -152,6 +154,77 @@ class LocalCpaMaintenanceTests(unittest.TestCase):
         self.assertEqual(document["weeklyQuotaArchived"], 0)
         self.assertEqual(document["rejectedFailureReceipts"], 1)
         self.assertEqual(document["staleFailureReceipts"], 1)
+
+    def test_no_pool_failure_trigger_means_no_account_probe(self) -> None:
+        self._write_auth("active.json", self._auth())
+        with mock.patch.object(local_cpa_probe, "probe_all") as probe:
+            document = local_cpa_maintenance.refresh_document(self.config, apply=True)
+        self.assertFalse(document["sweepTriggered"])
+        self.assertEqual(document["sweepTriggerStatus"], "absent")
+        self.assertEqual(document["sweep"]["concurrency"], 0)
+        probe.assert_not_called()
+
+    def test_pool_failure_trigger_archives_digest_bound_probe_candidate(self) -> None:
+        auth = self._write_auth("invalid.json", self._auth())
+        self.sweep_dir.mkdir(parents=True)
+        trigger = self.sweep_dir / "trigger.json"
+        trigger.write_text(json.dumps({
+            "schema": "cloudx.cpa-sweep-trigger.v1",
+            "reason": "auth_unavailable",
+            "observedAt": datetime.now(timezone.utc).isoformat(),
+        }), encoding="utf-8")
+        candidate = local_cpa_probe.ProbeCandidate(
+            auth,
+            hashlib.sha256(auth.read_bytes()).hexdigest(),
+            "deactivated_workspace",
+        )
+        with mock.patch.object(
+            local_cpa_probe,
+            "probe_all",
+            return_value=({
+                "gate": "reachable",
+                "total": 1,
+                "concurrency": 1,
+                "available": 0,
+                "limited": 0,
+                "invalid": 1,
+                "failed": 0,
+            }, [candidate]),
+        ):
+            document = local_cpa_maintenance.refresh_document(self.config, apply=True)
+
+        self.assertEqual(document["archived"], 1)
+        self.assertEqual(document["sweepTriggerStatus"], "consumed")
+        self.assertFalse(trigger.exists())
+        manifest = json.loads((self.archive_dir / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["entries"][0]["reason"], "probe-deactivated_workspace")
+
+    def test_infrastructure_failure_retains_local_sweep_trigger(self) -> None:
+        self._write_auth("active.json", self._auth())
+        self.sweep_dir.mkdir(parents=True)
+        trigger = self.sweep_dir / "trigger.json"
+        trigger.write_text(json.dumps({
+            "schema": "cloudx.cpa-sweep-trigger.v1",
+            "reason": "auth_unavailable",
+            "observedAt": datetime.now(timezone.utc).isoformat(),
+        }), encoding="utf-8")
+        with mock.patch.object(
+            local_cpa_probe,
+            "probe_all",
+            return_value=({
+                "gate": "transport_error",
+                "total": 1,
+                "concurrency": 0,
+                "available": 0,
+                "limited": 0,
+                "invalid": 0,
+                "failed": 1,
+            }, []),
+        ):
+            document = local_cpa_maintenance.refresh_document(self.config, apply=True)
+        self.assertEqual(document["sweepTriggerStatus"], "retained")
+        self.assertTrue(trigger.exists())
+        self.assertEqual(document["archived"], 0)
 
     def test_manifest_failure_restores_auth(self) -> None:
         auth = self._write_auth("missing.json", {"type": "codex"})

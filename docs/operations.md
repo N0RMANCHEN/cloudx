@@ -334,7 +334,7 @@ python3 scripts/install_cpa_policy_candidate.py --target cloud
 
 Stage and activation have different exact confirmations. Stage verifies the pinned candidate bytes and copies them under the target's dedicated `cliproxy-cloudx/releases` tree; it does not edit a launcher or unit and does not restart CPA. Activation remains unapproved until the operator repeats the exact printed `ACTIVATE ... CPA POLICY ...` string. It retains the original binary, snapshots the prior launcher or drop-ins, configures private auth/failure directories, restarts only the selected external CPA, and requires `/healthz` plus `X-CPA-Max-Concurrent-API-Requests: 2`. Any failed canary restores the prior service selection automatically.
 
-Do not invoke synchronous local activation from a Codex turn that is itself using the local CPA. The revised `.policy.2` candidates require signed Cloudx `0.1.17` on the matching endpoint before activation. After that release is active locally, inspect the non-authorizing deferred plan:
+Do not invoke synchronous local activation from a Codex turn that is itself using the local CPA. The revised `.policy.3` candidates require signed Cloudx `0.1.17` on the matching endpoint before activation. After that release is active locally, inspect the non-authorizing deferred plan:
 
 ```bash
 python3 scripts/schedule_local_cpa_policy_activation.py
@@ -344,14 +344,14 @@ Its exact-confirmation apply copies only the installer and pinned contract into 
 
 Local activation never terminates a `codex`, Codex App, terminal, workspace, or project process. It sends the shared CPA a normal service stop/start; upstream CPA handles SIGTERM with graceful HTTP shutdown for active requests before the new process binds the same port. All `codexx api` projects share that bridge, so idle projects continue and reconnect, but zero interruption for a request that overlaps the restart cannot be guaranteed. Such a request may finish during graceful shutdown or may require retry; automatic rollback can cause a second short CPA restart. Installing a Cloudx local release is separate and does not restart CPA at all.
 
-The matching signed Cloudx receipt consumer and `.policy.2` receipt producer must be active before event-driven maintenance is accepted. Inspect the separate non-authorizing watcher plans only after those prerequisites pass:
+The matching signed Cloudx receipt/sweep consumers and `.policy.3` producer must be active before event-driven maintenance is accepted. Inspect the separate non-authorizing watcher plans only after those prerequisites pass:
 
 ```bash
 python3 scripts/install_cpa_failure_watcher.py --target local
 python3 scripts/install_cpa_failure_watcher.py --target cloud
 ```
 
-The exact-confirmation local action preserves the existing `codexx api refresh --apply` command and log paths, adds the private failure directory to `WatchPaths`, changes the timer fallback from fifteen minutes to two minutes, and reloads only that maintenance LaunchAgent. The cloud action extracts the signed `cloudx-cpa-failure.service` and `.path` templates from active Cloudx `0.1.17`, enables the path unit, and uses `cpa-health --runtime-failures-only` under `PrivateNetwork=true`. Neither action restarts CPA, Codex, Cloudx, or Phi. The existing five-minute cloud CPA-health timer remains the proactive fallback and performs infrastructure-gated account probes with a maximum concurrency of two. Phi may read the resulting aggregate health and notify, but cannot inspect receipts, probe credentials, or move them. Manual local preview and reversible restore are:
+The exact-confirmation local action preserves the existing `codexx api refresh --apply` command and log paths, adds both the private failure directory and exact sweep-trigger file to `WatchPaths`, changes the missed-trigger fallback from fifteen minutes to two minutes, and reloads only that maintenance LaunchAgent. The cloud action extracts four signed templates from active Cloudx `0.1.17`: a `PrivateNetwork=true` receipt service/path using `cpa-health --runtime-failures-only`, plus a separate network-capable sweep service/path using `cpa-health --sweep-if-triggered` with incident concurrency 32. The existing five-minute CPA-health timer executes the same trigger-aware command and performs zero account probes when no fresh trigger exists. Neither watcher action restarts CPA, Codex, Cloudx, or Phi. Phi may read the resulting aggregate health and notify, but cannot inspect receipts or triggers, probe credentials, or move them. Manual local preview and reversible restore are:
 
 ```bash
 codexx api refresh --dry-run --json

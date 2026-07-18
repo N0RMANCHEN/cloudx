@@ -54,6 +54,7 @@ def target_config(target: str, manifest: Dict[str, Any]) -> Dict[str, Any]:
         "upstreamCommit",
         "patch",
         "patchSha256",
+        "supplementalPatches",
         "goVersion",
         "goos",
         "goarch",
@@ -107,6 +108,28 @@ def verified_patch(config: Dict[str, Any]) -> pathlib.Path:
     return patch
 
 
+def verified_patches(config: Dict[str, Any]) -> List[pathlib.Path]:
+    result = [verified_patch(config)]
+    supplemental = config.get("supplementalPatches")
+    if not isinstance(supplemental, list):
+        raise CandidateBuildRejected("CPA supplemental patch list is invalid")
+    base = MANIFEST_PATH.parent.resolve()
+    for item in supplemental:
+        if not isinstance(item, dict) or set(item) != {"path", "sha256"}:
+            raise CandidateBuildRejected("CPA supplemental patch entry is invalid")
+        patch = (base / str(item["path"])).resolve()
+        try:
+            patch.relative_to(base)
+        except ValueError as exc:
+            raise CandidateBuildRejected("CPA supplemental patch escapes its package") from exc
+        if not patch.is_file() or patch.is_symlink():
+            raise CandidateBuildRejected("CPA supplemental patch is unavailable")
+        if sha256_file(patch) != item["sha256"]:
+            raise CandidateBuildRejected("CPA supplemental patch digest does not match")
+        result.append(patch)
+    return result
+
+
 def verify_source(source: pathlib.Path, config: Dict[str, Any]) -> None:
     if not source.is_absolute() or not source.is_dir() or source.is_symlink():
         raise CandidateBuildRejected("CPA source must be an absolute regular directory")
@@ -147,6 +170,7 @@ def plan_document(target: str, config: Dict[str, Any], output: pathlib.Path) -> 
         "target": target,
         "upstreamCommit": config["upstreamCommit"],
         "patchSha256": config["patchSha256"],
+        "supplementalPatchSha256s": [item["sha256"] for item in config["supplementalPatches"]],
         "goVersion": config["goVersion"],
         "goos": config["goos"],
         "goarch": config["goarch"],
@@ -160,7 +184,16 @@ def plan_document(target: str, config: Dict[str, Any], output: pathlib.Path) -> 
 
 def test_commands(target: str) -> List[List[str]]:
     commands = [
-        ["go", "test", "./internal/api", "./sdk/cliproxy/auth", "-run", "Cloudx", "-count=1"],
+        [
+            "go",
+            "test",
+            "./internal/api",
+            "./sdk/api/handlers",
+            "./sdk/cliproxy/auth",
+            "-run",
+            "Cloudx",
+            "-count=1",
+        ],
     ]
     if target == "local":
         commands.append(
@@ -182,7 +215,7 @@ def build_candidate(
     output: pathlib.Path,
     go_binary: str,
     config: Dict[str, Any],
-    patch: pathlib.Path,
+    patches: Sequence[pathlib.Path],
 ) -> Dict[str, Any]:
     verify_output(output)
     go_version = run([go_binary, "version"], cwd=source).stdout
@@ -192,10 +225,11 @@ def build_candidate(
     with tempfile.TemporaryDirectory(prefix="cloudx-cpa-build-") as temporary:
         work = pathlib.Path(temporary) / "source"
         shutil.copytree(source, work, symlinks=True, ignore=shutil.ignore_patterns(".git"))
-        run(["git", "apply", "--check", str(patch)], cwd=work)
-        run(["git", "apply", str(patch)], cwd=work)
+        for patch in patches:
+            run(["git", "apply", "--check", str(patch)], cwd=work)
+            run(["git", "apply", str(patch)], cwd=work)
 
-        format_packages = ["./internal/api", "./sdk/cliproxy/auth"]
+        format_packages = ["./internal/api", "./sdk/api/handlers", "./sdk/cliproxy/auth"]
         if target == "local":
             format_packages.append("./internal/translator/codex/openai/responses")
         run([go_binary, "fmt", *format_packages], cwd=work)
@@ -292,10 +326,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     output = args.output.expanduser()
     if not output.is_absolute():
         raise CandidateBuildRejected("CPA candidate output must be absolute")
-    patch = verified_patch(config)
+    patches = verified_patches(config)
     verify_source(source, config)
     if args.build:
-        document = build_candidate(args.target, source, output, args.go, config, patch)
+        document = build_candidate(args.target, source, output, args.go, config, patches)
     else:
         document = plan_document(args.target, config, output)
     print(json.dumps(document, sort_keys=True))

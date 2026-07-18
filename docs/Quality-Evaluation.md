@@ -19,6 +19,6 @@ A release candidate is not ready when any of these are true:
 - a Phi workflow can write Cloudx production state
 - a Phi Agent instruction surface can reach Cloudx auth, import, gateway mutation, or release mutation directly or through available privilege elevation
 - a Cloudx cloud-runtime output path can bypass the public metadata guard or emit Phi control-plane identifiers, local paths, transfer content, or Phi Artifact metadata
-- CPA account probes exceed two concurrent requests, or a failure-receipt watcher performs a network probe, starts before its signed consumer/producer prerequisites, or restarts CPA/Codex/Phi
+- proxied CPA business requests exceed two concurrent calls; a full account sweep runs without a fresh aggregate-unavailable trigger; a direct failure-receipt consumer performs a network probe; an incident sweep skips its infrastructure/provider gate or archives quota/transient evidence; or either watcher starts before its signed consumer/producer prerequisites or restarts CPA/Codex/Phi
 
 Repository evidence consists of fresh test output, artifact hashes, a signed manifest for releases, and an operator-visible canary result. Historical notes are useful context but not fresh release evidence.

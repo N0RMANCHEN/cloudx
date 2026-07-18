@@ -1,0 +1,5 @@
+{
+  "schema": "cloudx.cpa-sweep-trigger.v1",
+  "reason": "auth_unavailable",
+  "observedAt": "2026-07-18T12:30:00Z"
+}

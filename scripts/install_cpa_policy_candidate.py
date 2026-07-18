@@ -191,6 +191,7 @@ def expanded_target(target: str, contract: Dict[str, Any]) -> Dict[str, Any]:
             "backupRoot",
             "authDirectory",
             "failureDirectory",
+            "sweepDirectory",
             "config",
             "launcher",
         ):
@@ -210,6 +211,7 @@ def expanded_target(target: str, contract: Dict[str, Any]) -> Dict[str, Any]:
             "backupRoot",
             "authDirectory",
             "failureDirectory",
+            "sweepDirectory",
             "config",
             "gatewayDropIn",
             "healthDropIn",
@@ -244,6 +246,9 @@ def plan_document(target: str, value: Dict[str, Any]) -> Dict[str, Any]:
         "activationConfirmation": activate_confirmation,
         "maxConcurrentAPIRequests": 2,
         "weeklyQuotaArchived": False,
+        "periodicAccountProbe": False,
+        "incidentSweepTrigger": True,
+        "incidentProbeConcurrency": "adaptive-up-to-32",
         "stageChangesService": False,
         "activationRestartsExternalCPA": True,
         "activationStopsCodexProcesses": False,
@@ -490,18 +495,24 @@ def cloud_drop_ins(value: Dict[str, Any]) -> Tuple[bytes, bytes]:
         "[Service]\n"
         "Environment=CLIPROXY_AUTH_DIR=%s\n"
         "Environment=CLIPROXY_AUTH_FAILURE_DIR=%s\n"
-        "ReadWritePaths=%s\n"
+        "Environment=CLIPROXY_AUTH_SWEEP_DIR=%s\n"
+        "ReadWritePaths=%s %s\n"
         "ExecStart=\n"
         "ExecStart=%s -config %s\n"
         % (
             value["authDirectory"],
             value["failureDirectory"],
+            value["sweepDirectory"],
             value["failureDirectory"],
+            value["sweepDirectory"],
             value["stagedBinary"],
             value["config"],
         )
     ).encode("utf-8")
-    health = ("[Service]\nReadWritePaths=%s\n" % value["failureDirectory"]).encode("utf-8")
+    health = (
+        "[Service]\nReadWritePaths=%s %s\n"
+        % (value["failureDirectory"], value["sweepDirectory"])
+    ).encode("utf-8")
     return gateway, health
 
 
@@ -527,6 +538,7 @@ def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
         return {"schema": RESULT_SCHEMA, "status": "already-active", "target": "cloud", "pid": pid, "httpStatus": status, "policy": policy}
     cliproxy = pwd.getpwnam("cliproxy")
     ensure_directory(value["failureDirectory"], mode=0o700, uid=cliproxy.pw_uid, gid=cliproxy.pw_gid)
+    ensure_directory(value["sweepDirectory"], mode=0o700, uid=cliproxy.pw_uid, gid=cliproxy.pw_gid)
     backup = backup_snapshot(
         value["backupRoot"],
         "cloud",
@@ -586,6 +598,7 @@ def local_plist(raw: bytes, value: Dict[str, Any]) -> bytes:
         raise CpaPolicyInstallRejected("local CPA launcher environment is invalid")
     environment["CLIPROXY_AUTH_DIR"] = str(value["authDirectory"])
     environment["CLIPROXY_AUTH_FAILURE_DIR"] = str(value["failureDirectory"])
+    environment["CLIPROXY_AUTH_SWEEP_DIR"] = str(value["sweepDirectory"])
     document["EnvironmentVariables"] = environment
     return plistlib.dumps(document, fmt=plistlib.FMT_XML, sort_keys=False)
 
@@ -628,6 +641,7 @@ def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
         communication = probe_local_communication(value)
         return {"schema": RESULT_SCHEMA, "status": "already-active", "target": "local", "pid": pid, "httpStatus": status, "policy": policy, "communicationCanary": communication}
     ensure_directory(value["failureDirectory"], mode=0o700, uid=uid, gid=gid)
+    ensure_directory(value["sweepDirectory"], mode=0o700, uid=uid, gid=gid)
     backup = backup_snapshot(value["backupRoot"], "local", {"launcher": launcher_before}, uid=uid, gid=gid)
     service = "%s/%s" % (domain, value["serviceLabel"])
     try:

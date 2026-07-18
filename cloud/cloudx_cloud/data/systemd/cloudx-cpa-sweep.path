@@ -1,0 +1,10 @@
+[Unit]
+Description=Trigger rapid Cloudx CPA account calibration after pool failure
+After=cliproxy.service
+
+[Path]
+PathChanged=/var/lib/codex-gateway/cliproxy-auth-sweeps/trigger.json
+Unit=cloudx-cpa-sweep.service
+
+[Install]
+WantedBy=multi-user.target

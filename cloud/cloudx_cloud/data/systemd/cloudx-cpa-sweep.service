@@ -1,5 +1,5 @@
 [Unit]
-Description=Probe and reversibly isolate Cloudx CPA accounts with the native signed runtime
+Description=Rapidly calibrate CPA accounts after an aggregate auth-unavailable event
 After=network-online.target mihomo.service cliproxy.service
 Wants=network-online.target
 
@@ -12,8 +12,6 @@ Environment=HTTP_PROXY=http://127.0.0.1:7890
 Environment=HTTPS_PROXY=http://127.0.0.1:7890
 Environment=CLOUDX_CPA_PROXY_URL=http://127.0.0.1:7890
 Environment=CLOUDX_CPA_SWEEP_CONCURRENCY=32
-Environment=CLOUDX_WARNING_AVAILABLE_ACCOUNTS=3
-Environment=CLOUDX_FAILURE_CONFIRMATIONS=3
 ExecStart=/usr/bin/python3 /opt/cloudx/current/cloudx-cloud.pyz cpa-health --sweep-if-triggered
 NoNewPrivileges=true
 PrivateTmp=true

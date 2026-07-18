@@ -11,6 +11,8 @@ TEMPLATES: Tuple[str, ...] = (
     "cloudx-cpa-failure.service",
     "cloudx-cpa-health.service",
     "cloudx-cpa-health.timer",
+    "cloudx-cpa-sweep.path",
+    "cloudx-cpa-sweep.service",
     "cloudx-health.service",
     "cloudx-health.timer",
     "cloudx-legacy-health-bridge.env.example",

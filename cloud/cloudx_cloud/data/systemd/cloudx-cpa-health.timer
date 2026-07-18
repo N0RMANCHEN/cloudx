@@ -1,5 +1,5 @@
 [Unit]
-Description=Probe Cloudx CPA account health every five minutes
+Description=Check for a Cloudx CPA incident sweep trigger every five minutes
 
 [Timer]
 OnBootSec=2min

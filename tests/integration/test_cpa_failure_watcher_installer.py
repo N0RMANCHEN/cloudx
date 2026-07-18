@@ -26,8 +26,10 @@ class CpaFailureWatcherInstallerTests(unittest.TestCase):
             with self.subTest(target=target):
                 self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.17")
                 self.assertEqual(document["requiredActivePolicyVersion"], value["version"])
-                self.assertEqual(document["trigger"], "failure-directory-change")
-                self.assertFalse(document["networkProbeOnReceipt"])
+                self.assertEqual(document["trigger"], "permanent-receipt-or-pool-unavailable")
+                self.assertFalse(document["networkProbeOnPermanentReceipt"])
+                self.assertTrue(document["networkProbeOnPoolUnavailable"])
+                self.assertEqual(document["incidentProbeConcurrency"], "adaptive-up-to-32")
                 self.assertFalse(document["restartsExternalCPA"])
                 self.assertFalse(document["stopsCodexProcesses"])
                 self.assertFalse(document["automaticAction"])
@@ -49,7 +51,10 @@ class CpaFailureWatcherInstallerTests(unittest.TestCase):
             "StandardErrorPath": "/tmp/refresh.err",
         }
         updated = plistlib.loads(MODULE.local_launcher(plistlib.dumps(original), value))
-        self.assertEqual(updated["WatchPaths"], [str(value["failureDirectory"])])
+        self.assertEqual(updated["WatchPaths"], [
+            str(value["failureDirectory"]),
+            str(value["sweepDirectory"] / "trigger.json"),
+        ])
         self.assertEqual(updated["StartInterval"], 120)
         self.assertEqual(updated["ThrottleInterval"], 5)
         self.assertEqual(updated["ProgramArguments"], original["ProgramArguments"])
@@ -73,12 +78,32 @@ class CpaFailureWatcherInstallerTests(unittest.TestCase):
                 ),
                 stderr="",
             ),
+            subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout="ExecStart=cloudx cpa-health --sweep-if-triggered\nCLOUDX_CPA_SWEEP_CONCURRENCY=32\n",
+                stderr="",
+            ),
+            subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout=(
+                    "PathChanged=%s/trigger.json\nUnit=cloudx-cpa-sweep.service\n"
+                    % value["sweepDirectory"]
+                ),
+                stderr="",
+            ),
         ]
         with mock.patch.object(MODULE, "run_command", side_effect=completed) as command:
-            service, path = MODULE.signed_cloud_units(pathlib.Path("/signed/cloudx.pyz"), value)
-        self.assertIn(b"--runtime-failures-only", service)
-        self.assertIn(b"PathChanged=", path)
-        self.assertEqual(command.call_count, 2)
+            failure_service, failure_path, sweep_service, sweep_path = MODULE.signed_cloud_units(
+                pathlib.Path("/signed/cloudx.pyz"),
+                value,
+            )
+        self.assertIn(b"--runtime-failures-only", failure_service)
+        self.assertIn(b"PathChanged=", failure_path)
+        self.assertIn(b"--sweep-if-triggered", sweep_service)
+        self.assertIn(b"trigger.json", sweep_path)
+        self.assertEqual(command.call_count, 4)
 
     def test_cloud_activation_never_restarts_the_external_cpa(self) -> None:
         value = MODULE.target_value("cloud", MODULE.DEFAULT_CONTRACT)
@@ -90,11 +115,11 @@ class CpaFailureWatcherInstallerTests(unittest.TestCase):
         ), mock.patch.object(MODULE, "require_active_cloudx", return_value=pathlib.Path("/signed/cloudx.pyz")), mock.patch.object(
             MODULE, "require_receipt_producer"
         ), mock.patch.object(
-            MODULE, "signed_cloud_units", return_value=(b"service", b"path")
+            MODULE, "signed_cloud_units", return_value=(b"failure-service", b"failure-path", b"sweep-service", b"sweep-path")
         ), mock.patch.object(
-            MODULE, "safe_snapshot", side_effect=[absent, absent]
+            MODULE, "safe_snapshot", side_effect=[absent, absent, absent, absent]
         ), mock.patch.object(
-            MODULE, "unit_state", side_effect=[(False, False), (True, True)]
+            MODULE, "unit_state", side_effect=[(False, False), (False, False), (True, True), (True, True)]
         ), mock.patch.object(
             MODULE.pwd, "getpwnam", return_value=cliproxy
         ), mock.patch.object(
@@ -117,12 +142,14 @@ class CpaFailureWatcherInstallerTests(unittest.TestCase):
         value = MODULE.target_value("cloud", MODULE.DEFAULT_CONTRACT)
         service_before = MODULE.Snapshot(True, b"old-service", 0o644, 0, 0)
         path_before = MODULE.Snapshot(True, b"old-path", 0o644, 0, 0)
+        sweep_service_before = MODULE.Snapshot(True, b"old-sweep-service", 0o644, 0, 0)
+        sweep_path_before = MODULE.Snapshot(True, b"old-sweep-path", 0o644, 0, 0)
         cliproxy = mock.Mock(pw_uid=100, pw_gid=101)
         completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
 
         def command(argv: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
             del check
-            if argv[:4] == ["systemctl", "enable", "--now", MODULE.CLOUD_PATH_UNIT]:
+            if argv[:4] == ["systemctl", "enable", "--now", MODULE.CLOUD_FAILURE_PATH_UNIT]:
                 raise MODULE.FailureWatcherRejected("injected enable failure")
             return completed
 
@@ -131,11 +158,15 @@ class CpaFailureWatcherInstallerTests(unittest.TestCase):
         ), mock.patch.object(MODULE, "require_active_cloudx", return_value=pathlib.Path("/signed/cloudx.pyz")), mock.patch.object(
             MODULE, "require_receipt_producer"
         ), mock.patch.object(
-            MODULE, "signed_cloud_units", return_value=(b"new-service", b"new-path")
+            MODULE,
+            "signed_cloud_units",
+            return_value=(b"new-service", b"new-path", b"new-sweep-service", b"new-sweep-path"),
         ), mock.patch.object(
-            MODULE, "safe_snapshot", side_effect=[service_before, path_before]
+            MODULE,
+            "safe_snapshot",
+            side_effect=[service_before, path_before, sweep_service_before, sweep_path_before],
         ), mock.patch.object(
-            MODULE, "unit_state", side_effect=[(True, True), (True, True)]
+            MODULE, "unit_state", side_effect=[(True, True), (True, True), (True, True), (True, True)]
         ), mock.patch.object(
             MODULE.pwd, "getpwnam", return_value=cliproxy
         ), mock.patch.object(
@@ -152,9 +183,11 @@ class CpaFailureWatcherInstallerTests(unittest.TestCase):
             with self.assertRaisesRegex(MODULE.FailureWatcherRejected, "was rolled back"):
                 MODULE.activate_cloud(value)
 
-        self.assertEqual(restore.call_count, 2)
+        self.assertEqual(restore.call_count, 4)
         restore.assert_any_call(value["failureServiceUnit"], service_before)
         restore.assert_any_call(value["failurePathUnit"], path_before)
+        restore.assert_any_call(value["sweepServiceUnit"], sweep_service_before)
+        restore.assert_any_call(value["sweepPathUnit"], sweep_path_before)
 
 
 if __name__ == "__main__":

@@ -25,18 +25,24 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         self.assertEqual(manifest["policy"]["minimumFailureEvidence"], 1)
         self.assertTrue(manifest["policy"]["permanentFailureArchivesImmediately"])
         self.assertFalse(manifest["policy"]["provisionalFailureArchived"])
-        self.assertEqual(manifest["policy"]["accountProbeConcurrency"], 2)
+        self.assertFalse(manifest["policy"]["periodicAccountProbe"])
+        self.assertEqual(manifest["policy"]["incidentProbeConcurrency"], "adaptive-up-to-32")
+        self.assertEqual(manifest["policy"]["sweepTriggerSchema"], "cloudx.cpa-sweep-trigger.v1")
         self.assertFalse(manifest["policy"]["weeklyQuotaArchived"])
-        self.assertEqual(local["candidateSha256"], "f288838053f43a82c50d2ab23bcb096c627a848fdf662413544a483f908f236d")
-        self.assertEqual(cloud["candidateSha256"], "7c9603a380f9fbd7bdbe1c8ecbf938504f6055677ba4d4de2cd7004398a02229")
+        self.assertEqual(local["candidateSha256"], "1cff3152e34666d2753add54ce7f5f96dbd643e607c1f136a9052cd28eba9ecd")
+        self.assertEqual(cloud["candidateSha256"], "453df72d15235ea51e5fdf66d27692bb5249bd262800fd628af3638246021a2b")
 
     def test_patch_digests_are_bound_by_manifest(self) -> None:
         manifest = MODULE.load_manifest()
         for target in ("local", "cloud"):
             config = MODULE.target_config(target, manifest)
-            patch = MODULE.verified_patch(config)
-            self.assertTrue(patch.is_file())
-            self.assertEqual(MODULE.sha256_file(patch), config["patchSha256"])
+            patches = MODULE.verified_patches(config)
+            self.assertEqual(len(patches), 2)
+            self.assertEqual(MODULE.sha256_file(patches[0]), config["patchSha256"])
+            self.assertEqual(
+                MODULE.sha256_file(patches[1]),
+                config["supplementalPatches"][0]["sha256"],
+            )
 
     def test_plan_never_claims_install_activation_or_restart(self) -> None:
         config = MODULE.target_config("local", MODULE.load_manifest())
@@ -62,6 +68,16 @@ class CpaPolicyCandidateTests(unittest.TestCase):
             self.assertIn("status == http.StatusTooManyRequests", patch)
             self.assertIn("if !state.conclusive", patch)
             self.assertIn("FailureCount:         state.count", patch)
+
+            sweep = MODULE.verified_patches(MODULE.target_config(target, manifest))[1].read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("cloudx.cpa-sweep-trigger.v1", sweep)
+            self.assertIn("CLIPROXY_AUTH_SWEEP_DIR", sweep)
+            self.assertIn('code == "auth_unavailable"', sweep)
+            trigger_fields = sweep.split("type cloudxSweepTrigger struct", 1)[1].split("}", 1)[0]
+            for forbidden in ("Provider", "Model", "AuthFile", "Token"):
+                self.assertNotIn(forbidden, trigger_fields)
 
 
 if __name__ == "__main__":

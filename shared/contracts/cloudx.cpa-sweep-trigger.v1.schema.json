@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cloudx.cpa-sweep-trigger.v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "reason", "observedAt"],
+  "properties": {
+    "schema": {"const": "cloudx.cpa-sweep-trigger.v1"},
+    "reason": {"const": "auth_unavailable"},
+    "observedAt": {"type": "string", "format": "date-time", "minLength": 20, "maxLength": 40}
+  }
+}

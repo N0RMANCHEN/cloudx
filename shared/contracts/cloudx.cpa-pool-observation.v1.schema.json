@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cloudx.cpa-pool-observation.v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "state", "observedAt"],
+  "properties": {
+    "schema": {"const": "cloudx.cpa-pool-observation.v1"},
+    "state": {"enum": ["available", "unavailable"]},
+    "observedAt": {"type": "string", "format": "date-time", "minLength": 20, "maxLength": 40}
+  }
+}
