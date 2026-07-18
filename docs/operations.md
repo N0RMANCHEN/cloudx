@@ -346,6 +346,8 @@ python3 scripts/install_cpa_policy_candidate.py --target cloud
 
 Stage and activation have different exact confirmations. Stage verifies the pinned candidate bytes and copies them under the target's dedicated `cliproxy-cloudx/releases` tree; it does not edit a launcher or unit and does not restart CPA. Activation remains unapproved until the operator repeats the exact printed `ACTIVATE ... CPA POLICY ...` string. It retains the original binary, snapshots the prior launcher or drop-ins, configures private auth/failure directories, restarts only the selected external CPA, and requires `/healthz` plus `X-CPA-Max-Concurrent-API-Requests: 2`. Any failed canary restores the prior service selection automatically.
 
+The separately confirmed cloud `.policy.3` stage is complete. `/opt/cliproxy-cloudx/releases/7.2.71-cloudx-policy.3/cli-proxy-api` is root-owned mode `0755`, size `45322402`, SHA-256 `453df72d15235ea51e5fdf66d27692bb5249bd262800fd628af3638246021a2b`, and reports the pinned version/commit/build date. Its mode-`0644` manifest matches those fields. Repeated verification returned `already-staged`. Cloud CPA remained PID `977036`, restart count `0`, active/running from `/usr/local/bin/cli-proxy-api`; inspected unit hashes, zero active auth files, archive inventory, and Cloudx `0.1.17/0.1.16` selectors were unchanged. This evidence grants no CPA activation or watcher authority. Local `.policy.3` staging remains separately confirmed.
+
 Do not invoke synchronous local activation from a Codex turn that is itself using the local CPA. The revised `.policy.3` candidates require signed Cloudx `0.1.17` on the matching endpoint before activation. After that release is active locally, inspect the non-authorizing deferred plan:
 
 ```bash
