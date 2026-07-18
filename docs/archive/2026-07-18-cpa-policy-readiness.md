@@ -48,6 +48,7 @@ Each candidate was rebuilt independently from a fresh clean exact checkout with 
 - After the exact `STAGE LOCAL CPA POLICY 7.0.1-codexx-fast-service-tier-cloudx-policy.1 70439565f253` confirmation, the local candidate was durably staged at `/Users/hirohi/.local/lib/cliproxy-cloudx/releases/7.0.1-codexx-fast-service-tier-cloudx-policy.1/cli-proxy-api`. Its manifest records 41,468,178 bytes and SHA-256 `70439565f25307c22fd93c8aa897871489dc32b1700ebc2390c07896e7b6de01`; stage output reported `externalServiceRestarted=false`, and PID `38189` continued to execute the baseline `/Users/hirohi/.local/bin/cli-proxy-api`.
 - After the exact `STAGE CLOUD CPA POLICY 7.2.71-cloudx-policy.1 67baab69ecc5` confirmation, the cloud candidate was durably staged at `/opt/cliproxy-cloudx/releases/7.2.71-cloudx-policy.1/cli-proxy-api`. Its manifest records 45,314,210 bytes and SHA-256 `67baab69ecc507c794f1336197a78e52c0126679a780e1c064cae453966c6a67`; stage output reported `externalServiceRestarted=false`, and `cliproxy.service` remained active/running with PID `977036`, restart count `0`, and baseline `/usr/local/bin/cli-proxy-api` selection.
 - After the exact `PUBLISH CLOUDX 0.1.16 SIGNED RELEASE WITHOUT ACTIVATION` confirmation, annotated tag `v0.1.16` and workflow `29640659405` published immutable artifact ref `9513ff87b3b2e45d2b3609f0746248a7422d34b2` and stable ref `bba9f619fc2d3e57cbd1b2808fe97ac58e805aef`. Fresh clones and seven downloaded GitHub assets passed current-root verification, previous-root rejection, byte comparison, both component self-checks, stable-index acceptance, and selector-free `staged -> already-staged` transactions. No real endpoint was staged or activated.
+- After the exact `INSTALL CLOUDX CLOUD 0.1.16` confirmation, the canonical installer staged and activated the immutable cloud artifact from a complete hash-verified offline Git bundle after direct cloud-host GitHub fetch failed without mutation. Cloud now retains `current=0.1.16`, `previous=0.1.13`; self-check, release status, and handshake passed. A natural CPA-health timer invocation exited `0` with truthful aggregate `probe_error`. CPA PID `977036`, restart count `0`, 45 auth files, zero archived files, and the absent pre-policy failure-receipt directory were preserved.
 
 ## Communication Continuity And Cloud Import Evidence
 
@@ -58,7 +59,7 @@ Each candidate was rebuilt independently from a fresh clean exact checkout with 
 
 ## Remaining Gates
 
-1. stage and activate published signed Cloudx `0.1.16` on cloud first and local second while retaining signed N-1
+1. stage and activate published signed Cloudx `0.1.16` locally while retaining signed `0.1.13` as N-1
 2. activate cloud first and local second CPA using the distinct exact `ACTIVATE ... CPA POLICY ...` confirmations
 3. accept natural-traffic evidence for maximum-two concurrency, quota non-archive, permanent-failure archive, and exact restore
 

@@ -4,6 +4,7 @@
 
 - Advance repository development to `0.1.17` immediately after immutable signed `0.1.16` publication, preventing later source changes from rebuilding the released identity.
 - Pin the deferred local CPA activation prerequisite to the published signed receipt-consumer release `0.1.16`, rather than the mutable repository development version, so post-publication version advancement cannot block the approved rollout order.
+- Install signed Cloudx `0.1.16` on the cloud endpoint after exact confirmation, retaining signed `0.1.13` as N-1. The canonical installer recovered from unavailable remote GitHub fetch by consuming a hash-verified complete offline Git bundle of the immutable artifact ref; post-activation self-check, release status, and handshake passed, while the natural CPA-health timer exited `0` with truthful aggregate `probe_error` and no CPA restart or auth archive.
 
 ## 0.1.16 - 2026-07-18
 

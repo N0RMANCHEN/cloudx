@@ -4,7 +4,7 @@ This roadmap is the dependency order for Cloudx. Every activation, service chang
 
 ## Current State
 
-- Signed `0.1.1`, `0.1.2`, `0.1.4`, `0.1.5`, `0.1.6`, `0.1.7`, `0.1.8`, `0.1.10`, `0.1.11`, `0.1.12`, and `0.1.13` artifacts are staged side-by-side on the previously accepted local and cloud endpoints. Those `current` links select signed `0.1.13`, and their `previous` links select signed `0.1.12`; immutable `0.1.9` remains local-only failed-release evidence and was never activated. A separately audited `/Users/BofeiChen` local endpoint was not part of that acceptance; it still selects `0.1.8/0.1.7` and now has signed `0.1.12` plus `0.1.13` staged side-by-side for an explicitly approved later activation sequence.
+- Signed `0.1.1`, `0.1.2`, `0.1.4`, `0.1.5`, `0.1.6`, `0.1.7`, `0.1.8`, `0.1.10`, `0.1.11`, `0.1.12`, `0.1.13`, and `0.1.16` artifacts are retained side-by-side across the accepted endpoints. Cloud now selects signed `0.1.16` with signed `0.1.13` as `previous`; this workstation still selects signed local `0.1.13` with signed `0.1.12` as `previous`. Immutable `0.1.9` remains local-only failed-release evidence and was never activated. A separately audited `/Users/BofeiChen` local endpoint was not part of that acceptance; it still selects `0.1.8/0.1.7` and has signed `0.1.12` plus `0.1.13` staged side-by-side for an explicitly approved later activation sequence.
 - The root-owned cloud helper, local entrypoints, minimal shell hook, native profile, runtime/release identity boundary, and rollback paths are active and verified.
 - Signed `0.1.5` activates the simplified mode UX (`codexx api`, `codexx cloud`, named accounts, plain `codex`), split local/cloud import routing, endpoint-aware `./install`, and truthful idempotent activation status.
 - Signed `0.1.6` restores the non-invasive zsh right-prompt mode badge as `[cx:api]`, `[cx:cloud]`, or `[cx:<account>]` while preserving unrelated `RPROMPT` content and removing only its own segment on exit.
@@ -306,7 +306,7 @@ Disable only the new compatibility capability/profile and retain the current sin
 
 ## M4B: CPA Credential Failure And Concurrency Safety
 
-Status: signed Cloudx `0.1.16` and both deterministic CPA candidates are published/staged but inactive; Cloudx endpoint activation plus CPA activation remain separately unapproved.
+Status: signed Cloudx `0.1.16` is active on cloud and pending locally; both deterministic CPA candidates remain staged and inactive, with CPA activation separately unapproved.
 
 This milestone implements the operator-requested external CPA safety boundary without upgrading either installed upstream revision or making Cloudx the CPA lifecycle owner.
 
@@ -320,7 +320,8 @@ This milestone implements the operator-requested external CPA safety boundary wi
 - [x] Accept the exact OpenAI OAuth CPA export wrapper without weakening provider checks; record that the separately imported ten records are one deactivated non-refreshable workspace and do not provide cloud fallback capacity.
 - [x] Add local communication-continuity gating: real official-Codex requests before/after activation and after rollback, plus a private 180-second deferred worker so the authorizing CPA-backed turn finishes before restart.
 - [x] Publish signed Cloudx `0.1.16` containing the receipt consumers; verify immutable refs, signatures, GitHub assets, self-checks, previous-root rejection, and selector-free idempotent isolated staging.
-- [ ] Stage and activate signed Cloudx `0.1.16` on cloud first and local second, retaining signed N-1 and updating only the separately approved CPA-health unit path contract.
+- [x] Stage and activate signed Cloudx `0.1.16` on cloud, retain signed `0.1.13` as N-1, accept self-check/release-status/handshake plus one natural CPA-health exit-`0` run with truthful aggregate `probe_error`, and preserve CPA PID/restart count plus auth/archive inventories.
+- [ ] Stage and activate signed Cloudx `0.1.16` locally, retaining signed `0.1.13` as N-1 without restarting local CPA or existing Codex sessions.
 - [x] Durably stage both CPA candidates with the exact printed `STAGE ... CPA POLICY ...` confirmations while leaving both active process identities unchanged.
 - [ ] Activate cloud then local CPA with the distinct exact `ACTIVATE ... CPA POLICY ...` confirmations, accept health and concurrency-policy canaries, and retain the original binaries plus rollback snapshots.
 - [ ] Prove with natural traffic that concurrent proxied requests never exceed two, weekly quota creates no archive, one provisional 401 creates no archive, a confirmed permanent refresh/auth failure archives exactly one digest-matched credential, and exact restore returns it safely.
