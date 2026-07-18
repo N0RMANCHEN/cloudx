@@ -15,7 +15,15 @@ from unittest import mock
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from install import confirmation, main, maybe_backup_legacy, stage_cloud, stage_local  # noqa: E402
+from install import (  # noqa: E402
+    confirmation,
+    install_local,
+    main,
+    maybe_backup_legacy,
+    native_profile_seed_account,
+    stage_cloud,
+    stage_local,
+)
 
 
 class InstallTests(unittest.TestCase):
@@ -30,7 +38,143 @@ class InstallTests(unittest.TestCase):
         document = json.loads(output.getvalue())
         self.assertEqual(document["endpoint"], "local")
         self.assertIn("install shell source", document["localActions"])
+        self.assertIn("preserve a complete native profile or seed an absent profile", document["localActions"])
         self.assertEqual(document["confirmation"], confirmation("local", document["version"]))
+
+    def test_complete_native_profile_is_preserved(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            home = pathlib.Path(value) / "home"
+            native = home / ".codex"
+            native.mkdir(parents=True)
+            (native / "auth.json").write_text("{}\n", encoding="utf-8")
+            (native / "config.toml").write_text("model = \"test\"\n", encoding="utf-8")
+            config = SimpleNamespace(home=home)
+
+            self.assertIsNone(native_profile_seed_account(config, "soul0"))
+
+    def test_absent_native_profile_uses_requested_seed(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            home = pathlib.Path(value) / "home"
+            accounts = home / ".codex-accounts"
+            seed = accounts / "soul0/.codex"
+            seed.mkdir(parents=True)
+            (seed / "auth.json").write_text("{}\n", encoding="utf-8")
+            (seed / "config.toml").write_text("model = \"test\"\n", encoding="utf-8")
+            config = SimpleNamespace(home=home, accounts_dir=accounts)
+            self.assertEqual(native_profile_seed_account(config, "soul0"), "soul0")
+
+    def test_absent_native_profile_rejects_an_invalid_seed_before_install(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            home = pathlib.Path(value) / "home"
+            config = SimpleNamespace(home=home, accounts_dir=home / ".codex-accounts")
+            with self.assertRaisesRegex(RuntimeError, "seed account"):
+                native_profile_seed_account(config, "soul0")
+
+    def test_partial_or_symlinked_native_profile_fails_before_install(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            home = pathlib.Path(value) / "home"
+            native = home / ".codex"
+            native.mkdir(parents=True)
+            (native / "auth.json").write_text("{}\n", encoding="utf-8")
+            config = SimpleNamespace(home=home)
+            with self.assertRaisesRegex(RuntimeError, "incomplete"):
+                native_profile_seed_account(config, "soul0")
+            (native / "config.toml").symlink_to(native / "auth.json")
+            with self.assertRaisesRegex(RuntimeError, "symlinks"):
+                native_profile_seed_account(config, "soul0")
+
+    def test_non_regular_complete_native_profile_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            home = pathlib.Path(value) / "home"
+            native = home / ".codex"
+            (native / "auth.json").mkdir(parents=True)
+            (native / "config.toml").mkdir()
+            config = SimpleNamespace(home=home)
+            with self.assertRaisesRegex(RuntimeError, "regular files"):
+                native_profile_seed_account(config, "soul0")
+
+    @mock.patch("install.updater.apply", return_value={"status": "active"})
+    @mock.patch("install.updater.stage", return_value={"local": "staged"})
+    @mock.patch("install.fetch_release")
+    @mock.patch("install.maybe_backup_legacy", return_value=None)
+    @mock.patch("install.LocalConfig.load")
+    def test_local_upgrade_does_not_reseed_complete_native_profile(
+        self,
+        load_config: mock.Mock,
+        unused_backup: mock.Mock,
+        fetch_release: mock.Mock,
+        unused_stage: mock.Mock,
+        apply_release: mock.Mock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            home = pathlib.Path(value) / "home"
+            native = home / ".codex"
+            native.mkdir(parents=True)
+            (native / "auth.json").write_text("{}\n", encoding="utf-8")
+            (native / "config.toml").write_text("model = \"preserve\"\n", encoding="utf-8")
+            load_config.return_value = SimpleNamespace(home=home)
+            fetch_release.side_effect = lambda repository, version, destination: destination
+
+            result = install_local("0.1.18", "soul0", "git@example.invalid/cloudx.git")
+
+        self.assertFalse(result["nativeProfileChanged"])
+        self.assertIsNone(apply_release.call_args.kwargs["seed_account"])
+
+    @mock.patch("install.updater.apply", return_value={"status": "active"})
+    @mock.patch("install.updater.stage", return_value={"local": "staged"})
+    @mock.patch("install.fetch_release")
+    @mock.patch("install.maybe_backup_legacy", return_value=None)
+    @mock.patch("install.LocalConfig.load")
+    def test_local_first_install_seeds_a_valid_absent_native_profile(
+        self,
+        load_config: mock.Mock,
+        unused_backup: mock.Mock,
+        fetch_release: mock.Mock,
+        unused_stage: mock.Mock,
+        apply_release: mock.Mock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            home = pathlib.Path(value) / "home"
+            accounts = home / ".codex-accounts"
+            seed = accounts / "soul0/.codex"
+            seed.mkdir(parents=True)
+            (seed / "auth.json").write_text("{}\n", encoding="utf-8")
+            (seed / "config.toml").write_text("model = \"seed\"\n", encoding="utf-8")
+            load_config.return_value = SimpleNamespace(home=home, accounts_dir=accounts)
+            fetch_release.side_effect = lambda repository, version, destination: destination
+
+            result = install_local("0.1.18", "soul0", "git@example.invalid/cloudx.git")
+
+        self.assertTrue(result["nativeProfileChanged"])
+        self.assertEqual(apply_release.call_args.kwargs["seed_account"], "soul0")
+
+    @mock.patch("install.updater.apply")
+    @mock.patch("install.updater.stage")
+    @mock.patch("install.fetch_release")
+    @mock.patch("install.maybe_backup_legacy")
+    @mock.patch("install.LocalConfig.load")
+    def test_partial_native_profile_rejects_before_any_install_mutation(
+        self,
+        load_config: mock.Mock,
+        backup_legacy: mock.Mock,
+        fetch_release: mock.Mock,
+        stage_release: mock.Mock,
+        apply_release: mock.Mock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            home = pathlib.Path(value) / "home"
+            native = home / ".codex"
+            native.mkdir(parents=True)
+            (native / "auth.json").write_text("{}\n", encoding="utf-8")
+            load_config.return_value = SimpleNamespace(home=home)
+
+            with self.assertRaisesRegex(RuntimeError, "incomplete"):
+                install_local("0.1.18", "soul0", "git@example.invalid/cloudx.git")
+
+        backup_legacy.assert_not_called()
+        fetch_release.assert_not_called()
+        stage_release.assert_not_called()
+        apply_release.assert_not_called()
 
     def test_cloud_plan_does_not_restart_services(self) -> None:
         output = StringIO()

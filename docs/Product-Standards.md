@@ -32,6 +32,7 @@ Release workflow key synchronization also defaults to a non-authorizing offline 
 - Account selection changes `CODEX_HOME`; it does not modify the official Codex executable.
 - Cloud mode binds its tunnel lease to the selecting shell PID. `codexx exit`, another mode selection, or shell death releases that lease.
 - The default local Codex profile and named profiles have independent authentication files.
+- A local Cloudx upgrade preserves an existing complete native `~/.codex` auth/config pair byte-for-byte. Automatic seeding is limited to a fully absent pair backed by a valid regular named-account auth/config source; a partial, symlinked, non-regular, or invalid-source state fails before backup, fetch, staging, selector movement, shell installation, or profile mutation and requires explicit repair or seeding.
 - A single local broker owns the cloud SSH tunnel. Sessions acquire leases; they never monitor, kill, or rebuild the shared SSH process themselves.
 - The broker uses a Cloudx-owned port distinct from the legacy bridge and never treats a transient HTTP probe failure as authority to kill an SSH tunnel.
 - The broker may passively classify response bytes already crossing the cloud relay, but it stores only the secret-free diagnosis fields and never changes forwarded bytes. Local CPA diagnosis reads only bounded response sections from external gateway logs. A generic no-usable-account response cannot overwrite a recent definitive upstream cause, and insufficient evidence is never guessed to be quota exhaustion or deactivation.

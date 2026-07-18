@@ -27,6 +27,7 @@ from backup_legacy_local import activate_recovery_paths, create_backup  # noqa: 
 from bootstrap_cloud_helper import confirmation_for as bootstrap_confirmation  # noqa: E402
 from bootstrap_cloud_helper import main as bootstrap_cloud  # noqa: E402
 from cloudx_cloud import release as cloud_release  # noqa: E402
+from cloudx_local.accounts import account_home  # noqa: E402
 from cloudx_local import updater  # noqa: E402
 from cloudx_local.config import LocalConfig  # noqa: E402
 
@@ -85,8 +86,30 @@ def maybe_backup_legacy(config: LocalConfig) -> Optional[str]:
     return str(destination)
 
 
+def native_profile_seed_account(config: LocalConfig, requested_account: str) -> Optional[str]:
+    native = config.home / ".codex"
+    paths = (native / "auth.json", native / "config.toml")
+    existing = tuple(path.exists() or path.is_symlink() for path in paths)
+    if any(path.is_symlink() for path in paths):
+        raise RuntimeError("native profile auth.json and config.toml must not be symlinks")
+    if all(existing):
+        if not all(path.is_file() for path in paths):
+            raise RuntimeError("native profile auth.json and config.toml must be regular files")
+        return None
+    if any(existing):
+        raise RuntimeError("native profile is incomplete; repair or seed it explicitly before installation")
+    if not requested_account:
+        raise RuntimeError("native profile is absent and no seed account was requested")
+    source = account_home(config, requested_account)
+    required = (source / "auth.json", source / "config.toml")
+    if any(path.is_symlink() for path in required) or not all(path.is_file() for path in required):
+        raise RuntimeError("requested seed account lacks regular auth.json or config.toml files")
+    return requested_account
+
+
 def install_local(version: str, seed_account: str, repository: str) -> Dict[str, Any]:
     config = LocalConfig.load()
+    effective_seed_account = native_profile_seed_account(config, seed_account)
     backup = maybe_backup_legacy(config)
     with tempfile.TemporaryDirectory(prefix="cloudx-install-local-") as value:
         source = fetch_release(repository, version, pathlib.Path(value) / "release")
@@ -97,7 +120,7 @@ def install_local(version: str, seed_account: str, repository: str) -> Dict[str,
         version,
         local_only=True,
         shell_hook=True,
-        seed_account=seed_account,
+        seed_account=effective_seed_account,
     )
     return {
         "schema": "cloudx.install.v1",
@@ -108,6 +131,7 @@ def install_local(version: str, seed_account: str, repository: str) -> Dict[str,
         "activated": activated,
         "legacyBackup": backup,
         "shellSourceInstalled": True,
+        "nativeProfileChanged": effective_seed_account is not None,
     }
 
 
@@ -220,7 +244,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             local_actions = [
                 "stage signed artifact",
                 "backup legacy path",
-                "seed native profile",
+                "preserve a complete native profile or seed an absent profile",
                 "install shell source",
                 "activate links",
             ] if endpoint == "local" else []
