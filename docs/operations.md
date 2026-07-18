@@ -95,6 +95,8 @@ The local-install read-only preflight is also accepted but found a workstation-s
 
 The separately approved cloud `0.1.18` install is complete. A first operator-wrapper source-identity check failed before installer invocation because it omitted the temporary clone working directory; inspection proved no release directory or selector changed. The corrected proxy-aware retry returned stage `staged`, activation `active`, and no service restart. Cloud now selects `0.1.18/0.1.17`; exact artifact/source/manifest, self-check, release status, and handshake passed. CPA PID `1613475`, importer PID `133756`, both restart counts `0`, zero active auth, 45 archive entries, zero failure/sweep inputs, all inspected unit/runtime bytes, and watcher absence were preserved. Local remained `0.1.17/0.1.13` with healthy CPA PID `61859`.
 
+The separately approved local `0.1.18` install is also complete through the signed no-reseed path. A private recovery job was prepared and validated before staging. The first activation reached post-acceptance, where a missing operator-script import triggered fail-closed signed rollback to `0.1.17` plus a real recovery communication canary; CPA never restarted. The corrected retry returned `already-staged`, activated `0.1.18/0.1.17`, and preserved native auth/config, `.zshrc`, shell source, CPA binary/plist, the 56-file local auth tree, CPA PID `61859`, and all ten captured Codex PIDs. Fresh-shell API selection, official Codex resolution, self-check, and a real post-activation Codex-through-CPA canary passed. Recovery job `20260718T180043Z-a677fe97` remains private and executable.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:
