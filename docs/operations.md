@@ -97,6 +97,8 @@ The separately approved cloud `0.1.18` install is complete. A first operator-wra
 
 The separately approved local `0.1.18` install is also complete through the signed no-reseed path. A private recovery job was prepared and validated before staging. The first activation reached post-acceptance, where a missing operator-script import triggered fail-closed signed rollback to `0.1.17` plus a real recovery communication canary; CPA never restarted. The corrected retry returned `already-staged`, activated `0.1.18/0.1.17`, and preserved native auth/config, `.zshrc`, shell source, CPA binary/plist, the 56-file local auth tree, CPA PID `61859`, and all ten captured Codex PIDs. Fresh-shell API selection, official Codex resolution, self-check, and a real post-activation Codex-through-CPA canary passed. Recovery job `20260718T180043Z-a677fe97` remains private and executable.
 
+The separately approved cloud failure/sweep watcher transaction is active. After the source gate was aligned to active signed `0.1.18` and CI passed, the rollback-protected installer wrote the signed trigger-aware health service/timer plus both path-service pairs, enabled only the two path units, and preserved the health timer state. Backup `1784398277383594551` retains every prior unit byte. CPA PID `1613475`, importer PID `133756`, restart counts `0`, selectors, CPA unit/drop-in, zero active auth, 45 archive entries, empty trigger inputs, and local CPA PID `61859` were unchanged. A real idle health invocation exited `0` with `probe_gate=not_triggered`, `probe_concurrency=0`, absent trigger, and zero archive.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:
