@@ -31,6 +31,8 @@ CLOUD_FAILURE_SERVICE_UNIT = "cloudx-cpa-failure.service"
 CLOUD_FAILURE_PATH_UNIT = "cloudx-cpa-failure.path"
 CLOUD_SWEEP_SERVICE_UNIT = "cloudx-cpa-sweep.service"
 CLOUD_SWEEP_PATH_UNIT = "cloudx-cpa-sweep.path"
+CLOUD_HEALTH_SERVICE_UNIT = "cloudx-cpa-health.service"
+CLOUD_HEALTH_TIMER_UNIT = "cloudx-cpa-health.timer"
 
 
 class FailureWatcherRejected(RuntimeError):
@@ -169,6 +171,8 @@ def target_value(target: str, contract_path: pathlib.Path) -> Dict[str, Any]:
             "failureDirectory",
             "sweepDirectory",
             "gatewayDropIn",
+            "healthServiceUnit",
+            "healthTimerUnit",
             "failureServiceUnit",
             "failurePathUnit",
             "sweepServiceUnit",
@@ -267,7 +271,13 @@ def local_launcher(raw: bytes, value: Dict[str, Any]) -> bytes:
     return plistlib.dumps(document, fmt=plistlib.FMT_XML, sort_keys=False)
 
 
-def signed_cloud_units(artifact: pathlib.Path, value: Dict[str, Any]) -> Tuple[bytes, bytes, bytes, bytes]:
+def signed_cloud_units(artifact: pathlib.Path, value: Dict[str, Any]) -> Dict[str, bytes]:
+    health_service = run_command(
+        [sys.executable, str(artifact), "systemd-template", CLOUD_HEALTH_SERVICE_UNIT]
+    ).stdout
+    health_timer = run_command(
+        [sys.executable, str(artifact), "systemd-template", CLOUD_HEALTH_TIMER_UNIT]
+    ).stdout
     failure_service = run_command(
         [sys.executable, str(artifact), "systemd-template", CLOUD_FAILURE_SERVICE_UNIT]
     ).stdout
@@ -281,7 +291,12 @@ def signed_cloud_units(artifact: pathlib.Path, value: Dict[str, Any]) -> Tuple[b
         [sys.executable, str(artifact), "systemd-template", CLOUD_SWEEP_PATH_UNIT]
     ).stdout
     if (
-        "cpa-health --runtime-failures-only" not in failure_service
+        "cpa-health --sweep-if-triggered" not in health_service
+        or "CLOUDX_CPA_SWEEP_CONCURRENCY=32" not in health_service
+        or str(value["sweepDirectory"]) not in health_service
+        or "OnUnitActiveSec=5min" not in health_timer
+        or "Unit=%s" % CLOUD_HEALTH_SERVICE_UNIT not in health_timer
+        or "cpa-health --runtime-failures-only" not in failure_service
         or "PrivateNetwork=true" not in failure_service
         or "PathChanged=%s" % value["failureDirectory"] not in failure_path
         or "Unit=%s" % CLOUD_FAILURE_SERVICE_UNIT not in failure_path
@@ -291,12 +306,14 @@ def signed_cloud_units(artifact: pathlib.Path, value: Dict[str, Any]) -> Tuple[b
         or "Unit=%s" % CLOUD_SWEEP_SERVICE_UNIT not in sweep_path
     ):
         raise FailureWatcherRejected("signed Cloudx failure-watcher templates are invalid")
-    return (
-        failure_service.encode("utf-8"),
-        failure_path.encode("utf-8"),
-        sweep_service.encode("utf-8"),
-        sweep_path.encode("utf-8"),
-    )
+    return {
+        "health-service": health_service.encode("utf-8"),
+        "health-timer": health_timer.encode("utf-8"),
+        "failure-service": failure_service.encode("utf-8"),
+        "failure-path": failure_path.encode("utf-8"),
+        "sweep-service": sweep_service.encode("utf-8"),
+        "sweep-path": sweep_path.encode("utf-8"),
+    }
 
 
 def backup(root: pathlib.Path, snapshots: Dict[str, Snapshot], *, uid: int, gid: int) -> pathlib.Path:
@@ -337,6 +354,8 @@ def plan_document(target: str, value: Dict[str, Any]) -> Dict[str, Any]:
         "networkProbeOnPermanentReceipt": False,
         "networkProbeOnPoolUnavailable": True,
         "incidentProbeConcurrency": "adaptive-up-to-32",
+        "periodicAccountProbe": False,
+        "updatesTriggerAwareHealthFallback": target == "cloud",
         "restartsExternalCPA": False,
         "stopsCodexProcesses": False,
         "automaticAction": False,
@@ -407,21 +426,24 @@ def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
         raise FailureWatcherRejected("cloud failure-watcher activation requires root on Linux")
     artifact = require_active_cloudx("cloud")
     require_receipt_producer("cloud", value)
-    failure_service_after, failure_path_after, sweep_service_after, sweep_path_after = signed_cloud_units(
-        artifact,
-        value,
-    )
-    failure_service_before = safe_snapshot(value["failureServiceUnit"], required=False)
-    failure_path_before = safe_snapshot(value["failurePathUnit"], required=False)
-    sweep_service_before = safe_snapshot(value["sweepServiceUnit"], required=False)
-    sweep_path_before = safe_snapshot(value["sweepPathUnit"], required=False)
+    after = signed_cloud_units(artifact, value)
+    paths = {
+        "health-service": value["healthServiceUnit"],
+        "health-timer": value["healthTimerUnit"],
+        "failure-service": value["failureServiceUnit"],
+        "failure-path": value["failurePathUnit"],
+        "sweep-service": value["sweepServiceUnit"],
+        "sweep-path": value["sweepPathUnit"],
+    }
+    before = {
+        name: safe_snapshot(path, required=name.startswith("health-"))
+        for name, path in paths.items()
+    }
     failure_state = unit_state(CLOUD_FAILURE_PATH_UNIT)
     sweep_state = unit_state(CLOUD_SWEEP_PATH_UNIT)
+    health_timer_state = unit_state(CLOUD_HEALTH_TIMER_UNIT)
     if (
-        failure_service_before.data == failure_service_after
-        and failure_path_before.data == failure_path_after
-        and sweep_service_before.data == sweep_service_after
-        and sweep_path_before.data == sweep_path_after
+        all(before[name].data == raw for name, raw in after.items())
         and failure_state == (True, True)
         and sweep_state == (True, True)
     ):
@@ -431,37 +453,32 @@ def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
     ensure_directory(value["sweepDirectory"], mode=0o700, uid=cliproxy.pw_uid, gid=cliproxy.pw_gid)
     destination = backup(
         value["watcherBackupRoot"],
-        {
-            "failure-service": failure_service_before,
-            "failure-path": failure_path_before,
-            "sweep-service": sweep_service_before,
-            "sweep-path": sweep_path_before,
-        },
+        before,
         uid=0,
         gid=0,
     )
     try:
-        atomic_write(value["failureServiceUnit"], failure_service_after, mode=0o644, uid=0, gid=0)
-        atomic_write(value["failurePathUnit"], failure_path_after, mode=0o644, uid=0, gid=0)
-        atomic_write(value["sweepServiceUnit"], sweep_service_after, mode=0o644, uid=0, gid=0)
-        atomic_write(value["sweepPathUnit"], sweep_path_after, mode=0o644, uid=0, gid=0)
+        for name, path in paths.items():
+            atomic_write(path, after[name], mode=0o644, uid=0, gid=0)
         run_command(["systemctl", "daemon-reload"])
         run_command(["systemctl", "enable", "--now", CLOUD_FAILURE_PATH_UNIT, CLOUD_SWEEP_PATH_UNIT])
         if unit_state(CLOUD_FAILURE_PATH_UNIT) != (True, True) or unit_state(CLOUD_SWEEP_PATH_UNIT) != (True, True):
             raise FailureWatcherRejected("cloud failure-watcher path units did not become active")
+        if unit_state(CLOUD_HEALTH_TIMER_UNIT) != health_timer_state:
+            raise FailureWatcherRejected("cloud CPA health timer state changed")
     except Exception as exc:
         try:
             run_command(
                 ["systemctl", "disable", "--now", CLOUD_FAILURE_PATH_UNIT, CLOUD_SWEEP_PATH_UNIT],
                 check=False,
             )
-            restore_snapshot(value["failureServiceUnit"], failure_service_before)
-            restore_snapshot(value["failurePathUnit"], failure_path_before)
-            restore_snapshot(value["sweepServiceUnit"], sweep_service_before)
-            restore_snapshot(value["sweepPathUnit"], sweep_path_before)
+            for name, path in paths.items():
+                restore_snapshot(path, before[name])
             run_command(["systemctl", "daemon-reload"])
             restore_cloud_state(CLOUD_FAILURE_PATH_UNIT, *failure_state)
             restore_cloud_state(CLOUD_SWEEP_PATH_UNIT, *sweep_state)
+            if unit_state(CLOUD_HEALTH_TIMER_UNIT) != health_timer_state:
+                restore_cloud_state(CLOUD_HEALTH_TIMER_UNIT, *health_timer_state)
         except Exception as recovery_exc:
             raise FailureWatcherRejected(
                 "cloud failure-watcher activation failed and rollback was incomplete"

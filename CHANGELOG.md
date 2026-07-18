@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Close the cloud watcher rollout gap without touching production: extend the separately confirmed watcher transaction to atomically install and roll back the signed trigger-aware CPA-health service/timer together with both failure/sweep path-service pairs, preserve the prior health-timer enabled/active state, and prohibit periodic account probing before usable capacity is imported.
 - Install signed Cloudx `0.1.17` on the cloud endpoint after exact confirmation, retaining signed `0.1.16` as N-1. Signature/source/artifact identities, self-check, release status, handshake, and a natural zero-account CPA-health run passed; CPA PID `977036`, restart count `0`, importer PID `133756`, credential/archive state, and all systemd unit bytes were preserved. The existing health unit still uses its pre-watcher command and must be changed to trigger-aware fallback only through the separately confirmed watcher transaction before usable accounts are imported.
 - Advance repository development to `0.1.18` immediately after immutable signed `0.1.17` publication, preventing later source changes from rebuilding the released identity while all CPA policy and watcher prerequisites remain pinned to signed `0.1.17`.
 

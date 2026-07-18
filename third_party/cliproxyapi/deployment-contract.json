@@ -39,6 +39,8 @@
       "service": "cliproxy.service",
       "gatewayDropIn": "/etc/systemd/system/cliproxy.service.d/20-cloudx-cpa-policy.conf",
       "healthDropIn": "/etc/systemd/system/cloudx-cpa-health.service.d/20-cloudx-cpa-policy.conf",
+      "healthServiceUnit": "/etc/systemd/system/cloudx-cpa-health.service",
+      "healthTimerUnit": "/etc/systemd/system/cloudx-cpa-health.timer",
       "failureServiceUnit": "/etc/systemd/system/cloudx-cpa-failure.service",
       "failurePathUnit": "/etc/systemd/system/cloudx-cpa-failure.path",
       "sweepServiceUnit": "/etc/systemd/system/cloudx-cpa-sweep.service",
