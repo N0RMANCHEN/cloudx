@@ -10,6 +10,7 @@
 - Record the separately confirmed durable side-by-side staging of both exact CPA candidates. The local and cloud manifests match the pinned bytes while active local PID `38189`, cloud PID `977036`, cloud restart count `0`, baseline launch paths, credentials, launchers/units, and Cloudx selectors remain unchanged; the policy remains inactive pending distinct activation approval.
 - Accept the exact OpenAI OAuth export wrapper used by CPA account exports (`platform=openai`, `type=oauth`, nested `credentials`) as Codex input while continuing to reject the same OAuth wrapper for another platform. A separately authorized cloud import normalized and wrote ten records idempotently, but live traffic proved all ten represented one deactivated workspace with no refresh token, so write acceptance was not treated as usable capacity.
 - Make local CPA activation communication-safe for CPA-backed Codex sessions: require a real official-Codex request before restart and after candidate selection, repeat the real request after automatic baseline restoration on failure, and provide a default-read-only 180-second deferred scheduler that lets the current turn finish before the separately confirmed restart.
+- Fetch full Git history in the main CI workflow so verification can resolve the immutable annotated release tags required by published bridge evidence; retain a regression that prevents checkout from silently returning to shallow history.
 
 ## 0.1.15 - 2026-07-17
 
