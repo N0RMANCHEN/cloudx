@@ -190,6 +190,17 @@ class CloudHealthTests(unittest.TestCase):
         self.assertIn("ReadOnlyPaths=/opt/cloudx/releases", service)
         self.assertNotIn("/home/", service)
 
+        path_output = StringIO()
+        with redirect_stdout(path_output):
+            self.assertEqual(main(["systemd-template", "cloudx-cpa-failure.path"]), 0)
+        self.assertIn("Unit=cloudx-cpa-failure.service", path_output.getvalue())
+
+        failure_output = StringIO()
+        with redirect_stdout(failure_output):
+            self.assertEqual(main(["systemd-template", "cloudx-cpa-failure.service"]), 0)
+        self.assertIn("--runtime-failures-only", failure_output.getvalue())
+        self.assertIn("PrivateNetwork=true", failure_output.getvalue())
+
     def test_signed_artifact_emits_fixed_release_legacy_bridge_templates(self) -> None:
         canary_output = StringIO()
         with redirect_stdout(canary_output):

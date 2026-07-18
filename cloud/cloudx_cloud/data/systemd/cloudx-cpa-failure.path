@@ -1,0 +1,10 @@
+[Unit]
+Description=Trigger Cloudx CPA archive maintenance when a failure receipt changes
+After=cliproxy.service
+
+[Path]
+PathChanged=/var/lib/codex-gateway/cliproxy-auth-failures
+Unit=cloudx-cpa-failure.service
+
+[Install]
+WantedBy=multi-user.target

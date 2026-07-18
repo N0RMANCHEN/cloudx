@@ -251,6 +251,7 @@ def plan_document(target: str, value: Dict[str, Any]) -> Dict[str, Any]:
         "inFlightRequestContinuityGuaranteed": False,
         "localActivationRequiresRealCodexCanary": target == "local",
         "localActivationRollsBackOnCommunicationFailure": target == "local",
+        "eventDrivenArchiveWatcherActivationSeparate": True,
         "automaticAction": False,
     }
 

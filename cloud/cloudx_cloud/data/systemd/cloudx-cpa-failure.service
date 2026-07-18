@@ -1,0 +1,24 @@
+[Unit]
+Description=Reversibly archive CPA accounts with conclusive runtime failure receipts
+After=cliproxy.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/cloudx/current/cloudx-cloud.pyz cpa-health --runtime-failures-only
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateNetwork=true
+ProtectHome=true
+ProtectSystem=strict
+StateDirectory=cloudx/cpa-health
+StateDirectoryMode=0700
+ReadOnlyPaths=/opt/cloudx/releases
+ReadWritePaths=/var/lib/cloudx/cpa-health /var/lib/codex-gateway/cliproxy-auth /var/lib/codex-gateway/cliproxy-auth-archive /var/lib/codex-gateway/cliproxy-auth-failures
+InaccessiblePaths=/etc/phi /etc/msmtprc /etc/codex-quota-monitor.env /etc/codex-quota-monitor.gmail-app-password
+PrivateDevices=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX

@@ -10,11 +10,14 @@
       "baselineSha256": "cf9641b3e50ae486aec1698dec88f735589680f9ae98558c29cde184daac3a96",
       "stageRoot": ".local/lib/cliproxy-cloudx/releases",
       "backupRoot": ".local/state/cloudx/cpa-policy-backups",
+      "watcherBackupRoot": ".local/state/cloudx/cpa-failure-watcher-backups",
       "authDirectory": ".cli-proxy-api",
       "failureDirectory": ".local/state/cloudx/cpa-auth-failures",
       "config": ".cli-proxy-api/config.yaml",
       "launcher": "Library/LaunchAgents/com.codexx.cliproxyapi.plist",
       "serviceLabel": "com.codexx.cliproxyapi",
+      "maintenanceLauncher": "Library/LaunchAgents/com.codexx.cliproxy-refresh.plist",
+      "maintenanceLabel": "com.codexx.cliproxy-refresh",
       "codexBinary": "/opt/homebrew/bin/codex",
       "communicationCodexHome": ".codex-accounts/api/.codex"
     },
@@ -27,12 +30,15 @@
       "baselineSha256": "1d0abbc6316b1869f74896109c0efb5e19c8197b8226f48a74212ed0a6f5a39d",
       "stageRoot": "/opt/cliproxy-cloudx/releases",
       "backupRoot": "/var/lib/cloudx/cpa-policy-backups",
+      "watcherBackupRoot": "/var/lib/cloudx/cpa-failure-watcher-backups",
       "authDirectory": "/var/lib/codex-gateway/cliproxy-auth",
       "failureDirectory": "/var/lib/codex-gateway/cliproxy-auth-failures",
       "config": "/etc/cliproxy/config.yaml",
       "service": "cliproxy.service",
       "gatewayDropIn": "/etc/systemd/system/cliproxy.service.d/20-cloudx-cpa-policy.conf",
-      "healthDropIn": "/etc/systemd/system/cloudx-cpa-health.service.d/20-cloudx-cpa-policy.conf"
+      "healthDropIn": "/etc/systemd/system/cloudx-cpa-health.service.d/20-cloudx-cpa-policy.conf",
+      "failureServiceUnit": "/etc/systemd/system/cloudx-cpa-failure.service",
+      "failurePathUnit": "/etc/systemd/system/cloudx-cpa-failure.path"
     }
   }
 }

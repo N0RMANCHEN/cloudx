@@ -161,7 +161,7 @@ sudo /usr/bin/python3 /opt/cloudx/current/cloudx-cloud.pyz \
   cpa-health --check --proxy-url http://127.0.0.1:7890
 ```
 
-The explicit proxy argument makes an interactive check use the same declared external mihomo path as the installed oneshot unit. The probe first checks that path without account authority. A transport/provider outage skips all account archive decisions. When the path is reachable, accounts are checked sequentially with concurrency one; explicit deactivation/deletion, non-refreshable unauthorized, and conclusive refresh revocation/invalid-grant results are immediately eligible, while quota/429, refreshable 401, network/TLS/DNS/timeout/5xx, and unknown results are retained. Output remains aggregate-only.
+The explicit proxy argument makes an interactive check use the same declared external mihomo path as the installed oneshot unit. The probe first checks that path without account authority. A transport/provider outage skips all account archive decisions. When the path is reachable, account checks use a bounded pool of at most two; explicit deactivation/deletion, non-refreshable unauthorized, and conclusive refresh revocation/invalid-grant results are immediately eligible, while quota/429, refreshable 401, network/TLS/DNS/timeout/5xx, and unknown results are retained. Network requests run outside the archive lock, and output remains aggregate-only.
 
 After a native CPA-health release is explicitly activated, restore one quarantined file only with its exact private archive filename repeated as confirmation:
 
@@ -344,7 +344,14 @@ Its exact-confirmation apply copies only the installer and pinned contract into 
 
 Local activation never terminates a `codex`, Codex App, terminal, workspace, or project process. It sends the shared CPA a normal service stop/start; upstream CPA handles SIGTERM with graceful HTTP shutdown for active requests before the new process binds the same port. All `codexx api` projects share that bridge, so idle projects continue and reconnect, but zero interruption for a request that overlaps the restart cannot be guaranteed. Such a request may finish during graceful shutdown or may require retry; automatic rollback can cause a second short CPA restart. Installing a Cloudx local release is separate and does not restart CPA at all.
 
-The matching signed Cloudx receipt consumer must be active before production acceptance. Local automatic maintenance then uses the existing `codexx api refresh --apply` LaunchAgent; cloud maintenance owns its infrastructure gate, sequential account probe, receipt consumption, and reversible archive on the existing CPA-health timer. Phi may read the resulting aggregate health and notify, but cannot probe or move credentials. Manual local preview and reversible restore are:
+The matching signed Cloudx receipt consumer and `.policy.2` receipt producer must be active before event-driven maintenance is accepted. Inspect the separate non-authorizing watcher plans only after those prerequisites pass:
+
+```bash
+python3 scripts/install_cpa_failure_watcher.py --target local
+python3 scripts/install_cpa_failure_watcher.py --target cloud
+```
+
+The exact-confirmation local action preserves the existing `codexx api refresh --apply` command and log paths, adds the private failure directory to `WatchPaths`, changes the timer fallback from fifteen minutes to two minutes, and reloads only that maintenance LaunchAgent. The cloud action extracts the signed `cloudx-cpa-failure.service` and `.path` templates from active Cloudx `0.1.17`, enables the path unit, and uses `cpa-health --runtime-failures-only` under `PrivateNetwork=true`. Neither action restarts CPA, Codex, Cloudx, or Phi. The existing five-minute cloud CPA-health timer remains the proactive fallback and performs infrastructure-gated account probes with a maximum concurrency of two. Phi may read the resulting aggregate health and notify, but cannot inspect receipts, probe credentials, or move them. Manual local preview and reversible restore are:
 
 ```bash
 codexx api refresh --dry-run --json

@@ -7,6 +7,7 @@ import pathlib
 import stat
 import sys
 import tempfile
+import threading
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
@@ -125,7 +126,7 @@ class CpaHealthTests(unittest.TestCase):
             self.assertEqual((archived, stale), ([], 1))
             quarantine.assert_not_called()
 
-    def test_probe_gate_and_account_probes_are_single_concurrency(self) -> None:
+    def test_probe_gate_bounds_account_probes_at_two(self) -> None:
         with tempfile.TemporaryDirectory() as value:
             root = pathlib.Path(value)
             contexts = []
@@ -136,13 +137,19 @@ class CpaHealthTests(unittest.TestCase):
             active = 0
             maximum = 0
             order = []
+            lock = threading.Lock()
+            first_pair = threading.Barrier(2)
 
             def probe(unused_config: object, account: dict, **unused_kwargs: object) -> dict:
                 nonlocal active, maximum
-                active += 1
-                maximum = max(maximum, active)
-                order.append(account["name"])
-                active -= 1
+                with lock:
+                    active += 1
+                    maximum = max(maximum, active)
+                    order.append(account["name"])
+                if account["name"] in {"0", "1"}:
+                    first_pair.wait(timeout=2)
+                with lock:
+                    active -= 1
                 return {"status": "ready", "remaining_percents": [80]}
 
             active_runtime = runtime(
@@ -153,11 +160,12 @@ class CpaHealthTests(unittest.TestCase):
                 active_runtime,
                 cpa_health.cloudx_config(root, root / "archive", failure_confirmations=1),
                 warning_available_accounts=1,
+                probe_concurrency=99,
             )
 
-            self.assertEqual(maximum, 1)
-            self.assertEqual(order, ["0", "1", "2"])
-            self.assertEqual(summary["probe_concurrency"], 1)
+            self.assertEqual(maximum, 2)
+            self.assertEqual(sorted(order), ["0", "1", "2"])
+            self.assertEqual(summary["probe_concurrency"], 2)
             self.assertEqual(summary["probe_gate"], "reachable")
             self.assertEqual(candidates, [])
 
@@ -340,6 +348,96 @@ class CpaHealthTests(unittest.TestCase):
             self.assertEqual(json.loads(output.getvalue())["total"], 1)
             active_runtime.refresh.assert_not_called()
             active_runtime.quarantine.assert_not_called()
+
+    def test_runtime_failure_only_mode_archives_without_network_or_full_refresh(self) -> None:
+        active_runtime = runtime()
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            args = argparse.Namespace(
+                check=False,
+                runtime_failures_only=True,
+                auth_dir=root / "auth",
+                archive_dir=root / "archive",
+                state_dir=root / "state",
+                failure_dir=root / "failures",
+                warning_available_accounts=3,
+                failure_confirmations=1,
+                probe_concurrency=2,
+                proxy_url="",
+            )
+            output = StringIO()
+            with mock.patch.object(
+                cpa_health,
+                "archive_runtime_failures",
+                return_value=(["account.json"], 0, 0),
+            ), redirect_stdout(output):
+                self.assertEqual(cpa_health.run(args, runtime=active_runtime), 0)
+
+            document = json.loads(output.getvalue())
+            self.assertEqual(document["archived_count"], 1)
+            self.assertEqual(document["network_probes"], 0)
+            active_runtime.refresh.assert_not_called()
+            active_runtime.transport.assert_not_called()
+            active_runtime.probe.assert_not_called()
+
+    def test_full_network_probe_does_not_hold_the_archive_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            account = root / "auth/account.json"
+            account.parent.mkdir()
+            account.write_text("{}", encoding="utf-8")
+            probe_started = threading.Event()
+            finish_probe = threading.Event()
+            lock_acquired = threading.Event()
+            failures = []
+
+            def probe(unused_config: object, unused_account: dict, **unused_kwargs: object) -> dict:
+                probe_started.set()
+                if not finish_probe.wait(timeout=3):
+                    raise RuntimeError("probe release timed out")
+                return {"status": "ready", "remaining_percents": [80]}
+
+            active_runtime = runtime(
+                contexts=mock.Mock(return_value=[{"path": account, "state_key": "one", "payload": {}}]),
+                probe=probe,
+            )
+            args = argparse.Namespace(
+                check=False,
+                runtime_failures_only=False,
+                auth_dir=account.parent,
+                archive_dir=root / "archive",
+                state_dir=root / "state",
+                failure_dir=root / "failures",
+                warning_available_accounts=3,
+                failure_confirmations=1,
+                probe_concurrency=2,
+                proxy_url="",
+            )
+
+            def run_health() -> None:
+                try:
+                    cpa_health.run(args, runtime=active_runtime)
+                except Exception as exc:  # pragma: no cover - asserted below
+                    failures.append(exc)
+
+            def take_lock() -> None:
+                with cpa_health.monitor_lock(args.state_dir):
+                    lock_acquired.set()
+
+            with mock.patch.object(cpa_health, "emit_json"):
+                health = threading.Thread(target=run_health)
+                health.start()
+                self.assertTrue(probe_started.wait(timeout=2))
+                contender = threading.Thread(target=take_lock)
+                contender.start()
+                acquired_during_probe = lock_acquired.wait(timeout=1)
+                finish_probe.set()
+                health.join(timeout=3)
+                contender.join(timeout=3)
+
+            self.assertTrue(acquired_during_probe)
+            self.assertFalse(health.is_alive())
+            self.assertEqual(failures, [])
 
     def test_default_runtime_uses_only_native_cloudx_modules(self) -> None:
         active_runtime = cpa_health.native_runtime()

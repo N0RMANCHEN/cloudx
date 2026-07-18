@@ -9,9 +9,11 @@ import pathlib
 import re
 import stat
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 from . import cpa_auth, cpa_quota
 from .public_metadata import emit_json, validate_public_document
@@ -23,6 +25,8 @@ DEFAULT_STATE_DIR = pathlib.Path("/var/lib/cloudx/cpa-health")
 DEFAULT_FAILURE_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth-failures")
 DEFAULT_WARNING_AVAILABLE_ACCOUNTS = 3
 DEFAULT_FAILURE_CONFIRMATIONS = 3
+DEFAULT_PROBE_CONCURRENCY = 2
+MAX_PROBE_CONCURRENCY = 2
 FAILURE_RECEIPT_SCHEMA = "cloudx.cpa-auth-failure.v1"
 MAX_FAILURE_RECEIPT_BYTES = 16 * 1024
 MAX_FAILURE_RECEIPTS = 2048
@@ -162,7 +166,9 @@ def probe_accounts(
     config: Dict[str, Any],
     *,
     warning_available_accounts: int,
+    probe_concurrency: int = DEFAULT_PROBE_CONCURRENCY,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    concurrency = max(1, min(MAX_PROBE_CONCURRENCY, int(probe_concurrency)))
     contexts = runtime.contexts(config, "api")
     if not isinstance(contexts, list) or any(not isinstance(item, dict) for item in contexts):
         raise CpaHealthUnavailable("CPA runtime returned invalid account contexts")
@@ -172,7 +178,7 @@ def probe_accounts(
             warning_available_accounts=warning_available_accounts,
             checked_at=utc_now().isoformat(),
         )
-        summary.update({"probe_gate": "no_accounts", "probe_concurrency": 1})
+        summary.update({"probe_gate": "no_accounts", "probe_concurrency": concurrency})
         return summary, []
     transport = runtime.transport(config, timeout_seconds=5)
     transport_status = str(transport.get("status") or "transport_error") if isinstance(transport, dict) else "transport_error"
@@ -182,10 +188,9 @@ def probe_accounts(
             warning_available_accounts=warning_available_accounts,
             checked_at=utc_now().isoformat(),
         )
-        summary.update({"probe_gate": transport_status, "probe_concurrency": 1})
+        summary.update({"probe_gate": transport_status, "probe_concurrency": concurrency})
         return summary, []
 
-    probes: List[Optional[Dict[str, Any]]] = []
     digests: List[str] = []
     for context in contexts:
         path = pathlib.Path(str(context.get("path") or ""))
@@ -194,7 +199,8 @@ def probe_accounts(
         except OSError:
             digest = ""
         digests.append(digest)
-        probes.append(probe_context(runtime, config, context))
+    with ThreadPoolExecutor(max_workers=concurrency, thread_name_prefix="cloudx-cpa-probe") as executor:
+        probes = list(executor.map(lambda context: probe_context(runtime, config, context), contexts))
     grouped: Dict[str, List[Tuple[Optional[Dict[str, Any]], str]]] = {}
     for context, item, digest in zip(contexts, probes, digests):
         grouped.setdefault(str(context.get("path") or ""), []).append((item, digest))
@@ -232,7 +238,7 @@ def probe_accounts(
         warning_available_accounts=warning_available_accounts,
         checked_at=utc_now().isoformat(),
     )
-    summary.update({"probe_gate": "reachable", "probe_concurrency": 1})
+    summary.update({"probe_gate": "reachable", "probe_concurrency": concurrency})
     return summary, permanent_candidates
 
 
@@ -478,8 +484,25 @@ def public_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
     return validate_public_document(result, "cloudx.cpa-health.v1 summary")
 
 
+@contextmanager
+def monitor_lock(state_dir: pathlib.Path) -> Iterator[None]:
+    state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    state_dir.chmod(0o700)
+    lock_path = state_dir / "monitor.lock"
+    with lock_path.open("a+", encoding="utf-8") as lock:
+        lock_path.chmod(0o600)
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        yield
+
+
 def add_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--check", action="store_true", help="probe only; do not write state or isolate accounts")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true", help="probe only; do not write state or isolate accounts")
+    mode.add_argument(
+        "--runtime-failures-only",
+        action="store_true",
+        help="consume permanent runtime-failure receipts without network probes",
+    )
     parser.add_argument("--auth-dir", type=pathlib.Path, default=DEFAULT_AUTH_DIR)
     parser.add_argument("--archive-dir", type=pathlib.Path, default=DEFAULT_ARCHIVE_DIR)
     parser.add_argument("--state-dir", type=pathlib.Path, default=DEFAULT_STATE_DIR)
@@ -510,6 +533,11 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
             os.environ.get("CLOUDX_FAILURE_CONFIRMATIONS", str(DEFAULT_FAILURE_CONFIRMATIONS))
         ),
     )
+    parser.add_argument(
+        "--probe-concurrency",
+        type=int,
+        default=int(os.environ.get("CLOUDX_CPA_PROBE_CONCURRENCY", str(DEFAULT_PROBE_CONCURRENCY))),
+    )
 
 
 def add_restore_arguments(parser: argparse.ArgumentParser) -> None:
@@ -532,41 +560,63 @@ def run(args: argparse.Namespace, runtime: Optional[CpaRuntime] = None) -> int:
             active_runtime,
             config,
             warning_available_accounts=args.warning_available_accounts,
+            probe_concurrency=getattr(args, "probe_concurrency", DEFAULT_PROBE_CONCURRENCY),
         )
         emit_json(public_summary(summary), ensure_ascii=False)
         return 0
 
-    args.state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-    args.state_dir.chmod(0o700)
+    if getattr(args, "runtime_failures_only", False):
+        with monitor_lock(args.state_dir):
+            archived, rejected, stale = archive_runtime_failures(
+                active_runtime,
+                config,
+                args.failure_dir,
+            )
+        emit_json({
+            "schema": "cloudx.cpa-runtime-failure-maintenance.v1",
+            "status": "accepted",
+            "archived_count": len(archived),
+            "rejected_failure_receipts": rejected,
+            "stale_failure_receipts": stale,
+            "network_probes": 0,
+        }, ensure_ascii=False)
+        return 0
+
     state_path = args.state_dir / "state.json"
-    lock_path = args.state_dir / "monitor.lock"
-    with lock_path.open("a+", encoding="utf-8") as lock:
-        lock_path.chmod(0o600)
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+    with monitor_lock(args.state_dir):
         static_archived = archive_static_failures(active_runtime, config, args.state_dir)
         runtime_archived, rejected_receipts, stale_receipts = archive_runtime_failures(
             active_runtime,
             config,
             args.failure_dir,
         )
-        summary, probe_candidates = probe_accounts(
+
+    summary, probe_candidates = probe_accounts(
+        active_runtime,
+        config,
+        warning_available_accounts=args.warning_available_accounts,
+        probe_concurrency=getattr(args, "probe_concurrency", DEFAULT_PROBE_CONCURRENCY),
+    )
+    with monitor_lock(args.state_dir):
+        later_archived, later_rejected, later_stale = archive_runtime_failures(
             active_runtime,
             config,
-            warning_available_accounts=args.warning_available_accounts,
+            args.failure_dir,
         )
         probe_archived, stale_probe_candidates = archive_permanent_probe_failures(
             active_runtime,
             config,
             probe_candidates,
         )
+        runtime_archived = sorted(set(runtime_archived + later_archived))
         summary["archived_files"] = sorted(set(static_archived + runtime_archived + probe_archived))
         summary["runtime_failure_archived_count"] = len(runtime_archived)
         summary["probe_failure_archived_count"] = len(probe_archived)
         summary["stale_probe_candidates"] = stale_probe_candidates
-        summary["rejected_failure_receipts"] = rejected_receipts
-        summary["stale_failure_receipts"] = stale_receipts
+        summary["rejected_failure_receipts"] = max(rejected_receipts, later_rejected)
+        summary["stale_failure_receipts"] = max(stale_receipts, later_stale)
         save_state(state_path, summary)
-        emit_json(public_summary(summary), ensure_ascii=False)
+    emit_json(public_summary(summary), ensure_ascii=False)
     return 0
 
 

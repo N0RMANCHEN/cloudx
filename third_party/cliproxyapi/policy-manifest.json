@@ -15,7 +15,7 @@
     "minimumFailureEvidence": 1,
     "permanentFailureArchivesImmediately": true,
     "provisionalFailureArchived": false,
-    "accountProbeConcurrency": 1,
+    "accountProbeConcurrency": 2,
     "weeklyQuotaArchived": false
   },
   "targets": {

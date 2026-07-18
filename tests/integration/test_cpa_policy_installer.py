@@ -34,6 +34,7 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertFalse(document["inFlightRequestContinuityGuaranteed"])
         self.assertTrue(document["localActivationRequiresRealCodexCanary"])
         self.assertTrue(document["localActivationRollsBackOnCommunicationFailure"])
+        self.assertTrue(document["eventDrivenArchiveWatcherActivationSeparate"])
         self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.17")
         self.assertFalse(document["weeklyQuotaArchived"])
 

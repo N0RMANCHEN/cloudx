@@ -15,6 +15,8 @@ Local API/CPA diagnosis uses the external gateway's retained error files as a co
 
 Local CPA maintenance scans only top-level auth JSON. It retains expired access tokens when a refresh token exists, consumes only fresh `cloudx.cpa-auth-failure.v1` receipts bound to the current file digest, and moves accepted records into a private same-filesystem archive with a rollback-safe manifest. `codexx api restore` requires the exact archived filename. The external CPA is neither restarted nor managed by these commands.
 
+Receipt consumption has a fast path independent of full account probing. The local maintenance LaunchAgent can watch the private receipt directory with a two-minute timer fallback; cloud uses a signed systemd path plus a network-isolated oneshot consumer. Full cloud probes first gate on the declared HTTPS/proxy dependency, use at most two account requests concurrently, and release the archive lock while waiting on the network. Watcher activation is a separate exact-confirmation transaction and never restarts CPA, Codex, or Phi.
+
 ## Cloud Component
 
 The cloud artifact owns:

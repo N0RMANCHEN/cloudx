@@ -25,7 +25,7 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         self.assertEqual(manifest["policy"]["minimumFailureEvidence"], 1)
         self.assertTrue(manifest["policy"]["permanentFailureArchivesImmediately"])
         self.assertFalse(manifest["policy"]["provisionalFailureArchived"])
-        self.assertEqual(manifest["policy"]["accountProbeConcurrency"], 1)
+        self.assertEqual(manifest["policy"]["accountProbeConcurrency"], 2)
         self.assertFalse(manifest["policy"]["weeklyQuotaArchived"])
         self.assertEqual(local["candidateSha256"], "f288838053f43a82c50d2ab23bcb096c627a848fdf662413544a483f908f236d")
         self.assertEqual(cloud["candidateSha256"], "7c9603a380f9fbd7bdbe1c8ecbf938504f6055677ba4d4de2cd7004398a02229")
