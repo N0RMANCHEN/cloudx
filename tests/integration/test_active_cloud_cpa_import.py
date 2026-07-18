@@ -49,6 +49,22 @@ class ActiveCloudCpaImportTests(unittest.TestCase):
         document = {"output": [{"content": [{"text": transaction.EXPECTED_TEXT}]}]}
         self.assertIn(transaction.EXPECTED_TEXT, list(transaction.strings(document)))
 
+    def test_available_pool_observation_is_identity_free_and_trigger_free(self) -> None:
+        with __import__("tempfile").TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            (root / "pool.json").write_text(
+                json.dumps({
+                    "schema": "cloudx.cpa-pool-observation.v1",
+                    "state": "available",
+                    "observedAt": "2026-07-18T18:00:00Z",
+                }),
+                encoding="utf-8",
+            )
+            self.assertEqual(transaction.require_available_pool_observation(root), 1)
+            (root / "trigger.json").write_text("{}", encoding="utf-8")
+            with self.assertRaisesRegex(transaction.ActiveImportRejected, "unavailable trigger"):
+                transaction.require_available_pool_observation(root)
+
     def test_regular_json_files_rejects_symlink_root_and_entries(self) -> None:
         with __import__("tempfile").TemporaryDirectory() as value:
             root = pathlib.Path(value) / "auth"

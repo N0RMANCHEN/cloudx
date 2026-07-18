@@ -125,6 +125,36 @@ def regular_file_count(root: pathlib.Path) -> int:
     return sum(1 for path in root.iterdir() if path.is_file() and not path.is_symlink())
 
 
+def regular_files(root: pathlib.Path) -> List[pathlib.Path]:
+    if not root.is_dir() or root.is_symlink():
+        return []
+    return sorted(path for path in root.iterdir() if path.is_file() and not path.is_symlink())
+
+
+def require_available_pool_observation(root: pathlib.Path) -> int:
+    files = regular_files(root)
+    if not files:
+        raise ActiveImportRejected("observation_missing", "CPA did not emit an available pool observation")
+    accepted = 0
+    for path in files:
+        if path.name == "trigger.json":
+            raise ActiveImportRejected("unexpected_trigger", "successful canary emitted an unavailable trigger")
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ActiveImportRejected("observation_invalid", "CPA pool observation is invalid") from exc
+        if (
+            not isinstance(document, dict)
+            or document.get("schema") != "cloudx.cpa-pool-observation.v1"
+            or document.get("state") != "available"
+            or not isinstance(document.get("observedAt"), str)
+            or set(document) != {"schema", "state", "observedAt"}
+        ):
+            raise ActiveImportRejected("observation_invalid", "CPA pool observation is not identity-free available state")
+        accepted += 1
+    return accepted
+
+
 def archive_entries() -> int:
     manifest = ARCHIVE_DIR / "manifest.json"
     try:
@@ -304,14 +334,18 @@ def live_canary(host: str, port: int) -> Dict[str, Any]:
     return {"model": model, "httpStatus": status, "policy": policy}
 
 
-def move_to_transaction_rollback(path: pathlib.Path, transaction: pathlib.Path) -> None:
+def move_to_transaction_rollback(
+    path: pathlib.Path,
+    transaction: pathlib.Path,
+    prefix: str = "",
+) -> None:
     rollback = transaction / "rollback"
-    rollback.mkdir(mode=0o700)
+    rollback.mkdir(mode=0o700, exist_ok=True)
     os.chown(rollback, 0, 0)
     validate_private_directory(rollback, 0, 0)
     if path.stat().st_dev != rollback.stat().st_dev:
         raise ActiveImportRejected("rollback_unavailable", "active import rollback is not same-filesystem")
-    os.replace(path, rollback / path.name)
+    os.replace(path, rollback / (prefix + path.name))
 
 
 def plan(host: str, port: int) -> Dict[str, Any]:
@@ -349,8 +383,10 @@ def apply(raw: bytes, host: str, port: int) -> Dict[str, Any]:
         raise ActiveImportRejected("active_pool_not_empty", "active CPA pool must be empty for first acceptance")
     service_before = service_state(CPA_SERVICE)
     archive_before = archive_entries()
-    failure_before = regular_file_count(FAILURE_DIR)
-    sweep_before = regular_file_count(SWEEP_DIR)
+    failure_files_before = regular_files(FAILURE_DIR)
+    sweep_files_before = regular_files(SWEEP_DIR)
+    if failure_files_before or sweep_files_before:
+        raise ActiveImportRejected("watcher_input_not_empty", "CPA watcher inputs must be empty before first active import")
     preview = signed_import(raw, True)
     if preview.get("written") != 1 or preview.get("skipped") != 0:
         raise ActiveImportRejected("dry_run_mismatch", "active import dry-run did not plan exactly one write")
@@ -394,8 +430,9 @@ def apply(raw: bytes, host: str, port: int) -> Dict[str, Any]:
             raise ActiveImportRejected("service_changed", "CPA service changed during active import")
         if len(regular_json_files(AUTH_DIR)) != 1 or archive_entries() != archive_before:
             raise ActiveImportRejected("state_changed", "CPA credential/archive state changed unexpectedly")
-        if regular_file_count(FAILURE_DIR) != failure_before or regular_file_count(SWEEP_DIR) != sweep_before:
-            raise ActiveImportRejected("trigger_changed", "CPA watcher input changed after successful canary")
+        if regular_files(FAILURE_DIR) != failure_files_before:
+            raise ActiveImportRejected("failure_receipt_changed", "successful canary emitted a failure receipt")
+        observation_count = require_available_pool_observation(SWEEP_DIR)
         receipt = {
             "schema": RESULT_SCHEMA,
             "transactionId": transaction_id,
@@ -408,6 +445,9 @@ def apply(raw: bytes, host: str, port: int) -> Dict[str, Any]:
             "model": canary["model"],
             "httpStatus": canary["httpStatus"],
             "policy": canary["policy"],
+            "poolObservation": "available",
+            "poolObservationCount": observation_count,
+            "sweepTrigger": False,
             "cpaPid": int(service_before["MainPID"]),
             "cpaRestarts": int(service_before["NRestarts"]),
             "serviceRestarted": False,
@@ -423,7 +463,18 @@ def apply(raw: bytes, host: str, port: int) -> Dict[str, Any]:
             target = candidates[0] if len(candidates) == 1 else None
         if target is not None and target.exists():
             move_to_transaction_rollback(target, transaction)
-        restored = not regular_json_files(AUTH_DIR) and service_state(CPA_SERVICE) == service_before
+        for path in regular_files(SWEEP_DIR):
+            if path not in sweep_files_before:
+                move_to_transaction_rollback(path, transaction, prefix="sweep-")
+        for path in regular_files(FAILURE_DIR):
+            if path not in failure_files_before:
+                move_to_transaction_rollback(path, transaction, prefix="failure-")
+        restored = (
+            not regular_json_files(AUTH_DIR)
+            and service_state(CPA_SERVICE) == service_before
+            and regular_files(FAILURE_DIR) == failure_files_before
+            and regular_files(SWEEP_DIR) == sweep_files_before
+        )
         receipt = {
             "schema": RESULT_SCHEMA,
             "transactionId": transaction_id,
