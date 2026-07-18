@@ -37,6 +37,8 @@ CLIProxyAPI remains an external dependency. Exact-version policy patches live on
 
 CPA outage diagnosis remains inside the Cloudx endpoint implementation. Proxied business API admission has one process-global maximum of two; diagnosis concurrency is a separate bounded resource. A full account sweep requires a fresh identity-free aggregate `auth_unavailable` trigger, gates on the declared external HTTPS/proxy dependency, deduplicates identical credentials, publishes only aggregate classifications, and performs digest-bound reversible archive itself. Network probes do not hold the archive lock. A conclusive private per-account receipt instead triggers an immediate network-free local LaunchAgent or cloud systemd-path consumer. Periodic maintenance only consumes missed triggers, watcher activation is separately confirmed, and Phi observes the versioned aggregate health contract only; it is never an archive worker or credential oracle.
 
+Local CPA policy activation is a separate external-service boundary. Before any launcher write or stop, a signed-version gate, real baseline Codex canary, private original-launcher snapshot, independently executable recovery tool, exact manual command, and repeated zero-established-connection proof must all pass. Automatic recovery and operator recovery are one implementation; they restore the baseline launcher, stabilize launchd unload/bootstrap transitions, verify health and communication separately, retain safe receipts, and never terminate Codex processes.
+
 ## File Size
 
 Watched Python and shell files are limited to 800 lines. A temporary exception must be listed with an exact ceiling and split plan in the governance config.

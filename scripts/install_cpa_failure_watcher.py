@@ -21,7 +21,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_CONTRACT = ROOT / "third_party/cliproxyapi/deployment-contract.json"
-REQUIRED_CLOUDX_VERSION = "0.1.17"
+REQUIRED_CLOUDX_VERSIONS = {"local": "0.1.18", "cloud": "0.1.17"}
 PLAN_SCHEMA = "cloudx.cpa-failure-watcher-plan.v1"
 RESULT_SCHEMA = "cloudx.cpa-failure-watcher.v1"
 MAX_FILE_BYTES = 2 * 1024 * 1024
@@ -151,7 +151,7 @@ def target_value(target: str, contract_path: pathlib.Path) -> Dict[str, Any]:
     if contract.get("schema") != "cloudx.cliproxy-policy-deployment.v1":
         raise FailureWatcherRejected("CPA deployment contract schema is invalid")
     raw = contract.get("targets", {}).get(target)
-    if not isinstance(raw, dict) or raw.get("requiredActiveCloudxVersion") != REQUIRED_CLOUDX_VERSION:
+    if not isinstance(raw, dict) or raw.get("requiredActiveCloudxVersion") != REQUIRED_CLOUDX_VERSIONS[target]:
         raise FailureWatcherRejected("CPA failure-watcher target is invalid")
     value = dict(raw)
     if target == "local":
@@ -194,7 +194,7 @@ def active_artifact(target: str) -> pathlib.Path:
     return pathlib.Path("/opt/cloudx/current/cloudx-cloud.pyz")
 
 
-def require_active_cloudx(target: str) -> pathlib.Path:
+def require_active_cloudx(target: str, required_version: str) -> pathlib.Path:
     artifact = active_artifact(target)
     safe_snapshot(artifact, required=True)
     completed = run_command([sys.executable, str(artifact), "self-check"])
@@ -205,9 +205,9 @@ def require_active_cloudx(target: str) -> pathlib.Path:
     if (
         document.get("schema") != "cloudx.self-check.v1"
         or document.get("status") != "ok"
-        or document.get("version") != REQUIRED_CLOUDX_VERSION
+        or document.get("version") != required_version
     ):
-        raise FailureWatcherRejected("signed Cloudx 0.1.17 is not active")
+        raise FailureWatcherRejected("required signed Cloudx release is not active")
     return artifact
 
 
@@ -346,8 +346,8 @@ def plan_document(target: str, value: Dict[str, Any]) -> Dict[str, Any]:
         "schema": PLAN_SCHEMA,
         "status": "confirmation-required",
         "target": target,
-        "confirmation": "ACTIVATE %s CPA FAILURE WATCHER %s" % (target.upper(), REQUIRED_CLOUDX_VERSION),
-        "requiredActiveCloudxVersion": REQUIRED_CLOUDX_VERSION,
+        "confirmation": "ACTIVATE %s CPA FAILURE WATCHER %s" % (target.upper(), value["requiredActiveCloudxVersion"]),
+        "requiredActiveCloudxVersion": value["requiredActiveCloudxVersion"],
         "requiredActivePolicyVersion": value["version"],
         "trigger": "permanent-receipt-or-pool-unavailable",
         "fallbackSeconds": LOCAL_FALLBACK_SECONDS if target == "local" else 300,
@@ -365,7 +365,7 @@ def plan_document(target: str, value: Dict[str, Any]) -> Dict[str, Any]:
 def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
     if sys.platform != "darwin" or os.geteuid() == 0:
         raise FailureWatcherRejected("local failure-watcher activation requires the macOS login user")
-    require_active_cloudx("local")
+    require_active_cloudx("local", value["requiredActiveCloudxVersion"])
     require_receipt_producer("local", value)
     before = safe_snapshot(value["maintenanceLauncher"], required=True)
     after = local_launcher(before.data, value)
@@ -424,7 +424,7 @@ def restore_cloud_state(name: str, enabled: bool, active: bool) -> None:
 def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
     if sys.platform != "linux" or os.geteuid() != 0:
         raise FailureWatcherRejected("cloud failure-watcher activation requires root on Linux")
-    artifact = require_active_cloudx("cloud")
+    artifact = require_active_cloudx("cloud", value["requiredActiveCloudxVersion"])
     require_receipt_producer("cloud", value)
     after = signed_cloud_units(artifact, value)
     paths = {

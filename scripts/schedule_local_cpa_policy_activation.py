@@ -21,12 +21,13 @@ from typing import Any, Dict, Optional, Sequence
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / "scripts/install_cpa_policy_candidate.py"
+RECOVERY_TOOL = ROOT / "scripts/recover_local_cpa_policy.py"
 CONTRACT = ROOT / "third_party/cliproxyapi/deployment-contract.json"
-REQUIRED_ACTIVE_CLOUDX_VERSION = "0.1.17"
-PLAN_SCHEMA = "cloudx.local-cpa-policy-activation-schedule-plan.v1"
-SCHEDULE_SCHEMA = "cloudx.local-cpa-policy-activation-schedule.v1"
-JOB_SCHEMA = "cloudx.local-cpa-policy-activation-job.v1"
-RECEIPT_SCHEMA = "cloudx.local-cpa-policy-activation-receipt.v1"
+REQUIRED_ACTIVE_CLOUDX_VERSION = "0.1.18"
+PLAN_SCHEMA = "cloudx.local-cpa-policy-activation-schedule-plan.v2"
+SCHEDULE_SCHEMA = "cloudx.local-cpa-policy-activation-schedule.v2"
+JOB_SCHEMA = "cloudx.local-cpa-policy-activation-job.v2"
+RECEIPT_SCHEMA = "cloudx.local-cpa-policy-activation-receipt.v2"
 DEFAULT_DELAY_SECONDS = 180
 MINIMUM_DELAY_SECONDS = 120
 MAXIMUM_DELAY_SECONDS = 600
@@ -157,6 +158,10 @@ def plan(delay_seconds: int) -> Dict[str, Any]:
         "realCodexCanaryAfterActivation": True,
         "realCodexCanaryAfterRollback": True,
         "automaticRollback": True,
+        "requiresZeroEstablishedConnections": True,
+        "manualRecoveryPreparedBeforeRestart": True,
+        "automaticRecoveryUsesManualTool": True,
+        "failureStageReceipt": True,
         "automaticAction": False,
     }
 
@@ -180,15 +185,31 @@ def schedule(delay_seconds: int, confirmation: str) -> Dict[str, Any]:
     job = state_root / job_id
     private_directory(job)
     installer_raw = safe_read(INSTALLER)
+    recovery_raw = safe_read(RECOVERY_TOOL)
     contract_raw = safe_read(CONTRACT)
     worker_raw = safe_read(pathlib.Path(__file__).resolve())
+    launcher_snapshot = module.safe_snapshot(
+        value["launcher"], maximum=module.MAX_LAUNCHER_BYTES, required=True
+    )
+    baseline_snapshot = module.safe_snapshot(
+        value["baselineBinary"], maximum=module.MAX_CANDIDATE_BYTES, required=True
+    )
+    if launcher_snapshot.mode != 0o644 or launcher_snapshot.uid != os.geteuid() or launcher_snapshot.gid != os.getegid():
+        raise ScheduleRejected("local CPA launcher ownership or mode changed")
+    if module.sha256_bytes(baseline_snapshot.data) != value["baselineSha256"]:
+        raise ScheduleRejected("local CPA baseline binary changed")
     installer_copy = job / "install_cpa_policy_candidate.py"
+    recovery_copy = job / "recover_local_cpa_policy.py"
     contract_copy = job / "deployment-contract.json"
     worker_copy = job / "schedule_local_cpa_policy_activation.py"
     atomic_write(installer_copy, installer_raw)
+    atomic_write(recovery_copy, recovery_raw)
     atomic_write(contract_copy, contract_raw)
     atomic_write(worker_copy, worker_raw)
+    atomic_write(job / "launcher.before", launcher_snapshot.data)
     execute_after = time.time() + delay_seconds
+    launcher_sha256 = sha256(launcher_snapshot.data)
+    recovery_confirmation = "RESTORE LOCAL CPA BASELINE %s %s" % (job_id, launcher_sha256[:12])
     job_document = {
         "schema": JOB_SCHEMA,
         "jobId": job_id,
@@ -199,10 +220,42 @@ def schedule(delay_seconds: int, confirmation: str) -> Dict[str, Any]:
         "candidateVersion": document["candidateVersion"],
         "candidateSha256": document["candidateSha256"],
         "installerSha256": sha256(installer_raw),
+        "recoveryToolSha256": sha256(recovery_raw),
         "contractSha256": sha256(contract_raw),
         "workerSha256": sha256(worker_raw),
+        "launcherSnapshotSha256": launcher_sha256,
+        "launcherPath": str(value["launcher"]),
+        "launcherMode": launcher_snapshot.mode,
+        "launcherUid": launcher_snapshot.uid,
+        "launcherGid": launcher_snapshot.gid,
+        "baselineBinary": str(value["baselineBinary"]),
+        "baselineSha256": value["baselineSha256"],
+        "serviceLabel": value["serviceLabel"],
+        "configPath": str(value["config"]),
+        "codexBinary": str(value["codexBinary"]),
+        "communicationCodexHome": str(value["communicationCodexHome"]),
+        "recoveryConfirmation": recovery_confirmation,
+        "quiescenceSamples": 5,
+        "quiescenceIntervalSeconds": 1.0,
     }
     atomic_json(job / "job.json", job_document)
+    recovery_command = [
+        sys.executable,
+        str(recovery_copy),
+        "--apply",
+        "--job",
+        str(job),
+        "--confirm",
+        recovery_confirmation,
+    ]
+    manual = (
+        "Cloudx local CPA baseline recovery\n\n"
+        "Inspect without changing service state:\n  %s --job %s\n\n"
+        "Restore the pinned baseline and verify health plus real Codex communication:\n"
+        "  %s --apply --job %s --confirm '%s'\n"
+        % (recovery_copy, job, recovery_copy, job, recovery_confirmation)
+    )
+    atomic_write(job / "RECOVERY.txt", manual.encode("utf-8"))
     log_path = job / "worker.log"
     descriptor = os.open(str(log_path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     environment = {
@@ -233,27 +286,100 @@ def schedule(delay_seconds: int, confirmation: str) -> Dict[str, Any]:
         "currentTurnRestarted": False,
         "receipt": str(job / "receipt.json"),
         "log": str(log_path),
+        "recoveryPlan": str(job / "RECOVERY.txt"),
+        "recoveryCommand": recovery_command,
+    }
+
+
+def emit_worker_event(job_id: str, stage: str, status: str) -> None:
+    print(json.dumps({"jobId": job_id, "stage": stage, "status": status}, sort_keys=True), flush=True)
+
+
+def parse_result(raw: str) -> Optional[Dict[str, Any]]:
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def installer_failure_code(stderr: str) -> str:
+    lowered = stderr.lower()
+    for needle, code in (
+        ("established connection", "connections_present"),
+        ("quiescent", "connections_present"),
+        ("baseline restoration", "automatic_recovery_failed"),
+        ("communication", "communication_failed"),
+        ("health", "health_failed"),
+        ("launchd", "launchd_failed"),
+        ("candidate", "candidate_rejected"),
+    ):
+        if needle in lowered:
+            return code
+    return "installer_rejected"
+
+
+def run_recovery(job: pathlib.Path, recovery: pathlib.Path, document: Dict[str, Any]) -> Dict[str, Any]:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(recovery),
+            "--apply",
+            "--job",
+            str(job),
+            "--confirm",
+            str(document["recoveryConfirmation"]),
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=360.0,
+        check=False,
+        cwd=str(job),
+    )
+    result = parse_result(completed.stdout) or {}
+    accepted = completed.returncode == 0 and result.get("status") in {"recovered", "already-recovered"}
+    return {
+        "status": "accepted" if accepted else "failed",
+        "failureCode": str(result.get("failureCode") or "") if not accepted else "",
+        "communicationCanary": str(result.get("communicationCanary") or "not-accepted"),
+        "serviceRestarted": bool(result.get("serviceRestarted", False)),
+        "serviceAvailable": bool(result.get("serviceAvailable", False)),
     }
 
 
 def worker(job: pathlib.Path) -> int:
     receipt_path = job / "receipt.json"
+    document: Optional[Dict[str, Any]] = None
+    copies: Dict[str, Any] = {}
+    activation_invoked = False
+    installer_exit: Optional[int] = None
+    failure_code = "worker_failed"
+    recovery = {"status": "not-required", "communicationCanary": "not-run", "serviceRestarted": False, "serviceAvailable": False}
     try:
         document = load_json(job / "job.json", JOB_SCHEMA)
+        emit_worker_event(document["jobId"], "job-validation", "started")
         copies = {
             "installer": (job / "install_cpa_policy_candidate.py", document.get("installerSha256")),
+            "recovery": (job / "recover_local_cpa_policy.py", document.get("recoveryToolSha256")),
             "contract": (job / "deployment-contract.json", document.get("contractSha256")),
             "worker": (job / "schedule_local_cpa_policy_activation.py", document.get("workerSha256")),
+            "launcher": (job / "launcher.before", document.get("launcherSnapshotSha256")),
         }
         for path, expected in copies.values():
             if sha256(safe_read(path)) != expected:
                 raise ScheduleRejected("activation job file digest changed")
+        emit_worker_event(document["jobId"], "job-validation", "accepted")
         delay = max(0.0, float(document["executeAfterEpoch"]) - time.time())
         if delay:
+            emit_worker_event(document["jobId"], "deferred-wait", "started")
             time.sleep(delay)
         home = pathlib.Path.home().resolve()
         if current_cloudx_version(home) != document["requiredActiveCloudxVersion"]:
             raise ScheduleRejected("required signed Cloudx release changed before activation")
+        emit_worker_event(document["jobId"], "activation", "started")
+        activation_invoked = True
         completed = subprocess.run(
             [
                 sys.executable,
@@ -265,6 +391,12 @@ def worker(job: pathlib.Path) -> int:
                 "--activate",
                 "--confirm",
                 str(document["confirmation"]),
+                "--recovery-tool",
+                str(copies["recovery"][0]),
+                "--recovery-job",
+                str(job),
+                "--recovery-confirm",
+                str(document["recoveryConfirmation"]),
             ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
@@ -274,19 +406,23 @@ def worker(job: pathlib.Path) -> int:
             check=False,
             cwd=str(job),
         )
-        result: Optional[Dict[str, Any]] = None
-        if completed.returncode == 0:
-            try:
-                value = json.loads(completed.stdout)
-                result = value if isinstance(value, dict) else None
-            except json.JSONDecodeError:
-                result = None
+        installer_exit = completed.returncode
+        result = parse_result(completed.stdout) if completed.returncode == 0 else None
         accepted = bool(
             completed.returncode == 0
             and result
             and result.get("status") in {"active", "already-active"}
             and result.get("communicationCanary") == "passed"
         )
+        if accepted:
+            emit_worker_event(document["jobId"], "activation", "accepted")
+        else:
+            failure_code = installer_failure_code(completed.stderr)
+            emit_worker_event(document["jobId"], "activation", "failed")
+            recovery = run_recovery(job, copies["recovery"][0], document)
+            emit_worker_event(document["jobId"], "baseline-recovery", recovery["status"])
+        service_available = accepted or recovery["serviceAvailable"]
+        communication_passed = accepted or recovery["communicationCanary"] == "passed"
         atomic_json(
             receipt_path,
             {
@@ -294,24 +430,42 @@ def worker(job: pathlib.Path) -> int:
                 "jobId": document["jobId"],
                 "status": "accepted" if accepted else "failed",
                 "completedAt": utc_now(),
-                "installerExit": completed.returncode,
+                "installerExit": installer_exit,
                 "candidateVersion": document["candidateVersion"],
                 "candidateSha256": document["candidateSha256"],
-                "communicationCanary": "passed" if accepted else "not-accepted",
+                "failureCode": "" if accepted else failure_code,
+                "communicationCanary": "passed" if communication_passed else "not-accepted",
+                "recoveryStatus": recovery["status"],
+                "recoveryCommunicationCanary": recovery["communicationCanary"],
+                "recoveryServiceRestarted": recovery["serviceRestarted"],
+                "serviceAvailable": service_available,
+                "manualRecoveryPrepared": True,
+                "recoveryPlan": str(job / "RECOVERY.txt"),
                 "automaticRollbackOnInstallerFailure": True,
             },
         )
         return 0 if accepted else 1
     except Exception:
+        if activation_invoked and document and copies.get("recovery"):
+            try:
+                recovery = run_recovery(job, copies["recovery"][0], document)
+            except Exception:
+                recovery = {"status": "failed", "communicationCanary": "not-accepted", "serviceRestarted": False, "serviceAvailable": False}
+        service_available = recovery["serviceAvailable"]
         atomic_json(
             receipt_path,
             {
                 "schema": RECEIPT_SCHEMA,
-                "jobId": job.name,
+                "jobId": document.get("jobId", job.name) if document else job.name,
                 "status": "failed",
                 "completedAt": utc_now(),
-                "installerExit": None,
-                "communicationCanary": "not-run",
+                "installerExit": installer_exit,
+                "failureCode": failure_code,
+                "communicationCanary": "passed" if recovery["communicationCanary"] == "passed" else "not-accepted",
+                "recoveryStatus": recovery["status"],
+                "serviceAvailable": service_available,
+                "manualRecoveryPrepared": bool(document),
+                "recoveryPlan": str(job / "RECOVERY.txt"),
                 "automaticRollbackOnInstallerFailure": True,
             },
         )

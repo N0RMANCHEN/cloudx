@@ -277,6 +277,8 @@ def plan_document(target: str, value: Dict[str, Any]) -> Dict[str, Any]:
         "inFlightRequestContinuityGuaranteed": False,
         "localActivationRequiresRealCodexCanary": target == "local",
         "localActivationRollsBackOnCommunicationFailure": target == "local",
+        "localActivationRequiresPreparedRecoveryTool": target == "local",
+        "localActivationRequiresZeroEstablishedConnections": target == "local",
         "eventDrivenArchiveWatcherActivationSeparate": True,
         "automaticAction": False,
     }
@@ -649,29 +651,50 @@ def local_plist(raw: bytes, value: Dict[str, Any]) -> bytes:
         environment = {}
     if not isinstance(environment, dict):
         raise CpaPolicyInstallRejected("local CPA launcher environment is invalid")
-    environment["CLIPROXY_AUTH_DIR"] = str(value["authDirectory"])
-    environment["CLIPROXY_AUTH_FAILURE_DIR"] = str(value["failureDirectory"])
-    environment["CLIPROXY_AUTH_SWEEP_DIR"] = str(value["sweepDirectory"])
+    environment.update({"CLIPROXY_AUTH_DIR": str(value["authDirectory"]), "CLIPROXY_AUTH_FAILURE_DIR": str(value["failureDirectory"]), "CLIPROXY_AUTH_SWEEP_DIR": str(value["sweepDirectory"])})
     document["EnvironmentVariables"] = environment
     return plistlib.dumps(document, fmt=plistlib.FMT_XML, sort_keys=False)
-
-
-def launchctl_print(domain: str, label: str, *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return run_command(["launchctl", "print", "%s/%s" % (domain, label)], check=check)
-
 
 def wait_launchd(domain: str, label: str, expected_binary: pathlib.Path) -> int:
     deadline = time.monotonic() + 20.0
     while time.monotonic() < deadline:
-        completed = launchctl_print(domain, label, check=False)
+        completed = run_command(["launchctl", "print", "%s/%s" % (domain, label)], check=False)
         match = re.search(r"\bpid = ([0-9]+)", completed.stdout)
-        if completed.returncode == 0 and match and str(expected_binary) in completed.stdout:
+        if completed.returncode == 0 and match and any(line.strip() == "program = %s" % expected_binary for line in completed.stdout.splitlines()):
             return int(match.group(1))
         time.sleep(0.25)
     raise CpaPolicyInstallRejected("local CPA launchd service did not become active")
 
+def wait_launchd_unloaded(domain: str, label: str) -> None:
+    deadline = time.monotonic() + 30.0
+    absent_samples = 0
+    while time.monotonic() < deadline:
+        completed = run_command(["launchctl", "print", "%s/%s" % (domain, label)], check=False)
+        absent_samples = absent_samples + 1 if completed.returncode != 0 else 0
+        if absent_samples >= 3:
+            return
+        time.sleep(0.25)
+    raise CpaPolicyInstallRejected("local CPA launchd service did not fully unload")
 
-def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
+
+def run_local_recovery(tool: pathlib.Path, job: pathlib.Path, confirmation: str, *, quiescence: bool) -> Dict[str, Any]:
+    if tool.is_symlink() or not tool.is_file() or job.is_symlink() or not job.is_dir():
+        raise CpaPolicyInstallRejected("local CPA recovery bundle is unavailable")
+    arguments = [sys.executable, str(tool), "--job", str(job)]
+    arguments.extend(["--check-quiescent"] if quiescence else ["--apply", "--confirm", confirmation])
+    completed = run_command(arguments, check=False, timeout=360.0)
+    try:
+        document = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise CpaPolicyInstallRejected("local CPA recovery tool returned invalid output") from exc
+    accepted = {"quiescent"} if quiescence else {"recovered", "already-recovered"}
+    if completed.returncode != 0 or document.get("status") not in accepted:
+        message = "local CPA activation requires zero established connections" if quiescence else "local CPA baseline recovery tool failed"
+        raise CpaPolicyInstallRejected(message)
+    return document
+
+
+def activate_local(value: Dict[str, Any], recovery_tool: pathlib.Path, recovery_job: pathlib.Path, recovery_confirm: str) -> Dict[str, Any]:
     if sys.platform != "darwin" or os.geteuid() == 0:
         raise CpaPolicyInstallRejected("local CPA activation requires the macOS login user")
     require_active_cloudx("local", value)
@@ -684,8 +707,8 @@ def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
     uid = os.geteuid()
     gid = os.getegid()
     domain = "gui/%d" % uid
-    launch_before = launchctl_print(domain, value["serviceLabel"])
-    if launcher_before.data != launcher_after and str(value["baselineBinary"]) not in launch_before.stdout:
+    launch_before = run_command(["launchctl", "print", "%s/%s" % (domain, value["serviceLabel"])])
+    if launcher_before.data != launcher_after and not any(line.strip() == "program = %s" % value["baselineBinary"] for line in launch_before.stdout.splitlines()):
         raise CpaPolicyInstallRejected("local CPA service does not select the pinned baseline")
     probe_local_communication(value)
     if launcher_before.data == launcher_after:
@@ -693,6 +716,7 @@ def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
         status, policy = probe_policy(value["config"])
         communication = probe_local_communication(value)
         return {"schema": RESULT_SCHEMA, "status": "already-active", "target": "local", "pid": pid, "httpStatus": status, "policy": policy, "communicationCanary": communication}
+    run_local_recovery(recovery_tool, recovery_job, recovery_confirm, quiescence=True)
     created_directories = [
         path for path in (value["failureDirectory"], value["sweepDirectory"]) if not path.exists()
     ]
@@ -708,7 +732,8 @@ def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
             uid=launcher_before.uid,
             gid=launcher_before.gid,
         )
-        run_command(["launchctl", "bootout", service])
+        run_command(["launchctl", "bootout", service], check=False, timeout=45.0)
+        wait_launchd_unloaded(domain, value["serviceLabel"])
         run_command(["launchctl", "bootstrap", domain, str(value["launcher"])])
         pid = wait_launchd(domain, value["serviceLabel"], value["stagedBinary"])
         status, policy = probe_policy(value["config"])
@@ -717,31 +742,14 @@ def activate_local(value: Dict[str, Any]) -> Dict[str, Any]:
         communication = probe_local_communication(value)
     except Exception as exc:
         try:
-            restore_snapshot(value["launcher"], launcher_before)
-            run_command(["launchctl", "bootout", service], check=False)
-            run_command(["launchctl", "bootstrap", domain, str(value["launcher"])], check=False)
-            wait_launchd(domain, value["serviceLabel"], value["baselineBinary"])
-            probe_health(value["config"])
-            probe_local_communication(value)
+            run_local_recovery(recovery_tool, recovery_job, recovery_confirm, quiescence=False)
             remove_created_empty_directories(created_directories)
         except Exception as recovery_exc:
             raise CpaPolicyInstallRejected(
                 "local CPA activation failed; baseline restoration verification failed"
             ) from recovery_exc
         raise CpaPolicyInstallRejected("local CPA activation failed and was rolled back") from exc
-    return {
-        "schema": RESULT_SCHEMA,
-        "status": "active",
-        "target": "local",
-        "version": value["version"],
-        "pid": pid,
-        "httpStatus": status,
-        "policy": policy,
-        "communicationCanary": communication,
-        "backupName": backup.name,
-        "externalServiceManaged": False,
-        "operatorApprovedRestart": True,
-    }
+    return {"schema": RESULT_SCHEMA, "status": "active", "target": "local", "version": value["version"], "pid": pid, "httpStatus": status, "policy": policy, "communicationCanary": communication, "backupName": backup.name, "externalServiceManaged": False, "operatorApprovedRestart": True}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -753,6 +761,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     action.add_argument("--activate", action="store_true")
     parser.add_argument("--candidate", type=pathlib.Path)
     parser.add_argument("--confirm", default="")
+    parser.add_argument("--recovery-tool", type=pathlib.Path)
+    parser.add_argument("--recovery-job", type=pathlib.Path)
+    parser.add_argument("--recovery-confirm", default="")
     args = parser.parse_args(argv)
 
     contract = load_contract(args.contract.expanduser().resolve())
@@ -768,7 +779,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     else:
         if args.confirm != activate_confirmation or args.candidate is not None:
             raise CpaPolicyInstallRejected("CPA activation confirmation does not match")
-        document = activate_local(value) if args.target == "local" else activate_cloud(value)
+        if args.target == "local":
+            if args.recovery_tool is None or args.recovery_job is None or not args.recovery_confirm:
+                raise CpaPolicyInstallRejected("local CPA activation requires a prepared recovery bundle")
+            document = activate_local(value, args.recovery_tool.expanduser().resolve(), args.recovery_job.expanduser().resolve(), args.recovery_confirm)
+        else:
+            if args.recovery_tool is not None or args.recovery_job is not None or args.recovery_confirm:
+                raise CpaPolicyInstallRejected("cloud CPA activation rejects local recovery arguments")
+            document = activate_cloud(value)
     print(json.dumps(document, sort_keys=True))
     return 0
 

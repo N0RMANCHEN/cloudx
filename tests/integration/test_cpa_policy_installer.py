@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import pathlib
 import plistlib
@@ -71,8 +72,10 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertFalse(document["inFlightRequestContinuityGuaranteed"])
         self.assertTrue(document["localActivationRequiresRealCodexCanary"])
         self.assertTrue(document["localActivationRollsBackOnCommunicationFailure"])
+        self.assertTrue(document["localActivationRequiresPreparedRecoveryTool"])
+        self.assertTrue(document["localActivationRequiresZeroEstablishedConnections"])
         self.assertTrue(document["eventDrivenArchiveWatcherActivationSeparate"])
-        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.17")
+        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.18")
         self.assertFalse(document["weeklyQuotaArchived"])
         self.assertFalse(document["periodicAccountProbe"])
         self.assertTrue(document["incidentSweepTrigger"])
@@ -204,6 +207,55 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         ), mock.patch.object(MODULE, "run_command", return_value=completed):
             with self.assertRaises(MODULE.CpaPolicyInstallRejected):
                 MODULE.probe_local_communication(value)
+
+    def test_local_activation_rejects_direct_use_without_a_recovery_bundle(self) -> None:
+        value = MODULE.expanded_target("local", MODULE.load_contract(MODULE.DEFAULT_CONTRACT))
+        unused_stage, confirmation = MODULE.confirmations("local", value)
+        with self.assertRaisesRegex(MODULE.CpaPolicyInstallRejected, "prepared recovery bundle"):
+            MODULE.main(["--target", "local", "--activate", "--confirm", confirmation])
+
+    def test_local_recovery_quiescence_fails_closed_on_established_connections(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            tool = root / "recover.py"
+            tool.write_text("pass\n", encoding="utf-8")
+            job = root / "job"
+            job.mkdir()
+            completed = MODULE.subprocess.CompletedProcess(
+                args=[],
+                returncode=1,
+                stdout=json.dumps({"status": "busy", "establishedSocketRows": 4}),
+                stderr="",
+            )
+            with mock.patch.object(MODULE, "run_command", return_value=completed):
+                with self.assertRaisesRegex(MODULE.CpaPolicyInstallRejected, "zero established connections"):
+                    MODULE.run_local_recovery(tool, job, "confirm", quiescence=True)
+
+    def test_local_recovery_accepts_the_prepared_manual_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            tool = root / "recover.py"
+            tool.write_text("pass\n", encoding="utf-8")
+            job = root / "job"
+            job.mkdir()
+            completed = MODULE.subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout=json.dumps({"status": "already-recovered", "communicationCanary": "passed"}),
+                stderr="",
+            )
+            with mock.patch.object(MODULE, "run_command", return_value=completed):
+                result = MODULE.run_local_recovery(tool, job, "confirm", quiescence=False)
+            self.assertEqual(result["status"], "already-recovered")
+
+    def test_launchd_unload_requires_three_consecutive_absent_samples(self) -> None:
+        absent = MODULE.subprocess.CompletedProcess(args=[], returncode=113, stdout="", stderr="")
+        present = MODULE.subprocess.CompletedProcess(args=[], returncode=0, stdout="pid = 1", stderr="")
+        with mock.patch.object(
+            MODULE, "run_command", side_effect=[present, absent, absent, absent]
+        ) as command, mock.patch.object(MODULE.time, "sleep"):
+            MODULE.wait_launchd_unloaded("gui/501", "com.example")
+        self.assertEqual(command.call_count, 4)
 
 
 if __name__ == "__main__":
