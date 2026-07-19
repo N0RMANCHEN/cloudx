@@ -38,7 +38,7 @@ class CloudCpaFailurePolicyWrapperTests(unittest.TestCase):
         self.assertEqual(document["confirmation"], wrapper.CONFIRMATION)
         self.assertEqual(document["businessConcurrencyMaximum"], 2)
         self.assertEqual(document["incidentProbeConcurrencyMinimum"], 3)
-        self.assertEqual(document["requiredCloudCpaPolicyVersion"], "7.2.71-cloudx-policy.4")
+        self.assertEqual(document["requiredCloudCpaPolicyVersion"], "7.2.71-cloudx-policy.5")
         self.assertFalse(document["cpaRestartAuthorized"])
         self.assertFalse(document["automaticAction"])
 

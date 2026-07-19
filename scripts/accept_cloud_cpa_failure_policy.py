@@ -20,8 +20,8 @@ from typing import Any, Dict, Optional, Sequence
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TRANSACTION_TOOL = ROOT / "scripts/cloud_cpa_failure_policy_transaction.py"
-ACTIVE_VERSION = "0.1.20"
-CONFIRMATION = "ACCEPT CLOUD CPA FAILURE POLICY 0.1.20"
+ACTIVE_VERSION = "0.1.21"
+CONFIRMATION = "ACCEPT CLOUD CPA FAILURE POLICY 0.1.21"
 PLAN_SCHEMA = "cloudx.cloud-cpa-failure-policy-acceptance-plan.v1"
 RESULT_SCHEMA = "cloudx.cloud-cpa-failure-policy-acceptance.v1"
 DEFAULT_SSH_HOST = "cloud"
@@ -229,7 +229,7 @@ def plan() -> Dict[str, Any]:
         "status": "confirmation-required",
         "confirmation": CONFIRMATION,
         "requiredActiveCloudxVersion": ACTIVE_VERSION,
-        "requiredCloudCpaPolicyVersion": "7.2.71-cloudx-policy.4",
+        "requiredCloudCpaPolicyVersion": "7.2.71-cloudx-policy.5",
         "naturalBusinessTraffic": True,
         "businessConcurrencyMaximum": 2,
         "incidentProbeConcurrencyMinimum": 3,

@@ -23,8 +23,8 @@ import time
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
-ACTIVE_VERSION = "0.1.20"
-CONFIRMATION = "ACCEPT CLOUD CPA FAILURE POLICY 0.1.20"
+ACTIVE_VERSION = "0.1.21"
+CONFIRMATION = "ACCEPT CLOUD CPA FAILURE POLICY 0.1.21"
 PLAN_SCHEMA = "cloudx.cloud-cpa-failure-policy-acceptance-plan.v1"
 RESULT_SCHEMA = "cloudx.cloud-cpa-failure-policy-acceptance.v1"
 ACTIVE_ARTIFACT = pathlib.Path("/opt/cloudx/current/cloudx-cloud.pyz")
@@ -36,8 +36,8 @@ STATE_DIR = pathlib.Path("/var/lib/cloudx/cpa-health")
 TRANSACTION_ROOT = pathlib.Path("/var/lib/codex-gateway/cpa-policy-acceptance")
 CLIENT_CREDENTIAL = pathlib.Path("/etc/cloudx/client-credential")
 CPA_SERVICE = "cliproxy.service"
-CPA_POLICY_BINARY = pathlib.Path("/opt/cliproxy-cloudx/releases/7.2.71-cloudx-policy.4/cli-proxy-api")
-CPA_POLICY_SHA256 = "3e3ed137ff90132203f2b0e969245b6580b3ff2b780e2f3a47b821642fd6fdc4"
+CPA_POLICY_BINARY = pathlib.Path("/opt/cliproxy-cloudx/releases/7.2.71-cloudx-policy.5/cli-proxy-api")
+CPA_POLICY_SHA256 = "5f83b1821d2be7cf5b7615973e4e6130d477386e16eae3a50af46e99bf7af7f8"
 HEALTH_SERVICE = "cloudx-cpa-health.service"
 FAILURE_PATH = "cloudx-cpa-failure.path"
 SWEEP_PATH = "cloudx-cpa-sweep.path"
@@ -325,7 +325,7 @@ def _preflight() -> Dict[str, Any]:
     if sys.platform != "linux" or os.geteuid() != 0:
         raise AcceptanceRejected("wrong_host", "cloud CPA acceptance requires root on Linux")
     if _active_version() != ACTIVE_VERSION:
-        raise AcceptanceRejected("release_mismatch", "signed Cloudx 0.1.20 is not active")
+        raise AcceptanceRejected("release_mismatch", "signed Cloudx 0.1.21 is not active")
     _self_check()
     if not _unit_ready(FAILURE_PATH) or not _unit_ready(SWEEP_PATH):
         raise AcceptanceRejected("watcher_unavailable", "cloud CPA failure and sweep watchers must be active")
@@ -333,7 +333,7 @@ def _preflight() -> Dict[str, Any]:
     selected = _run(["systemctl", "show", CPA_SERVICE, "-p", "ExecStart", "--value"], timeout=30).stdout.decode("utf-8", errors="replace")
     digest = _run(["sha256sum", str(CPA_POLICY_BINARY)], timeout=60).stdout.decode("ascii", errors="replace").split()[0]
     if str(CPA_POLICY_BINARY) not in selected or digest != CPA_POLICY_SHA256:
-        raise AcceptanceRejected("policy_mismatch", "cloud CPA policy.4 is not selected exactly")
+        raise AcceptanceRejected("policy_mismatch", "cloud CPA policy.5 is not selected exactly")
     if service["ActiveState"] != "active" or service["SubState"] != "running" or service["MainPID"] <= 0:
         raise AcceptanceRejected("cpa_unavailable", "cloud CPA baseline is not healthy")
     active = _regular_files(AUTH_DIR, ".json")

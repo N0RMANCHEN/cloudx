@@ -75,7 +75,7 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertTrue(document["localActivationRequiresPreparedRecoveryTool"])
         self.assertTrue(document["localActivationRequiresZeroEstablishedConnections"])
         self.assertTrue(document["eventDrivenArchiveWatcherActivationSeparate"])
-        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.20")
+        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.21")
         self.assertFalse(document["weeklyQuotaArchived"])
         self.assertFalse(document["periodicAccountProbe"])
         self.assertTrue(document["incidentSweepTrigger"])
@@ -149,8 +149,8 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         cloud = contract["targets"]["cloud"]
         self.assertEqual(local["baselineSha256"], "cf9641b3e50ae486aec1698dec88f735589680f9ae98558c29cde184daac3a96")
         self.assertEqual(cloud["baselineSha256"], "1d0abbc6316b1869f74896109c0efb5e19c8197b8226f48a74212ed0a6f5a39d")
-        self.assertEqual(local["candidateSha256"], "08608c2ebba606115a5c4bf6588896af3d2bdeb6e71ed308e17a84148766cd29")
-        self.assertEqual(cloud["candidateSha256"], "3e3ed137ff90132203f2b0e969245b6580b3ff2b780e2f3a47b821642fd6fdc4")
+        self.assertEqual(local["candidateSha256"], "bb6fe9cfcc26d521ce0dcf9f503d2dffa742bce62bd359cab8f91052116c0db3")
+        self.assertEqual(cloud["candidateSha256"], "5f83b1821d2be7cf5b7615973e4e6130d477386e16eae3a50af46e99bf7af7f8")
 
     def test_activation_rejects_an_older_receipt_consumer(self) -> None:
         value = MODULE.expanded_target("local", MODULE.load_contract(MODULE.DEFAULT_CONTRACT))

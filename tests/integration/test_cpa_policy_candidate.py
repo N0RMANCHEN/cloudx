@@ -33,8 +33,8 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         )
         self.assertEqual(manifest["policy"]["sweepTriggerSchema"], "cloudx.cpa-sweep-trigger.v1")
         self.assertFalse(manifest["policy"]["weeklyQuotaArchived"])
-        self.assertEqual(local["candidateSha256"], "08608c2ebba606115a5c4bf6588896af3d2bdeb6e71ed308e17a84148766cd29")
-        self.assertEqual(cloud["candidateSha256"], "3e3ed137ff90132203f2b0e969245b6580b3ff2b780e2f3a47b821642fd6fdc4")
+        self.assertEqual(local["candidateSha256"], "bb6fe9cfcc26d521ce0dcf9f503d2dffa742bce62bd359cab8f91052116c0db3")
+        self.assertEqual(cloud["candidateSha256"], "5f83b1821d2be7cf5b7615973e4e6130d477386e16eae3a50af46e99bf7af7f8")
 
     def test_patch_digests_are_bound_by_manifest(self) -> None:
         manifest = MODULE.load_manifest()
@@ -79,7 +79,10 @@ class CpaPolicyCandidateTests(unittest.TestCase):
             self.assertIn("cloudx.cpa-sweep-trigger.v1", sweep)
             self.assertIn("CLIPROXY_AUTH_SWEEP_DIR", sweep)
             self.assertIn('code == "auth_unavailable"', sweep)
-            self.assertIn('code == "model_cooldown"', sweep)
+            self.assertIn("func (e *modelCooldownError) CloudxPoolUnavailable() bool", sweep)
+            self.assertIn("errors.As(err, &poolUnavailable)", sweep)
+            self.assertIn("newModelCooldownError", sweep)
+            self.assertNotIn('code == "model_cooldown"', sweep)
             trigger_fields = sweep.split("type cloudxSweepTrigger struct", 1)[1].split("}", 1)[0]
             for forbidden in ("Provider", "Model", "AuthFile", "Token"):
                 self.assertNotIn(forbidden, trigger_fields)

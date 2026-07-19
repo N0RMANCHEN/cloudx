@@ -6,8 +6,8 @@ This manual applies only to an explicitly confirmed future local CPA policy acti
 
 Before Cloudx may stop the shared local CPA, all of the following must be true:
 
-1. Signed Cloudx `0.1.20` is active locally.
-2. The exact `.policy.4` candidate remains staged with its pinned digest.
+1. Signed Cloudx `0.1.21` is active locally.
+2. The exact `.policy.5` candidate remains staged with its pinned digest.
 3. The scheduler has created a private activation job containing the installer, recovery tool, pinned deployment contract, original launcher snapshot, job manifest, and `RECOVERY.txt`.
 4. Every copied file and the original baseline binary matches the digest in the private job manifest.
 5. A real official-Codex request succeeds through the baseline CPA.
@@ -27,7 +27,7 @@ python3 scripts/schedule_local_cpa_policy_activation.py
 
 The plan must report:
 
-- `requiredActiveCloudxVersion=0.1.20`
+- `requiredActiveCloudxVersion=0.1.21`
 - `requiresZeroEstablishedConnections=true`
 - `manualRecoveryPreparedBeforeRestart=true`
 - `automaticRecoveryUsesManualTool=true`

@@ -121,10 +121,10 @@ index 0000000000000000000000000000000000000000..3cdd07b5deb5fe69b23271a545bbf719
 +}
 diff --git a/sdk/api/handlers/cloudx_sweep_trigger_test.go b/sdk/api/handlers/cloudx_sweep_trigger_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..6eb6ae5c6f410c8e35d6c5623c26b5a301f61fa1
+index 0000000000000000000000000000000000000000..56b4d65d989d136b7607c47fbef26f7539587216
 --- /dev/null
 +++ b/sdk/api/handlers/cloudx_sweep_trigger_test.go
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,83 @@
 +package handlers
 +
 +import (
@@ -146,6 +146,16 @@ index 0000000000000000000000000000000000000000..6eb6ae5c6f410c8e35d6c5623c26b5a3
 +	cloudxSweepWriter.lastWrite = cloudxSweepWriter.lastWrite.Add(-2 * cloudxSweepWriteInterval)
 +	cloudxSweepWriter.Unlock()
 +	return dir
++}
++
++type cloudxPoolUnavailableFixture struct{}
++
++func (cloudxPoolUnavailableFixture) Error() string {
++	return "private model cooldown payload"
++}
++
++func (cloudxPoolUnavailableFixture) CloudxPoolUnavailable() bool {
++	return true
 +}
 +
 +func TestCloudxAuthUnavailableWritesIdentityFreeSweepTrigger(t *testing.T) {
@@ -183,7 +193,7 @@ index 0000000000000000000000000000000000000000..6eb6ae5c6f410c8e35d6c5623c26b5a3
 +
 +func TestCloudxModelCooldownWritesSweepTrigger(t *testing.T) {
 +	dir := cloudxSweepFixture(t)
-+	err := &coreauth.Error{Code: "model_cooldown", Message: "all auths are cooling down", HTTPStatus: http.StatusTooManyRequests}
++	err := cloudxPoolUnavailableFixture{}
 +	_ = enrichAuthSelectionError(err, nil, "private-model")
 +	if _, statErr := os.Stat(filepath.Join(dir, cloudxSweepTriggerName)); statErr != nil {
 +		t.Fatal(statErr)
@@ -199,15 +209,28 @@ index 0000000000000000000000000000000000000000..6eb6ae5c6f410c8e35d6c5623c26b5a3
 +	}
 +}
 diff --git a/sdk/api/handlers/handlers.go b/sdk/api/handlers/handlers.go
-index 92c1f46ce194ac7dc58a1c9a15efaeb79c4cdb91..290c767b991b4a4a3a284fbff170b6913d3ef02b 100644
+index 92c1f46ce194ac7dc58a1c9a15efaeb79c4cdb91..5217fc229f6f4d15b4b9a06f4013e268009b334b 100644
 --- a/sdk/api/handlers/handlers.go
 +++ b/sdk/api/handlers/handlers.go
-@@ -2141,6 +2141,9 @@ func enrichAuthSelectionError(err error, providers []string, model string) error
--	if code != "auth_not_found" && code != "auth_unavailable" {
-+	if code != "auth_not_found" && code != "auth_unavailable" && code != "model_cooldown" {
+@@ -2131,6 +2131,13 @@ func enrichAuthSelectionError(err error, providers []string, model string) error
+ 	if err == nil {
+ 		return nil
+ 	}
++	var poolUnavailable interface {
++		CloudxPoolUnavailable() bool
++	}
++	if errors.As(err, &poolUnavailable) && poolUnavailable.CloudxPoolUnavailable() {
++		cloudxWriteSweepTrigger()
++		return err
++	}
+ 
+ 	var authErr *coreauth.Error
+ 	if !errors.As(err, &authErr) || authErr == nil {
+@@ -2141,6 +2148,9 @@ func enrichAuthSelectionError(err error, providers []string, model string) error
+ 	if code != "auth_not_found" && code != "auth_unavailable" {
  		return err
  	}
-+	if code == "auth_unavailable" || code == "model_cooldown" {
++	if code == "auth_unavailable" {
 +		cloudxWriteSweepTrigger()
 +	}
  
@@ -326,10 +349,10 @@ index 0000000000000000000000000000000000000000..43aee4044dca7b1c903b5173239fd122
 +}
 diff --git a/sdk/cliproxy/auth/cloudx_pool_observation_test.go b/sdk/cliproxy/auth/cloudx_pool_observation_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..b0044353eb064b12328d73a9f94582be7c52fdde
+index 0000000000000000000000000000000000000000..a2682ccc59b825737acee574cf2c5511e3b95e15
 --- /dev/null
 +++ b/sdk/cliproxy/auth/cloudx_pool_observation_test.go
-@@ -0,0 +1,34 @@
+@@ -0,0 +1,42 @@
 +package auth
 +
 +import (
@@ -338,7 +361,15 @@ index 0000000000000000000000000000000000000000..b0044353eb064b12328d73a9f94582be
 +	"path/filepath"
 +	"strings"
 +	"testing"
++	"time"
 +)
++
++func TestCloudxModelCooldownExposesPoolUnavailableMarker(t *testing.T) {
++	err := newModelCooldownError("private-model", "private-provider", time.Minute)
++	if !err.CloudxPoolUnavailable() {
++		t.Fatal("model cooldown did not expose pool-unavailable marker")
++	}
++}
 +
 +func TestCloudxSuccessWritesIdentityFreePoolObservation(t *testing.T) {
 +	dir := filepath.Join(t.TempDir(), "sweeps")
@@ -364,3 +395,18 @@ index 0000000000000000000000000000000000000000..b0044353eb064b12328d73a9f94582be
 +		t.Fatalf("pool observation leaked auth identity: %s", raw)
 +	}
 +}
+diff --git a/sdk/cliproxy/auth/selector.go b/sdk/cliproxy/auth/selector.go
+index b7610865334a95a6b131c4f242cb6f95a6a37e68..de02cf8153726e4f092dbb8de963369c8fd26b2e 100644
+--- a/sdk/cliproxy/auth/selector.go
++++ b/sdk/cliproxy/auth/selector.go
+@@ -112,6 +112,10 @@ func (e *modelCooldownError) Headers() http.Header {
+ 	return headers
+ }
+ 
++func (e *modelCooldownError) CloudxPoolUnavailable() bool {
++	return true
++}
++
+ func authPriority(auth *Auth) int {
+ 	if auth == nil || auth.Attributes == nil {
+ 		return 0
