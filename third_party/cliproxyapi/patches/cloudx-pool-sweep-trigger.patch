@@ -124,7 +124,7 @@ new file mode 100644
 index 0000000000000000000000000000000000000000..6eb6ae5c6f410c8e35d6c5623c26b5a301f61fa1
 --- /dev/null
 +++ b/sdk/api/handlers/cloudx_sweep_trigger_test.go
-@@ -0,0 +1,64 @@
+@@ -0,0 +1,73 @@
 +package handlers
 +
 +import (
@@ -181,6 +181,15 @@ index 0000000000000000000000000000000000000000..6eb6ae5c6f410c8e35d6c5623c26b5a3
 +	}
 +}
 +
++func TestCloudxModelCooldownWritesSweepTrigger(t *testing.T) {
++	dir := cloudxSweepFixture(t)
++	err := &coreauth.Error{Code: "model_cooldown", Message: "all auths are cooling down", HTTPStatus: http.StatusTooManyRequests}
++	_ = enrichAuthSelectionError(err, nil, "private-model")
++	if _, statErr := os.Stat(filepath.Join(dir, cloudxSweepTriggerName)); statErr != nil {
++		t.Fatal(statErr)
++	}
++}
++
 +func TestCloudxAuthNotFoundDoesNotTriggerSweep(t *testing.T) {
 +	dir := cloudxSweepFixture(t)
 +	err := &coreauth.Error{Code: "auth_not_found", Message: "no auth configured", HTTPStatus: http.StatusServiceUnavailable}
@@ -194,10 +203,11 @@ index 92c1f46ce194ac7dc58a1c9a15efaeb79c4cdb91..290c767b991b4a4a3a284fbff170b691
 --- a/sdk/api/handlers/handlers.go
 +++ b/sdk/api/handlers/handlers.go
 @@ -2141,6 +2141,9 @@ func enrichAuthSelectionError(err error, providers []string, model string) error
- 	if code != "auth_not_found" && code != "auth_unavailable" {
+-	if code != "auth_not_found" && code != "auth_unavailable" {
++	if code != "auth_not_found" && code != "auth_unavailable" && code != "model_cooldown" {
  		return err
  	}
-+	if code == "auth_unavailable" {
++	if code == "auth_unavailable" || code == "model_cooldown" {
 +		cloudxWriteSweepTrigger()
 +	}
  
@@ -354,4 +364,3 @@ index 0000000000000000000000000000000000000000..b0044353eb064b12328d73a9f94582be
 +		t.Fatalf("pool observation leaked auth identity: %s", raw)
 +	}
 +}
-

@@ -20,6 +20,10 @@
     "provisionalFailureArchived": false,
     "periodicAccountProbe": false,
     "incidentProbeConcurrency": "adaptive-up-to-32",
+    "aggregateSweepTriggerCodes": [
+      "auth_unavailable",
+      "model_cooldown"
+    ],
     "weeklyQuotaArchived": false
   },
   "targets": {
@@ -32,16 +36,16 @@
       "supplementalPatches": [
         {
           "path": "patches/cloudx-pool-sweep-trigger.patch",
-          "sha256": "cdfefe3058784dd836fb2d4c48610310660db8d39062f654784d1d92e4fd4bdc"
+          "sha256": "ca53a4f0994ce0951657675e2222013ebd1ad2c2d4331acbdb3887ad2ff4e02e"
         }
       ],
       "goVersion": "1.26.0",
       "goos": "darwin",
       "goarch": "arm64",
-      "version": "7.0.1-codexx-fast-service-tier-cloudx-policy.3",
-      "commitLabel": "15ac7fb+cloudx-cpa-policy3",
-      "buildDate": "2026-07-18T12:30:00Z",
-      "candidateSha256": "1cff3152e34666d2753add54ce7f5f96dbd643e607c1f136a9052cd28eba9ecd",
+      "version": "7.0.1-codexx-fast-service-tier-cloudx-policy.4",
+      "commitLabel": "15ac7fb+cloudx-cpa-policy4",
+      "buildDate": "2026-07-19T08:00:00Z",
+      "candidateSha256": "08608c2ebba606115a5c4bf6588896af3d2bdeb6e71ed308e17a84148766cd29",
       "candidateSize": 41484930,
       "preservesLocalFastServiceTier": true
     },
@@ -54,16 +58,16 @@
       "supplementalPatches": [
         {
           "path": "patches/cloudx-pool-sweep-trigger.patch",
-          "sha256": "cdfefe3058784dd836fb2d4c48610310660db8d39062f654784d1d92e4fd4bdc"
+          "sha256": "ca53a4f0994ce0951657675e2222013ebd1ad2c2d4331acbdb3887ad2ff4e02e"
         }
       ],
       "goVersion": "1.26.0",
       "goos": "linux",
       "goarch": "amd64",
-      "version": "7.2.71-cloudx-policy.3",
-      "commitLabel": "5b7f2361+cloudx-cpa-policy3",
-      "buildDate": "2026-07-18T12:30:00Z",
-      "candidateSha256": "453df72d15235ea51e5fdf66d27692bb5249bd262800fd628af3638246021a2b",
+      "version": "7.2.71-cloudx-policy.4",
+      "commitLabel": "5b7f2361+cloudx-cpa-policy4",
+      "buildDate": "2026-07-19T08:00:00Z",
+      "candidateSha256": "3e3ed137ff90132203f2b0e969245b6580b3ff2b780e2f3a47b821642fd6fdc4",
       "candidateSize": 45322402,
       "preservesLocalFastServiceTier": false
     }

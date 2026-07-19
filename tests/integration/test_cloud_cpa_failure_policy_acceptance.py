@@ -38,6 +38,7 @@ class CloudCpaFailurePolicyWrapperTests(unittest.TestCase):
         self.assertEqual(document["confirmation"], wrapper.CONFIRMATION)
         self.assertEqual(document["businessConcurrencyMaximum"], 2)
         self.assertEqual(document["incidentProbeConcurrencyMinimum"], 3)
+        self.assertEqual(document["requiredCloudCpaPolicyVersion"], "7.2.71-cloudx-policy.4")
         self.assertFalse(document["cpaRestartAuthorized"])
         self.assertFalse(document["automaticAction"])
 
@@ -242,7 +243,7 @@ class CloudCpaFailurePolicyTransactionTests(unittest.TestCase):
             "probe_failure_archived_count": 0, "runtime_failure_archived_count": 0,
         }
         (self.state / "state.json").write_text(json.dumps(state), encoding="utf-8")
-        response = (503, {"x-cpa-max-concurrent-api-requests": "2"}, b'{"error":"auth_unavailable"}')
+        response = (429, {"x-cpa-max-concurrent-api-requests": "2"}, b'{"error":{"code":"model_cooldown"}}')
         with mock.patch.object(transaction, "_models", return_value=["fixture-model"]), mock.patch.object(
             transaction, "_request", return_value=response
         ):
@@ -250,7 +251,8 @@ class CloudCpaFailurePolicyTransactionTests(unittest.TestCase):
         self.assertEqual(result["businessPolicy"], 2)
         self.assertEqual(result["sweepProbeConcurrency"], 3)
         self.assertEqual(result["archived"], 0)
-        self.assertTrue(result["aggregateSignalObserved"])
+        self.assertTrue(result["aggregateTriggerObserved"])
+        self.assertFalse(result["responseAuthUnavailableObserved"])
 
     def test_failed_live_phase_invokes_prebuilt_recovery(self) -> None:
         root = self.transactions / "failed"

@@ -23,8 +23,8 @@ import time
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
-ACTIVE_VERSION = "0.1.19"
-CONFIRMATION = "ACCEPT CLOUD CPA FAILURE POLICY 0.1.19"
+ACTIVE_VERSION = "0.1.20"
+CONFIRMATION = "ACCEPT CLOUD CPA FAILURE POLICY 0.1.20"
 PLAN_SCHEMA = "cloudx.cloud-cpa-failure-policy-acceptance-plan.v1"
 RESULT_SCHEMA = "cloudx.cloud-cpa-failure-policy-acceptance.v1"
 ACTIVE_ARTIFACT = pathlib.Path("/opt/cloudx/current/cloudx-cloud.pyz")
@@ -36,6 +36,8 @@ STATE_DIR = pathlib.Path("/var/lib/cloudx/cpa-health")
 TRANSACTION_ROOT = pathlib.Path("/var/lib/codex-gateway/cpa-policy-acceptance")
 CLIENT_CREDENTIAL = pathlib.Path("/etc/cloudx/client-credential")
 CPA_SERVICE = "cliproxy.service"
+CPA_POLICY_BINARY = pathlib.Path("/opt/cliproxy-cloudx/releases/7.2.71-cloudx-policy.4/cli-proxy-api")
+CPA_POLICY_SHA256 = "3e3ed137ff90132203f2b0e969245b6580b3ff2b780e2f3a47b821642fd6fdc4"
 HEALTH_SERVICE = "cloudx-cpa-health.service"
 FAILURE_PATH = "cloudx-cpa-failure.path"
 SWEEP_PATH = "cloudx-cpa-sweep.path"
@@ -47,7 +49,6 @@ MAX_FILE_BYTES = 4 * 1024 * 1024
 MAX_INPUT_BYTES = 16 * 1024 * 1024
 MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 CANARY_PREFIX = "cloudx-m4b-limited-"
-
 class AcceptanceRejected(RuntimeError):
     def __init__(self, code: str, message: str, *, transaction_id: str = "") -> None:
         super().__init__(message)
@@ -324,11 +325,15 @@ def _preflight() -> Dict[str, Any]:
     if sys.platform != "linux" or os.geteuid() != 0:
         raise AcceptanceRejected("wrong_host", "cloud CPA acceptance requires root on Linux")
     if _active_version() != ACTIVE_VERSION:
-        raise AcceptanceRejected("release_mismatch", "signed Cloudx 0.1.19 is not active")
+        raise AcceptanceRejected("release_mismatch", "signed Cloudx 0.1.20 is not active")
     _self_check()
     if not _unit_ready(FAILURE_PATH) or not _unit_ready(SWEEP_PATH):
         raise AcceptanceRejected("watcher_unavailable", "cloud CPA failure and sweep watchers must be active")
     service = _service_state(CPA_SERVICE)
+    selected = _run(["systemctl", "show", CPA_SERVICE, "-p", "ExecStart", "--value"], timeout=30).stdout.decode("utf-8", errors="replace")
+    digest = _run(["sha256sum", str(CPA_POLICY_BINARY)], timeout=60).stdout.decode("ascii", errors="replace").split()[0]
+    if str(CPA_POLICY_BINARY) not in selected or digest != CPA_POLICY_SHA256:
+        raise AcceptanceRejected("policy_mismatch", "cloud CPA policy.4 is not selected exactly")
     if service["ActiveState"] != "active" or service["SubState"] != "running" or service["MainPID"] <= 0:
         raise AcceptanceRejected("cpa_unavailable", "cloud CPA baseline is not healthy")
     active = _regular_files(AUTH_DIR, ".json")
@@ -559,7 +564,8 @@ def _natural_aggregate(transaction: pathlib.Path) -> Dict[str, Any]:
                     if _archive_count() != 45 or _regular_files(FAILURE_DIR, ".json"):
                         raise AcceptanceRejected("archive_changed", "quota sweep changed permanent archive state", transaction_id=transaction.name)
                     result = {
-                        "aggregateSignalObserved": aggregate_signal,
+                        "aggregateTriggerObserved": True,
+                        "responseAuthUnavailableObserved": aggregate_signal,
                         "businessPolicy": 2,
                         "businessAttempts": attempts,
                         "httpStatuses": sorted(set(statuses)),

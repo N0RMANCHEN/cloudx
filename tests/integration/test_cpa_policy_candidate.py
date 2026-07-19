@@ -27,10 +27,14 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         self.assertFalse(manifest["policy"]["provisionalFailureArchived"])
         self.assertFalse(manifest["policy"]["periodicAccountProbe"])
         self.assertEqual(manifest["policy"]["incidentProbeConcurrency"], "adaptive-up-to-32")
+        self.assertEqual(
+            manifest["policy"]["aggregateSweepTriggerCodes"],
+            ["auth_unavailable", "model_cooldown"],
+        )
         self.assertEqual(manifest["policy"]["sweepTriggerSchema"], "cloudx.cpa-sweep-trigger.v1")
         self.assertFalse(manifest["policy"]["weeklyQuotaArchived"])
-        self.assertEqual(local["candidateSha256"], "1cff3152e34666d2753add54ce7f5f96dbd643e607c1f136a9052cd28eba9ecd")
-        self.assertEqual(cloud["candidateSha256"], "453df72d15235ea51e5fdf66d27692bb5249bd262800fd628af3638246021a2b")
+        self.assertEqual(local["candidateSha256"], "08608c2ebba606115a5c4bf6588896af3d2bdeb6e71ed308e17a84148766cd29")
+        self.assertEqual(cloud["candidateSha256"], "3e3ed137ff90132203f2b0e969245b6580b3ff2b780e2f3a47b821642fd6fdc4")
 
     def test_patch_digests_are_bound_by_manifest(self) -> None:
         manifest = MODULE.load_manifest()
@@ -75,6 +79,7 @@ class CpaPolicyCandidateTests(unittest.TestCase):
             self.assertIn("cloudx.cpa-sweep-trigger.v1", sweep)
             self.assertIn("CLIPROXY_AUTH_SWEEP_DIR", sweep)
             self.assertIn('code == "auth_unavailable"', sweep)
+            self.assertIn('code == "model_cooldown"', sweep)
             trigger_fields = sweep.split("type cloudxSweepTrigger struct", 1)[1].split("}", 1)[0]
             for forbidden in ("Provider", "Model", "AuthFile", "Token"):
                 self.assertNotIn(forbidden, trigger_fields)
