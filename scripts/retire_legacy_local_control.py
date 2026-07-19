@@ -63,11 +63,20 @@ def _retained_bundle(home: pathlib.Path, plist: Mapping[str, Any], command: Sequ
     if bundle.is_symlink() or stat.S_IMODE(bundle_metadata.st_mode) != 0o700:
         raise RuntimeError("retained control bundle is unsafe")
     python_launcher = bundle / "home/.local/bin/codexx.py"
-    for path, label in ((resolved_launcher, "retained control launcher"), (python_launcher, "retained control Python launcher")):
-        raw, metadata = _safe_file(path, label, migration.legacy_removal.MAX_FILE_BYTES)
-        del raw
-        if not stat.S_IMODE(metadata.st_mode) & stat.S_IXUSR:
-            raise RuntimeError("retained control launcher is not executable")
+    unused, launcher_metadata = _safe_file(
+        resolved_launcher,
+        "retained control launcher",
+        migration.legacy_removal.MAX_FILE_BYTES,
+    )
+    unused, python_metadata = _safe_file(
+        python_launcher,
+        "retained control Python launcher",
+        migration.legacy_removal.MAX_FILE_BYTES,
+    )
+    if not stat.S_IMODE(launcher_metadata.st_mode) & stat.S_IXUSR:
+        raise RuntimeError("retained control launcher is not executable")
+    if stat.S_IMODE(python_metadata.st_mode) & 0o022:
+        raise RuntimeError("retained control Python launcher permissions are unsafe")
     if not migration._control_command(command, python_launcher):
         raise RuntimeError("control process is not using the retained runtime")
     return bundle, python_launcher
