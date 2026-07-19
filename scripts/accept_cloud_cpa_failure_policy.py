@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import pathlib
+import shlex
 import subprocess
 import sys
 from typing import Any, Dict, Optional, Sequence
@@ -49,8 +50,9 @@ def _ssh(
     timeout: float = 1200,
 ) -> subprocess.CompletedProcess[bytes]:
     try:
+        remote_command = shlex.join(list(arguments))
         completed = subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", host, *arguments],
+            ["ssh", "-o", "BatchMode=yes", host, remote_command],
             input=input_bytes,
             stdin=None if input_bytes is not None else subprocess.DEVNULL,
             stdout=subprocess.PIPE,

@@ -59,6 +59,15 @@ class CloudCpaFailurePolicyWrapperTests(unittest.TestCase):
         self.assertIn("0700", ssh.call_args_list[0].args[1])
         self.assertEqual(ssh.call_args_list[1].kwargs["input_bytes"], raw)
 
+    def test_ssh_shell_quotes_python_code_as_one_remote_command(self) -> None:
+        completed = self._completed(b"ok")
+        with mock.patch.object(wrapper.subprocess, "run", return_value=completed) as run:
+            result = wrapper._ssh("cloud", ["python3", "-c", "print('safe value')"])
+        self.assertEqual(result.stdout, b"ok")
+        remote = run.call_args.args[0][-1]
+        self.assertIn("'print('\"'\"'safe value'\"'\"')'", remote)
+        self.assertEqual(run.call_args.args[0].count("-c"), 0)
+
     def test_custom_cloud_host_is_rejected(self) -> None:
         with self.assertRaisesRegex(wrapper.AcceptanceRejected, "fixed"):
             wrapper.main(["--ssh-host", "other"])
