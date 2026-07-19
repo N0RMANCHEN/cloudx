@@ -316,12 +316,12 @@ def _unit_state(unit: str) -> Dict[str, Any]:
         if "=" in line:
             key, value = line.split("=", 1)
             values[key] = value
-    required = {"LoadState", "ActiveState", "SubState", "UnitFileState", "MainPID", "NRestarts"}
-    if set(values) != required:
+    required = {"LoadState", "ActiveState", "SubState", "UnitFileState"}
+    if not required.issubset(values):
         raise RuntimeError("cloud unit state is incomplete")
     try:
-        pid = int(values["MainPID"])
-        restarts = int(values["NRestarts"])
+        pid = int(values.get("MainPID", "0"))
+        restarts = int(values.get("NRestarts", "0"))
     except ValueError as exc:
         raise RuntimeError("cloud unit state is invalid") from exc
     return {

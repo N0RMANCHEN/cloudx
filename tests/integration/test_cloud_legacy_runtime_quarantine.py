@@ -132,6 +132,20 @@ class CloudLegacyRuntimeQuarantineTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "writable"):
             quarantine._tree_snapshot(self.target)
 
+    def test_timer_state_defaults_absent_process_properties_to_zero(self) -> None:
+        completed = mock.Mock(
+            returncode=0,
+            stdout=(
+                b"LoadState=loaded\nActiveState=active\nSubState=waiting\n"
+                b"UnitFileState=enabled\n"
+            ),
+            stderr=b"",
+        )
+        with mock.patch.object(quarantine, "_run", return_value=completed):
+            state = quarantine._unit_state("fixture.timer")
+        self.assertEqual(state["mainPid"], 0)
+        self.assertEqual(state["restarts"], 0)
+
     def test_backup_is_private_and_recovery_script_compiles(self) -> None:
         with mock.patch.object(quarantine, "QUARANTINE_ROOT", self.quarantine_root), mock.patch.object(
             quarantine, "TARGET", self.target
