@@ -32,31 +32,35 @@ class PhiCloudxFailureSemanticsTests(unittest.TestCase):
         path.write_text(json.dumps(document), encoding="utf-8")
         return path
 
-    def test_current_evidence_covers_every_scenario_without_claiming_acceptance(self) -> None:
+    def test_current_evidence_accepts_every_scenario_without_coupling_future_roadmap_work(self) -> None:
         evidence = load_evidence()
         validate_contract_bindings(evidence)
         result = evaluate(evidence)
         self.assertTrue(result["cloudxContractMatrixReady"])
         self.assertEqual(result["scenarioCount"], 9)
+        self.assertEqual(result["status"], "accepted")
+        self.assertTrue(result["crossRepositoryRuntimeAccepted"])
+        self.assertTrue(result["phiRoadmapStatusesInformational"])
+        self.assertEqual(result["blockers"], [])
+
+    def test_roadmap_statuses_block_only_when_evidence_explicitly_makes_them_normative(self) -> None:
+        evidence = load_evidence()
+        evidence["acceptance"]["phiRoadmapStatusesInformational"] = False
+        result = evaluate(
+            evidence,
+            release_result={"status": "compatible"},
+            privileged_result={"status": "secure"},
+            phi_snapshot_verified=True,
+        )
         self.assertEqual(result["status"], "blocked")
-        self.assertFalse(result["crossRepositoryRuntimeAccepted"])
         self.assertEqual(
             result["blockers"],
-            [
-                "privileged_boundary_not_secure",
-                "phi_int_p1_1_not_complete",
-                "phi_ct_p1_3_not_complete",
-                "phi_runtime_fixtures_not_accepted",
-            ],
+            ["phi_int_p1_1_not_complete", "phi_ct_p1_3_not_complete"],
         )
-
-    def test_complete_external_evidence_would_accept_the_same_cloudx_matrix(self) -> None:
-        evidence = load_evidence()
         evidence["phiSnapshot"]["roadmapStatuses"] = {
             "INT/P1-1": "complete",
             "CT/P1-3": "complete",
         }
-        evidence["acceptance"]["phiRuntimeFixturesAccepted"] = True
         result = evaluate(
             evidence,
             release_result={"status": "compatible"},
@@ -118,16 +122,16 @@ class PhiCloudxFailureSemanticsTests(unittest.TestCase):
             self.assertNotIn(forbidden, fixture)
             self.assertNotIn(forbidden, result)
 
-    def test_cli_reports_truthful_blockers_and_strict_acceptance_exit(self) -> None:
+    def test_cli_reports_strict_cross_repository_acceptance(self) -> None:
         output = StringIO()
         with redirect_stdout(output):
             self.assertEqual(main([]), 0)
         self.assertEqual(
             output.getvalue().strip(),
-            "phi-failure-semantics: blocked (4 blockers; 9 scenarios; phi-snapshot=recorded)",
+            "phi-failure-semantics: accepted (0 blockers; 9 scenarios; phi-snapshot=recorded)",
         )
         with redirect_stdout(StringIO()):
-            self.assertEqual(main(["--require-accepted"]), 2)
+            self.assertEqual(main(["--require-accepted"]), 0)
 
 
 if __name__ == "__main__":

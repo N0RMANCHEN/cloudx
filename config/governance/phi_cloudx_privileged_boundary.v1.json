@@ -1,25 +1,25 @@
 {
   "schema": "cloudx.phi-privileged-boundary-evidence.v1",
-  "capturedAt": "2026-07-17T06:23:50Z",
-  "expectedStatus": "blocked",
+  "capturedAt": "2026-07-19T14:07:10.750154+00:00",
+  "expectedStatus": "secure",
   "deployedRefs": {
-    "agentRuntime": "06c8720298dc0f05dcec847f7a427e4eb08554c0",
-    "mailCommand": "80e349fc1ba590f321e8e8f576d3371bfcb172a1",
-    "orchestrator": "06c8720298dc0f05dcec847f7a427e4eb08554c0"
+    "agentRuntime": "3f42c73db6cbb1fbd751980f5ecb3cb0f42eff10",
+    "mailCommand": "3f42c73db6cbb1fbd751980f5ecb3cb0f42eff10",
+    "orchestrator": "3f42c73db6cbb1fbd751980f5ecb3cb0f42eff10"
   },
   "consumerCredential": {
-    "class": "cloudx_admin_gateway_key",
-    "privilegeElevation": true
+    "class": "scoped_phi_consumer",
+    "privilegeElevation": false
   },
   "identities": [
     {
-      "name": "operator",
-      "elevation": "unrestricted_root",
+      "name": "restricted_agent",
+      "elevation": "none",
       "elevatedCapabilities": {
-        "authRead": true,
-        "importInvoke": true,
-        "gatewayMutate": true,
-        "releaseMutate": true
+        "authRead": false,
+        "importInvoke": false,
+        "gatewayMutate": false,
+        "releaseMutate": false
       }
     }
   ],
@@ -29,8 +29,8 @@
       "available": true,
       "agentControlsCommands": true,
       "arbitraryCommandExecution": true,
-      "identity": "operator",
-      "noNewPrivileges": false,
+      "identity": "restricted_agent",
+      "noNewPrivileges": true,
       "cloudxSensitivePathsMasked": false,
       "directCapabilities": {
         "authRead": false,
@@ -44,8 +44,8 @@
       "available": true,
       "agentControlsCommands": true,
       "arbitraryCommandExecution": true,
-      "identity": "operator",
-      "noNewPrivileges": false,
+      "identity": "restricted_agent",
+      "noNewPrivileges": true,
       "cloudxSensitivePathsMasked": true,
       "directCapabilities": {
         "authRead": false,
@@ -59,7 +59,7 @@
       "available": true,
       "agentControlsCommands": true,
       "arbitraryCommandExecution": true,
-      "identity": "operator",
+      "identity": "restricted_agent",
       "noNewPrivileges": true,
       "cloudxSensitivePathsMasked": true,
       "directCapabilities": {

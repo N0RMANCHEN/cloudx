@@ -27,6 +27,8 @@ The initial Mesh direction is frozen in `config/governance/phi_mesh_topology.v1.
 
 The Phi privilege boundary is recorded separately in `config/governance/phi_cloudx_privileged_boundary.v1.json` and evaluated by `scripts/check_phi_cloudx_privileged_boundary.py`. The audit binds deployed Phi source refs to a secret-free credential class, identity elevation model, and the effective capabilities of each normal Agent instruction surface. A syntactically valid `blocked` result preserves an observed external gap without weakening verification; only `--require-secure` accepts the M4A boundary.
 
+The cross-repository failure-semantics gate may record future Phi Roadmap statuses, but they are contextual unless the evidence explicitly declares them normative. Cloudx dependency readiness is decided by exact snapshot verification, accepted runtime fixtures, compatible release ordering, and a secure deployed permission boundary; it cannot be coupled to unrelated future Mesh feature completion.
+
 Cloud runtime stdout, stderr, and published public state must use `cloudx_cloud.public_metadata`; direct `print` or `sys.stdout`/`sys.stderr` writes outside that module fail the architecture gate.
 
 ## Runtime Separation

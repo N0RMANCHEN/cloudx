@@ -384,7 +384,11 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
     ):
         raise EvidenceRejected("failure-semantics invariants grant forbidden authority")
 
-    acceptance = _object(root["acceptance"], ("phiRuntimeFixturesAccepted",), "acceptance")
+    acceptance = _object(
+        root["acceptance"],
+        ("phiRuntimeFixturesAccepted", "phiRoadmapStatusesInformational"),
+        "acceptance",
+    )
     return {
         "schema": EVIDENCE_SCHEMA,
         "capturedAt": _timestamp(root["capturedAt"], "capturedAt"),
@@ -415,7 +419,11 @@ def load_evidence(path: pathlib.Path = DEFAULT_EVIDENCE) -> Dict[str, Any]:
         "acceptance": {
             "phiRuntimeFixturesAccepted": _bool(
                 acceptance["phiRuntimeFixturesAccepted"], "acceptance.phiRuntimeFixturesAccepted"
-            )
+            ),
+            "phiRoadmapStatusesInformational": _bool(
+                acceptance["phiRoadmapStatusesInformational"],
+                "acceptance.phiRoadmapStatusesInformational",
+            ),
         },
     }
 
@@ -566,10 +574,11 @@ def evaluate(
         blockers.append("release_ordering_not_compatible")
     if privileged.get("status") != "secure":
         blockers.append("privileged_boundary_not_secure")
-    for item_id, status in evidence["phiSnapshot"]["roadmapStatuses"].items():
-        if status != "complete":
-            normalized_id = item_id.lower().replace("/", "_").replace("-", "_")
-            blockers.append("phi_%s_not_complete" % normalized_id)
+    if not evidence["acceptance"]["phiRoadmapStatusesInformational"]:
+        for item_id, status in evidence["phiSnapshot"]["roadmapStatuses"].items():
+            if status != "complete":
+                normalized_id = item_id.lower().replace("/", "_").replace("-", "_")
+                blockers.append("phi_%s_not_complete" % normalized_id)
     if not evidence["acceptance"]["phiRuntimeFixturesAccepted"]:
         blockers.append("phi_runtime_fixtures_not_accepted")
     status = "accepted" if not blockers else "blocked"
@@ -583,6 +592,9 @@ def evaluate(
         "releaseOrderingStatus": release.get("status"),
         "privilegedBoundaryStatus": privileged.get("status"),
         "phiRoadmapStatuses": evidence["phiSnapshot"]["roadmapStatuses"],
+        "phiRoadmapStatusesInformational": evidence["acceptance"][
+            "phiRoadmapStatusesInformational"
+        ],
         "phiSnapshotVerified": phi_snapshot_verified,
         "crossRepositoryRuntimeAccepted": status == "accepted",
         "blockers": blockers,

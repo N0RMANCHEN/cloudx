@@ -32,41 +32,33 @@ class PhiCloudxPrivilegedBoundaryTests(unittest.TestCase):
         path.write_text(json.dumps(document), encoding="utf-8")
         return path
 
-    def test_current_evidence_truthfully_records_agent_root_reachability(self) -> None:
+    def test_current_evidence_records_the_accepted_restricted_boundary(self) -> None:
         result = evaluate(load_evidence())
-        self.assertEqual(result["status"], "blocked")
-        self.assertFalse(result["credentialScoped"])
-        self.assertEqual(len(result["blockers"]), 9)
+        self.assertEqual(result["status"], "secure")
+        self.assertTrue(result["credentialScoped"])
+        self.assertEqual(result["blockers"], [])
         interactive = self._surface(result, "interactive_cli")
         mail = self._surface(result, "mail_command")
         orchestrator = self._surface(result, "orchestrator")
-        self.assertTrue(interactive["elevationReachable"])
-        self.assertTrue(mail["elevationReachable"])
+        self.assertFalse(interactive["elevationReachable"])
+        self.assertFalse(mail["elevationReachable"])
         self.assertFalse(orchestrator["elevationReachable"])
-        self.assertEqual(orchestrator["blockers"], [])
-        self.assertTrue(all(interactive["effectiveCapabilities"].values()))
-        self.assertTrue(all(mail["effectiveCapabilities"].values()))
+        for surface in (interactive, mail, orchestrator):
+            self.assertEqual(surface["blockers"], [])
+            self.assertFalse(any(surface["effectiveCapabilities"].values()))
 
-    def test_scoped_credential_and_no_new_privileges_make_snapshot_secure(self) -> None:
+    def test_unscoped_credential_still_blocks_an_otherwise_restricted_snapshot(self) -> None:
         evidence = load_evidence()
         evidence["consumerCredential"] = {
-            "class": "scoped_phi_consumer",
-            "privilegeElevation": False,
+            "class": "cloudx_admin_gateway_key",
+            "privilegeElevation": True,
         }
-        for surface in evidence["agentSurfaces"]:
-            surface["noNewPrivileges"] = True
         result = evaluate(evidence)
-        self.assertEqual(result["status"], "secure")
-        self.assertEqual(result["blockers"], [])
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["blockers"], ["consumer_credential_not_scoped"])
 
     def test_direct_agent_capability_blocks_even_when_elevation_is_disabled(self) -> None:
         evidence = load_evidence()
-        evidence["consumerCredential"] = {
-            "class": "scoped_phi_consumer",
-            "privilegeElevation": False,
-        }
-        for surface in evidence["agentSurfaces"]:
-            surface["noNewPrivileges"] = True
         orchestrator = next(
             item for item in evidence["agentSurfaces"] if item["name"] == "orchestrator"
         )
@@ -95,16 +87,16 @@ class PhiCloudxPrivilegedBoundaryTests(unittest.TestCase):
         for forbidden in ("/home/", "/etc/", "/var/", "@", "hirohi", "39.96."):
             self.assertNotIn(forbidden, result)
 
-    def test_cli_accepts_valid_blocking_evidence_but_can_require_security(self) -> None:
+    def test_cli_accepts_and_can_require_current_security(self) -> None:
         output = StringIO()
         with redirect_stdout(output):
             self.assertEqual(main([]), 0)
         self.assertEqual(
             output.getvalue().strip(),
-            "phi-privileged-boundary: blocked (9 blockers)",
+            "phi-privileged-boundary: secure (0 blockers)",
         )
         with redirect_stdout(StringIO()):
-            self.assertEqual(main(["--require-secure"]), 2)
+            self.assertEqual(main(["--require-secure"]), 0)
 
 
 if __name__ == "__main__":

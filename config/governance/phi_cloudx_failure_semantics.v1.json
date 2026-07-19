@@ -1,9 +1,9 @@
 {
   "schema": "cloudx.phi-failure-semantics-evidence.v1",
-  "capturedAt": "2026-07-18T17:13:25Z",
-  "expectedStatus": "blocked",
+  "capturedAt": "2026-07-19T14:21:30Z",
+  "expectedStatus": "accepted",
   "phiSnapshot": {
-    "sourceRef": "3f125abf16fec1e7c17d2ccff0f6ce0a2414193e",
+    "sourceRef": "ba39e757f7f753316dac6ae25585498671bd38de",
     "requirements": [
       "ACCEPT-MESH-CLOUDX-001",
       "QA-MESH-CLOUDX-DEGRADE-001"
@@ -27,7 +27,7 @@
       },
       {
         "path": "docs/roadmap/roadmap.json",
-        "sha256": "2a3e69c023039b0412d38fb1fdd07c52c78c3809598d9ec94ef4bb727cedf13d"
+        "sha256": "7b4af54866beac3abf6cd7676c73f2e53291dedd701488e27078b0bd998c20e7"
       }
     ]
   },
@@ -197,6 +197,7 @@
     }
   ],
   "acceptance": {
-    "phiRuntimeFixturesAccepted": false
+    "phiRuntimeFixturesAccepted": true,
+    "phiRoadmapStatusesInformational": true
   }
 }

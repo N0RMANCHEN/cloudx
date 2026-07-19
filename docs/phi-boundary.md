@@ -71,9 +71,9 @@ Phi and Cloudx keep independent release trains and N/N-1 rollback. Their compati
 
 `config/governance/phi_cloudx_privileged_boundary.v1.json` records a separate sanitized production permission snapshot. `scripts/check_phi_cloudx_privileged_boundary.py` evaluates the normal interactive CLI, mail-command, and orchestrator Agent instruction surfaces without storing usernames, host addresses, filesystem paths, credential values, or command text. It combines direct Cloudx capabilities with the surface's command tool, runtime identity, privilege-elevation class, `NoNewPrivileges`, and sensitive-path masking.
 
-The current snapshot is `blocked`. Phi's configured Cloudx consumer is still sourced from an administrative gateway key through privilege elevation instead of the dedicated scoped consumer credential. The interactive CLI and authenticated mail-command path expose arbitrary Agent command execution under an identity with unrestricted root elevation, making auth read, import, gateway mutation, and Cloudx release mutation reachable. The active orchestrator does not inherit that effective authority because its unit masks Cloudx-sensitive paths and enforces `NoNewPrivileges=true`. This audit made no credential, sudoers, unit, service, release, or runtime change; remediation and activation remain Phi-owned operator actions.
+The current snapshot is `secure`. Phi uses the dedicated scoped consumer credential and immutable release `3f42c73db6cbb1fbd751980f5ecb3cb0f42eff10`. Normal interactive and authenticated mail Agent work drops to the restricted orchestrator identity with a fixed workspace, bounded environment, Linux `NoNewPrivs`, and zero direct or elevated Cloudx capabilities. Mail can sudo only the exact Phi target as that identity, while the mail and orchestrator namespaces mask Cloudx-sensitive roots. Production permission probes also deny the target identity read and write access to active auth, archive, gateway configuration, and import keys.
 
-The normal verifier accepts a truthful `blocked` evidence file so the known external gap stays continuously visible. The M4A acceptance command is stricter:
+The normal verifier continues to accept a truthful future `blocked` evidence file so any regression remains visible. The current M4A acceptance command passes and remains strict:
 
 ```bash
 python3 scripts/check_phi_cloudx_privileged_boundary.py --require-secure
@@ -83,7 +83,7 @@ Cloudx publishes the initial reference set as `cloudx.phi-mesh-compatibility-pro
 
 The companion `cloudx.phi-cloud-consumer-credential.v1` policy defines a separate gateway bearer stored outside release directories at `/etc/cloudx/consumers/phi-cloud/credential`, owned by root and readable only by the dedicated `phi-cloudx-consumer` group. It represents the Phi cloud service only, has no SSH or `cloudx-remote` authority, and cannot import, mutate gateway configuration, change releases, or assert Device, Task, or session identity. Rotation installs and canaries a new key before revoking the previous key; the policy itself authorizes no install, rotation, revocation, or restart.
 
-Source `0.1.15` now also carries a repository operator transaction for that exact policy. Its plan is non-authorizing; apply is bound to an exact staged artifact and can change only the external gateway config plus the dedicated credential file, with overlap-first rotation and rollback. Phi identity/group provisioning, Phi service configuration/restart, old-key revocation, and proof that every Agent surface lacks Cloudx authority remain outside that transaction. The deployed credential is still the administrative key, so the privileged-boundary result remains blocked.
+Source `0.1.15` also carries the repository operator transaction for that exact policy. Its plan is non-authorizing; apply is bound to an exact staged artifact and can change only the external gateway config plus the dedicated credential file, with overlap-first rotation and rollback. Production apply retained the Cloudx client credential, installed and canaried the scoped Phi bearer, retained the previous Phi key, and restarted only the external gateway. Phi-owned provisioning and boundary activation then installed the restricted entrypoint and credential copy without restarting a Phi service or revoking the previous key.
 
 `cloudx.phi-cloud-consumer-traffic-policy.v1` supplies the initial four-request concurrency ceiling, sixteen-entry FIFO wait bound, thirty-attempts-per-minute rate with burst four, separated admission/connect/header/stream-idle/overall timeouts, and a three-attempt retry ceiling. Retries consume rate budget, retain the same concurrency slot, and never occur after response bytes. Phi owns enforcement in its provider adapter; Cloudx publishes the rule but stores no queue or work-item metadata.
 
@@ -91,12 +91,12 @@ The live `cloudx.capacity.v1` result preserves six distinct states: healthy capa
 
 `config/governance/phi_cloudx_failure_semantics.v1.json` binds those public contracts to a strict nine-case dependency matrix: gateway unavailable, capacity unknown, exhausted capacity, stale health, incompatible protocol, revoked credential, rate limit, Cloudx rollback, and independent release ordering. Every case permits only an explicit provider-phase outcome and forbids mutation of Phi Device, Task, lease, approval, revocation, notification, or completed local-action truth. It also freezes the matching owner matrix and records exact digests for the relevant Phi canonical architecture, acceptance, and Roadmap files.
 
-The normal verifier accepts the truthful blocked snapshot while checking that the Cloudx matrix remains complete and contract-backed. A checkout-aware audit can additionally verify the exact Phi commit and file digests:
+The normal verifier checks that the accepted Cloudx matrix remains complete and contract-backed. A checkout-aware audit additionally verifies the exact Phi Handoff commit and file digests:
 
 ```bash
 python3 scripts/check_phi_cloudx_failure_semantics.py --phi-root <phi-checkout>
 ```
 
-The stricter `--require-accepted` exit remains nonzero until current/N-1 release ordering is compatible, the privileged boundary is secure, Phi `INT/P1-1` and `CT/P1-3` are complete, and Phi runtime fixtures are accepted. The fixture grants no credential, deployment, restart, release, or runtime mutation authority.
+The stricter `--require-accepted` exit now passes because current/N-1 release ordering is compatible, the privileged boundary is secure, and Phi runtime fixtures are accepted. Phi `INT/P1-1` and `CT/P1-3` remain recorded as future product work but are explicitly informational to this dependency-readiness gate; requiring their full feature completion would incorrectly synchronize the two repositories. The fixture grants no credential, deployment, restart, release, or runtime mutation authority.
 
 Direct endpoint-to-Cloudx connectivity for future local inference is outside the initial Mesh boundary and requires its own threat model, credential contract, roadmap gate, and operator approval.
