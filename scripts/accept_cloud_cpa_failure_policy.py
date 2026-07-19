@@ -20,8 +20,8 @@ from typing import Any, Dict, Optional, Sequence
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TRANSACTION_TOOL = ROOT / "scripts/cloud_cpa_failure_policy_transaction.py"
-ACTIVE_VERSION = "0.1.18"
-CONFIRMATION = "ACCEPT CLOUD CPA FAILURE POLICY 0.1.18"
+ACTIVE_VERSION = "0.1.19"
+CONFIRMATION = "ACCEPT CLOUD CPA FAILURE POLICY 0.1.19"
 PLAN_SCHEMA = "cloudx.cloud-cpa-failure-policy-acceptance-plan.v1"
 RESULT_SCHEMA = "cloudx.cloud-cpa-failure-policy-acceptance.v1"
 DEFAULT_SSH_HOST = "cloud"

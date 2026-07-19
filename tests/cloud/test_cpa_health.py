@@ -459,7 +459,7 @@ class CpaHealthTests(unittest.TestCase):
             active_runtime.transport.assert_not_called()
             active_runtime.probe.assert_not_called()
 
-    def test_pool_unavailable_trigger_runs_fast_sweep_and_archives_permanent_account(self) -> None:
+    def test_pool_unavailable_trigger_archives_nonrefreshable_unauthorized_account(self) -> None:
         with tempfile.TemporaryDirectory() as value:
             root = pathlib.Path(value)
             auth_dir = root / "auth"
@@ -480,7 +480,7 @@ class CpaHealthTests(unittest.TestCase):
                 contexts=mock.Mock(return_value=[{"path": account, "state_key": "one", "payload": {}}]),
                 probe=mock.Mock(return_value={
                     "status": "invalid",
-                    "failure_reason": "deactivated_workspace",
+                    "failure_reason": "authentication_unauthorized",
                     "permanent_auth_failure": True,
                     "weekly_quota": False,
                 }),

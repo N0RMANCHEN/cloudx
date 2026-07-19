@@ -34,9 +34,10 @@ PERMANENT_AUTH_FAILURE_MARKERS = (
     ("refresh token is required", "missing_token"),
     ("missing refresh token", "missing_token"),
 )
-PERMANENT_AUTH_FAILURE_REASONS = frozenset(
-    reason for unused_marker, reason in PERMANENT_AUTH_FAILURE_MARKERS
-)
+PERMANENT_AUTH_FAILURE_REASONS = frozenset({
+    "authentication_unauthorized",
+    *(reason for unused_marker, reason in PERMANENT_AUTH_FAILURE_MARKERS),
+})
 QUOTA_FAILURE_MARKERS = (
     "weekly limit",
     "weekly quota",

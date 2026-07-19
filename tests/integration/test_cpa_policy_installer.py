@@ -75,7 +75,7 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertTrue(document["localActivationRequiresPreparedRecoveryTool"])
         self.assertTrue(document["localActivationRequiresZeroEstablishedConnections"])
         self.assertTrue(document["eventDrivenArchiveWatcherActivationSeparate"])
-        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.18")
+        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.19")
         self.assertFalse(document["weeklyQuotaArchived"])
         self.assertFalse(document["periodicAccountProbe"])
         self.assertTrue(document["incidentSweepTrigger"])

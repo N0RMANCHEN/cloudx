@@ -121,6 +121,7 @@ class CpaQuotaTests(unittest.TestCase):
         self.assertEqual(permanent["status"], "invalid")
         self.assertTrue(permanent["permanent_auth_failure"])
         self.assertEqual(permanent["failure_reason"], "authentication_unauthorized")
+        self.assertIn(permanent["failure_reason"], cpa_quota.PERMANENT_AUTH_FAILURE_REASONS)
 
     def test_http_429_and_quota_body_are_never_permanent(self) -> None:
         for code, payload in (

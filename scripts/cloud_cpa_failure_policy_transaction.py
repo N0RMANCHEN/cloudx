@@ -23,8 +23,8 @@ import time
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
-ACTIVE_VERSION = "0.1.18"
-CONFIRMATION = "ACCEPT CLOUD CPA FAILURE POLICY 0.1.18"
+ACTIVE_VERSION = "0.1.19"
+CONFIRMATION = "ACCEPT CLOUD CPA FAILURE POLICY 0.1.19"
 PLAN_SCHEMA = "cloudx.cloud-cpa-failure-policy-acceptance-plan.v1"
 RESULT_SCHEMA = "cloudx.cloud-cpa-failure-policy-acceptance.v1"
 ACTIVE_ARTIFACT = pathlib.Path("/opt/cloudx/current/cloudx-cloud.pyz")
@@ -324,7 +324,7 @@ def _preflight() -> Dict[str, Any]:
     if sys.platform != "linux" or os.geteuid() != 0:
         raise AcceptanceRejected("wrong_host", "cloud CPA acceptance requires root on Linux")
     if _active_version() != ACTIVE_VERSION:
-        raise AcceptanceRejected("release_mismatch", "signed Cloudx 0.1.18 is not active")
+        raise AcceptanceRejected("release_mismatch", "signed Cloudx 0.1.19 is not active")
     _self_check()
     if not _unit_ready(FAILURE_PATH) or not _unit_ready(SWEEP_PATH):
         raise AcceptanceRejected("watcher_unavailable", "cloud CPA failure and sweep watchers must be active")
