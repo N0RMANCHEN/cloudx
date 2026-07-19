@@ -178,6 +178,43 @@ class LegacyHealthBridgeCutoverTests(unittest.TestCase):
                 ])
         verify.assert_not_called()
 
+    def test_continuity_accepts_disabled_retired_importer_with_closed_port(self) -> None:
+        completed = mock.Mock(
+            returncode=0,
+            stdout="ActiveState=inactive\nMainPID=0\nNRestarts=0\nUnitFileState=disabled\n",
+        )
+        with mock.patch.object(cutover.subprocess, "run", return_value=completed), mock.patch.object(
+            cutover, "_importer_connections_present", return_value=False
+        ):
+            state = cutover._process_state(cutover.IMPORT_UNIT)
+        self.assertEqual(state, {
+            "activeState": "inactive",
+            "mainPid": 0,
+            "restarts": 0,
+            "unitFileState": "disabled",
+            "listenerClosed": True,
+        })
+
+    def test_retired_importer_with_open_socket_is_rejected(self) -> None:
+        completed = mock.Mock(
+            returncode=0,
+            stdout="ActiveState=inactive\nMainPID=0\nNRestarts=0\nUnitFileState=disabled\n",
+        )
+        with mock.patch.object(cutover.subprocess, "run", return_value=completed), mock.patch.object(
+            cutover, "_importer_connections_present", return_value=True
+        ):
+            with self.assertRaisesRegex(RuntimeError, "neither active nor safely retired"):
+                cutover._process_state(cutover.IMPORT_UNIT)
+
+    def test_gateway_continuity_still_requires_active_process(self) -> None:
+        completed = mock.Mock(
+            returncode=0,
+            stdout="ActiveState=inactive\nMainPID=0\nNRestarts=0\nUnitFileState=disabled\n",
+        )
+        with mock.patch.object(cutover.subprocess, "run", return_value=completed):
+            with self.assertRaisesRegex(RuntimeError, "not active"):
+                cutover._process_state(cutover.GATEWAY_UNIT)
+
     def test_success_uses_overlap_before_each_disable_and_finishes_on_primary(self) -> None:
         output = StringIO()
         with ExitStack() as stack:

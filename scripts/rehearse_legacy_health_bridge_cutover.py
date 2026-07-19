@@ -28,6 +28,7 @@ DEFAULT_CURRENT = pathlib.Path("/opt/cloudx/current")
 DEFAULT_PREVIOUS = pathlib.Path("/opt/cloudx/previous")
 GATEWAY_UNIT = "cliproxy.service"
 IMPORT_UNIT = "codex-import.service"
+IMPORT_PORT = 8780
 MAX_OUTPUT_BYTES = 64 * 1024
 
 
@@ -75,6 +76,28 @@ def _selector_state() -> Dict[str, str]:
     }
 
 
+def _importer_connections_present() -> bool:
+    try:
+        completed = subprocess.run(
+            [
+                "ss",
+                "-H",
+                "-tan",
+                "( sport = :%d or dport = :%d )" % (IMPORT_PORT, IMPORT_PORT),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=10.0,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError("legacy importer socket state is unavailable") from exc
+    if completed.returncode != 0 or len(completed.stdout) > 4096:
+        raise RuntimeError("legacy importer socket state is unavailable")
+    return bool(completed.stdout.strip())
+
+
 def _process_state(unit: str) -> Dict[str, Any]:
     if unit not in {GATEWAY_UNIT, IMPORT_UNIT}:
         raise RuntimeError("continuity unit is unsupported")
@@ -86,6 +109,7 @@ def _process_state(unit: str) -> Dict[str, Any]:
             "--property=ActiveState",
             "--property=MainPID",
             "--property=NRestarts",
+            "--property=UnitFileState",
             "--no-pager",
         ],
         stdout=subprocess.PIPE,
@@ -101,16 +125,34 @@ def _process_state(unit: str) -> Dict[str, Any]:
         if "=" in line:
             key, value = line.split("=", 1)
             values[key] = value
-    if set(values) != {"ActiveState", "MainPID", "NRestarts"}:
+    if set(values) != {"ActiveState", "MainPID", "NRestarts", "UnitFileState"}:
         raise RuntimeError("continuity process state is incomplete")
     try:
         pid = int(values["MainPID"])
         restarts = int(values["NRestarts"])
     except ValueError as exc:
         raise RuntimeError("continuity process state is invalid") from exc
-    if values["ActiveState"] != "active" or pid <= 0 or restarts < 0:
-        raise RuntimeError("continuity process is not active")
-    return {"activeState": "active", "mainPid": pid, "restarts": restarts}
+    if restarts < 0:
+        raise RuntimeError("continuity process state is invalid")
+    if values["ActiveState"] == "active" and pid > 0:
+        return {"activeState": "active", "mainPid": pid, "restarts": restarts}
+    if (
+        unit == IMPORT_UNIT
+        and values["ActiveState"] == "inactive"
+        and pid == 0
+        and values["UnitFileState"] == "disabled"
+        and not _importer_connections_present()
+    ):
+        return {
+            "activeState": "inactive",
+            "mainPid": 0,
+            "restarts": restarts,
+            "unitFileState": "disabled",
+            "listenerClosed": True,
+        }
+    if unit == IMPORT_UNIT:
+        raise RuntimeError("legacy importer is neither active nor safely retired")
+    raise RuntimeError("continuity process is not active")
 
 
 def _require_timer(unit: str, *, active: bool) -> None:
