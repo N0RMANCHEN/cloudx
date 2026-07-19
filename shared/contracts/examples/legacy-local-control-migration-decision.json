@@ -1,0 +1,13 @@
+{
+  "activeConnections": 0,
+  "controlPid": 101,
+  "decisionDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "localCpaChanged": false,
+  "localCpaPid": 300,
+  "minimumIdleSeconds": 2592000,
+  "port": 8765,
+  "recoveryBundleId": "20260715T122545Z",
+  "schema": "cloudx.legacy-local-control-migration-decision.v1",
+  "status": "migration-ready",
+  "targetLauncherSha256": "3333333333333333333333333333333333333333333333333333333333333333"
+}

@@ -318,6 +318,58 @@ class ContractTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, serialized)
 
+    def test_stale_local_exec_retirement_is_digest_bound_and_cpa_inert(self) -> None:
+        plan = json.loads(
+            (CONTRACTS / "examples/stale-local-codexx-exec-plan.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        decision = json.loads(
+            (CONTRACTS / "examples/stale-local-codexx-exec-decision.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        receipt = json.loads(
+            (CONTRACTS / "examples/stale-local-codexx-exec-retirement.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertFalse(plan["automaticAction"])
+        self.assertFalse(any(plan["authorization"].values()))
+        self.assertTrue(decision["irreversibleProcessTerminationRequired"])
+        self.assertEqual(decision["targetCount"], len(decision["targetPids"]))
+        self.assertEqual(decision["targetCount"], len(decision["childPids"]))
+        self.assertEqual(receipt["signal"], "SIGTERM")
+        self.assertFalse(receipt["sigkillSent"])
+        self.assertFalse(receipt["serviceRestarted"])
+        self.assertFalse(receipt["localCpaChanged"])
+
+    def test_legacy_control_migration_is_idle_recoverable_and_cpa_inert(self) -> None:
+        plan = json.loads(
+            (CONTRACTS / "examples/legacy-local-control-migration-plan.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        decision = json.loads(
+            (CONTRACTS / "examples/legacy-local-control-migration-decision.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        receipt = json.loads(
+            (CONTRACTS / "examples/legacy-local-control-migration.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertFalse(plan["automaticAction"])
+        self.assertFalse(any(plan["authorization"].values()))
+        self.assertEqual(decision["activeConnections"], 0)
+        self.assertGreaterEqual(decision["minimumIdleSeconds"], 30 * 24 * 60 * 60)
+        self.assertTrue(receipt["recoveryScriptPrepared"])
+        self.assertTrue(receipt["controlServiceRestarted"])
+        self.assertFalse(receipt["legacyPackageQuarantined"])
+        self.assertFalse(receipt["localCpaChanged"])
+        self.assertFalse(receipt["accountMutation"])
+
     def test_phi_mesh_compatibility_profile_references_existing_contracts(self) -> None:
         profile = json.loads(
             (CONTRACTS / "examples/phi-mesh-compatibility-profile.json").read_text(encoding="utf-8")

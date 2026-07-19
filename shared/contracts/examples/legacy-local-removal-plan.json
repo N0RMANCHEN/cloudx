@@ -32,7 +32,8 @@
     "local_cpa_launch_agent",
     "local_cpa_configuration",
     "account_profiles",
-    "private_recovery_bundle"
+    "private_recovery_bundle",
+    "manual_recovery_script"
   ],
   "releaseVersion": "0.1.15",
   "schema": "cloudx.legacy-local-removal-plan.v1",

@@ -23,6 +23,7 @@ from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Seque
 
 
 CONFIRMATION = "QUARANTINE LOCAL CODEX-PLUS PACKAGE WITH AUTOMATIC RESTORE"
+RECOVERY_CONFIRMATION = "RESTORE QUARANTINED LOCAL CODEX-PLUS PACKAGE"
 VERSION_RE = __import__("re").compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 BACKUP_ID_RE = __import__("re").compile(r"^[0-9]{8}T[0-9]{6}Z$")
 MAX_MANIFEST_BYTES = 2 * 1024 * 1024
@@ -448,6 +449,11 @@ def _prepare_quarantine(
         "recoveryBundleRetained": True,
         "recoveryBundleId": recovery_bundle.name,
         "targets": [name for name, _relative in TARGETS],
+        "livePaths": {
+            name: str(home / relative)
+            for name, relative in TARGETS
+        },
+        "recoveryConfirmation": RECOVERY_CONFIRMATION,
     }
     descriptor, temporary = tempfile.mkstemp(prefix=".manifest.", dir=str(root))
     try:
@@ -464,7 +470,66 @@ def _prepare_quarantine(
             pass
         pathlib.Path(temporary).unlink(missing_ok=True)
         raise
+    recovery_source = r'''#!/usr/bin/env python3
+import argparse, json, os, pathlib
+CONFIRMATION = "RESTORE QUARANTINED LOCAL CODEX-PLUS PACKAGE"
+ROOT = pathlib.Path(__file__).resolve().parent
+def lexists(path): return os.path.lexists(path)
+def state():
+    manifest=json.loads((ROOT/"manifest.json").read_text())
+    pairs=[]
+    for name,path in manifest["livePaths"].items(): pairs.append((pathlib.Path(path),ROOT/"live"/name))
+    return manifest,pairs
+def check(pairs):
+    if any(lexists(source) for source,target in pairs): raise SystemExit("a live legacy target already exists")
+    if any(not lexists(target) for source,target in pairs): raise SystemExit("a quarantined legacy target is unavailable")
+    devices={target.lstat().st_dev for source,target in pairs}
+    devices.update(source.parent.lstat().st_dev for source,target in pairs)
+    if len(devices)!=1: raise SystemExit("legacy restore is not on one filesystem")
+def main():
+    parser=argparse.ArgumentParser(); parser.add_argument("--check",action="store_true"); parser.add_argument("--confirm",default=""); args=parser.parse_args()
+    manifest,pairs=state(); check(pairs)
+    if args.check:
+        print(json.dumps({"status":"ready","backupId":manifest["backupId"],"targets":len(pairs)},sort_keys=True)); return
+    if args.confirm!=CONFIRMATION: raise SystemExit("legacy restore confirmation does not match")
+    moved=[]
+    try:
+        for source,target in pairs: os.replace(target,source); moved.append((source,target))
+    except Exception:
+        for source,target in reversed(moved): os.replace(source,target)
+        raise
+    print(json.dumps({"status":"restored","backupId":manifest["backupId"],"targets":len(pairs),"serviceRestarted":False},sort_keys=True))
+if __name__ == "__main__": main()
+'''.encode("utf-8")
+    _atomic_private_file(root / "recover.py", recovery_source, 0o700)
+    manual = (
+        "# Restore quarantined local codex-plus package\n\n"
+        "This restores only the three retained package paths. It does not restart CPA, Codex, "
+        "the legacy control service, or any Cloudx service.\n\n"
+        "    ./recover.py --check\n"
+        "    ./recover.py --confirm \"%s\"\n"
+    ) % RECOVERY_CONFIRMATION
+    _atomic_private_file(root / "RECOVERY.md", manual.encode("utf-8"), 0o600)
     return backup_id, root
+
+
+def _atomic_private_file(path: pathlib.Path, raw: bytes, mode: int) -> None:
+    descriptor, temporary_name = tempfile.mkstemp(prefix=".%s." % path.name, dir=str(path.parent))
+    temporary = pathlib.Path(temporary_name)
+    try:
+        os.fchmod(descriptor, mode)
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(raw)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        directory = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _move_targets(home: pathlib.Path, quarantine: pathlib.Path) -> List[Tuple[pathlib.Path, pathlib.Path]]:
@@ -515,6 +580,7 @@ def plan(release_version: str) -> Dict[str, Any]:
             "local_cpa_configuration",
             "account_profiles",
             "private_recovery_bundle",
+            "manual_recovery_script",
         ],
         "automaticAction": False,
         "preconditions": [
@@ -584,6 +650,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         _verify_recovery_copy(home, runtime, launcher_sha256, recovery_manifest)
         _native_import_dry_run(artifact)
         _fresh_shell(home)
+        legacy_before_move, cpa_before_move = _process_inventory(home)
+        if legacy_before_move:
+            raise RuntimeError("legacy codex-plus process appeared before quarantine")
+        if cpa_before_move != cpa_before or not _port_open(8317):
+            raise RuntimeError("external local CPA continuity changed before quarantine")
 
         backup_id, quarantine = _prepare_quarantine(
             home,
@@ -648,6 +719,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "localCpaLaunchAgentRetained": True,
         "localCpaConfigurationRetained": True,
         "privateRecoveryBundleRetained": True,
+        "manualRecoveryPrepared": True,
         "legacyRuntimeLive": False,
         "legacyLauncherLive": False,
         "recoveryEntrypointLive": False,

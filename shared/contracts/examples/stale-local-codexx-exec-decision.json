@@ -1,0 +1,15 @@
+{
+  "childPids": [102, 202],
+  "decisionDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "irreversibleProcessTerminationRequired": true,
+  "localCpaChanged": false,
+  "localCpaPid": 300,
+  "minimumAgeSeconds": 2592000,
+  "minimumObservedCpuPercent": 80.0,
+  "networkSockets": 0,
+  "schema": "cloudx.stale-local-codexx-exec-decision.v1",
+  "status": "retirement-ready",
+  "stdioRevoked": true,
+  "targetCount": 2,
+  "targetPids": [101, 201]
+}

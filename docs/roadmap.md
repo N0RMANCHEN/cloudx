@@ -403,6 +403,10 @@ Status: in progress. The legacy HTTP importer is reversibly stopped/disabled wit
 
 - [ ] Confirm there are no legacy local sessions, tunnels, import transactions, or rollback dependencies.
 - [x] Re-audit M5 after workstation replacement; remove the absent `/Users/BofeiChen` endpoint from live assumptions, verify port `18317` closed and both import locks free, and record the three surviving local legacy processes plus cloud bridge/runtime rollback blockers without stopping a process or service.
+- [x] Add versioned, default-offline, digest-bound transactions and a complete recovery runbook to retire only proven unusable orphaned local exec groups, migrate the independently idle control LaunchAgent to the retained private runtime, and prepare standalone package restoration before quarantine without local CPA lifecycle authority.
+- [ ] Retire the two proven-stale orphaned local exec groups with `SIGTERM` only from an immutable committed operator bundle; preserve the control listener, local CPA PID/port, Cloudx selectors, and real communication.
+- [ ] Migrate the zero-connection legacy control LaunchAgent to the retained private recovery runtime with one bounded port-`8765` restart; validate retained/live recovery and preserve local CPA continuously.
+- [ ] Quarantine the three live legacy package targets after all live references are gone; accept native import, fresh-shell selection, official Codex/Git, standalone restore, and unchanged local CPA without terminating or restarting a process.
 - [x] Retire the old HTTP importer only after SSH import has production acceptance evidence.
 - [x] Replace the installed `codex-gateway-import` HTTP client with the signed SSH compatibility adapter while retaining an atomic rollback set and leaving the old service running.
 - [x] Complete a read-only stop-gate audit covering port activity, request history, systemd reverse dependencies, installed callers, legacy health output, and Phi consumers without stopping or disabling the importer.

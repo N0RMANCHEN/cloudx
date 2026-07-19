@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.legacy-local-control-migration.v1.schema.json",
+  "title": "Cloudx idle legacy local control migration receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "status", "decisionDigest", "releaseVersion", "previousPid", "currentPid", "port",
+    "httpAuthenticationCanary", "activeConnections", "recoveryBundleId", "rollbackBackupId",
+    "recoveryScriptPrepared", "controlServiceRestarted", "legacyPackageQuarantined", "localCpaPid",
+    "localCpaChanged", "accountMutation"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.legacy-local-control-migration.v1"},
+    "status": {"const": "migrated"},
+    "decisionDigest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "previousPid": {"type": "integer", "minimum": 1},
+    "currentPid": {"type": "integer", "minimum": 1},
+    "port": {"const": 8765},
+    "httpAuthenticationCanary": {"const": 401},
+    "activeConnections": {"const": 0},
+    "recoveryBundleId": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z$"},
+    "rollbackBackupId": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z$"},
+    "recoveryScriptPrepared": {"const": true},
+    "controlServiceRestarted": {"const": true},
+    "legacyPackageQuarantined": {"const": false},
+    "localCpaPid": {"type": "integer", "minimum": 1},
+    "localCpaChanged": {"const": false},
+    "accountMutation": {"const": false}
+  }
+}

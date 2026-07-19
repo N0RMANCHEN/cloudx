@@ -9,6 +9,7 @@
   "legacyRuntimeLive": false,
   "localCpaConfigurationRetained": true,
   "localCpaLaunchAgentRetained": true,
+  "manualRecoveryPrepared": true,
   "nativeImportDryRunAccepted": true,
   "officialCodexPreserved": true,
   "officialGitPreserved": true,

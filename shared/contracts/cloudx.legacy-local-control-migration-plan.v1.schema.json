@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.legacy-local-control-migration-plan.v1.schema.json",
+  "title": "Cloudx idle legacy local control migration plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "confirmation", "releaseVersion", "automaticAction", "preconditions", "authorization"],
+  "properties": {
+    "schema": {"const": "cloudx.legacy-local-control-migration-plan.v1"},
+    "status": {"const": "confirmation-required"},
+    "confirmation": {"const": "MIGRATE IDLE LOCAL CODEXX CONTROL TO RETAINED RECOVERY RUNTIME"},
+    "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "automaticAction": {"const": false},
+    "preconditions": {
+      "const": [
+        "exact_idle_control_service",
+        "zero_active_control_connections",
+        "minimum_thirty_day_state_idle_window",
+        "private_recovery_bundle_verified",
+        "recovery_script_prepared_before_restart",
+        "decision_digest_match",
+        "external_local_cpa_healthy"
+      ]
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["controlServiceRestart", "launchAgentWrite", "legacyPackageQuarantine", "processTermination", "localCpaMutation", "accountMutation", "recoveryRemoval"],
+      "properties": {
+        "controlServiceRestart": {"const": false},
+        "launchAgentWrite": {"const": false},
+        "legacyPackageQuarantine": {"const": false},
+        "processTermination": {"const": false},
+        "localCpaMutation": {"const": false},
+        "accountMutation": {"const": false},
+        "recoveryRemoval": {"const": false}
+      }
+    }
+  }
+}

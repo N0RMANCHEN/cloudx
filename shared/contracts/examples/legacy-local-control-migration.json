@@ -1,0 +1,19 @@
+{
+  "accountMutation": false,
+  "activeConnections": 0,
+  "controlServiceRestarted": true,
+  "currentPid": 102,
+  "decisionDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "httpAuthenticationCanary": 401,
+  "legacyPackageQuarantined": false,
+  "localCpaChanged": false,
+  "localCpaPid": 300,
+  "port": 8765,
+  "previousPid": 101,
+  "recoveryBundleId": "20260715T122545Z",
+  "recoveryScriptPrepared": true,
+  "releaseVersion": "0.1.21",
+  "rollbackBackupId": "20260719T150000Z",
+  "schema": "cloudx.legacy-local-control-migration.v1",
+  "status": "migrated"
+}

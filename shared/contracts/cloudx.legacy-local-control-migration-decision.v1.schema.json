@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.legacy-local-control-migration-decision.v1.schema.json",
+  "title": "Cloudx idle legacy local control migration decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "status", "decisionDigest", "controlPid", "port", "activeConnections",
+    "minimumIdleSeconds", "recoveryBundleId", "targetLauncherSha256", "localCpaPid", "localCpaChanged"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.legacy-local-control-migration-decision.v1"},
+    "status": {"const": "migration-ready"},
+    "decisionDigest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "controlPid": {"type": "integer", "minimum": 1},
+    "port": {"const": 8765},
+    "activeConnections": {"const": 0},
+    "minimumIdleSeconds": {"type": "integer", "minimum": 2592000},
+    "recoveryBundleId": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z$"},
+    "targetLauncherSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "localCpaPid": {"type": "integer", "minimum": 1},
+    "localCpaChanged": {"const": false}
+  }
+}

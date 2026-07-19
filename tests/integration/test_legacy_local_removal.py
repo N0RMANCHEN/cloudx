@@ -203,6 +203,7 @@ class LegacyLocalRemovalTests(unittest.TestCase):
         self.assertTrue(document["cloudxEntrypointsUnchanged"])
         self.assertTrue(document["externalLocalCpaUnchanged"])
         self.assertTrue(document["privateRecoveryBundleRetained"])
+        self.assertTrue(document["manualRecoveryPrepared"])
         self.assertFalse(document["legacyRuntimeLive"])
         self.assertFalse(document["legacyLauncherLive"])
         self.assertFalse(document["recoveryEntrypointLive"])
@@ -211,6 +212,23 @@ class LegacyLocalRemovalTests(unittest.TestCase):
         self.assertTrue(document["quarantineRetained"])
         entered[13].assert_called_once()
         entered[14].assert_not_called()
+
+    def test_quarantine_prepares_manual_recovery_before_any_move(self) -> None:
+        bundle = self.root / "legacy-backups/20260715T050707Z"
+        backup_id, quarantine = removal._prepare_quarantine(
+            self.home,
+            self.runtime,
+            hashlib.sha256(self.launcher).hexdigest(),
+            bundle,
+        )
+        self.assertRegex(backup_id, r"^[0-9]{8}T[0-9]{6}Z$")
+        self.assertEqual(stat.S_IMODE((quarantine / "recover.py").stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE((quarantine / "RECOVERY.md").stat().st_mode), 0o600)
+        recovery = (quarantine / "recover.py").read_text(encoding="utf-8")
+        compile(recovery, str(quarantine / "recover.py"), "exec")
+        manifest = json.loads((quarantine / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["recoveryConfirmation"], removal.RECOVERY_CONFIRMATION)
+        self.assertEqual(set(manifest["livePaths"]), {name for name, unused in removal.TARGETS})
 
     def test_post_move_acceptance_failure_restores_all_live_paths(self) -> None:
         self.quarantine.mkdir(parents=True)
@@ -235,6 +253,7 @@ class LegacyLocalRemovalTests(unittest.TestCase):
             "_process_inventory",
             side_effect=[
                 ([], dict(self.cpa)),
+                ([], dict(self.cpa)),
                 ([], {"pid": 99999, "identity": "99999 changed"}),
                 ([], dict(self.cpa)),
             ],
@@ -244,6 +263,23 @@ class LegacyLocalRemovalTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "live paths were restored"):
                 removal.main(self._apply_arguments())
         entered[14].assert_called_once()
+
+    def test_process_appearing_immediately_before_move_blocks_quarantine(self) -> None:
+        patches = self._base_patches()
+        patches[4] = mock.patch.object(
+            removal,
+            "_process_inventory",
+            side_effect=[
+                ([], dict(self.cpa)),
+                (["new live legacy process"], dict(self.cpa)),
+            ],
+        )
+        with ExitStack() as stack:
+            entered = [stack.enter_context(patcher) for patcher in patches]
+            with self.assertRaisesRegex(RuntimeError, "appeared"):
+                removal.main(self._apply_arguments())
+        entered[12].assert_not_called()
+        entered[13].assert_not_called()
 
     def test_legacy_process_or_listener_blocks_before_inventory(self) -> None:
         for legacy, ports, message in (

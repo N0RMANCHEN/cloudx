@@ -183,6 +183,8 @@ Source `0.1.16` also recognizes the exact CPA export wrapper with outer `platfor
 
 ## Prepare Legacy Local Package Quarantine
 
+The complete ordered production procedure, immutable operator-bundle requirement, CPA continuity checks, and both recovery paths are documented in [Local Legacy Retirement Runbook](local-legacy-retirement.md).
+
 Inspect the local retirement transaction without reading the home directory, process table, listener state, package, or recovery data:
 
 ```bash
@@ -196,7 +198,7 @@ Exact-confirmation apply takes a user-private lock, verifies the active artifact
 
 Source `0.1.22` aligns those prechecks with the current public command contract: the signed local zipapp is invoked as `cloudx-local.pyz codexx import ...`, external official Git may resolve from `/opt/homebrew/bin`, `/usr/local/bin`, or the system path, and successful `codexx exit` is verified by cleared Cloudx account and `CODEX_HOME` variables. These changes do not weaken the home-directory exclusion or authorize quarantine.
 
-The transaction then moves only `~/.local/bin/codexx_app`, `~/.local/bin/codexx.py`, and `~/.local/bin/codexx-legacy` into a private retained quarantine on the same filesystem. It repeats native import, fresh-shell mode selection, selector/hook/entrypoint checks, and external CPA continuity after the move. Any failure restores every moved target before returning nonzero. Success is a quarantine receipt, not deletion: accounts, CPA binary/configuration/LaunchAgent, Cloudx entrypoints and hook, official Codex/Git, the original recovery bundle, and the quarantine all remain; no process is terminated and no service is restarted.
+The transaction then prepares a standalone restore script and moves only `~/.local/bin/codexx_app`, `~/.local/bin/codexx.py`, and `~/.local/bin/codexx-legacy` into a private retained quarantine on the same filesystem. It repeats native import, fresh-shell mode selection, selector/hook/entrypoint checks, and external CPA continuity after the move. Any failure restores every moved target before returning nonzero. Success is a quarantine receipt, not deletion: accounts, CPA binary/configuration/LaunchAgent, Cloudx entrypoints and hook, official Codex/Git, the original recovery bundle, the manual restore tool, and the quarantine all remain; no process is terminated and no service is restarted.
 
 Inspect the exact signed Phi Mesh compatibility profile without reading a credential, probing the gateway, or changing runtime state:
 

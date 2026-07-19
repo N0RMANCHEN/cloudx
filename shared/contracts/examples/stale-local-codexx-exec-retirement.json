@@ -1,0 +1,14 @@
+{
+  "childProcessesRetired": 2,
+  "decisionDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "fileMutation": false,
+  "localCpaChanged": false,
+  "localCpaPid": 300,
+  "parentProcessesRetired": 2,
+  "processGroupsRetired": 2,
+  "schema": "cloudx.stale-local-codexx-exec-retirement.v1",
+  "serviceRestarted": false,
+  "sigkillSent": false,
+  "signal": "SIGTERM",
+  "status": "retired"
+}

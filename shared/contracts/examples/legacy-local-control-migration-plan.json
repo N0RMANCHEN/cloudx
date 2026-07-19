@@ -1,0 +1,25 @@
+{
+  "authorization": {
+    "accountMutation": false,
+    "controlServiceRestart": false,
+    "launchAgentWrite": false,
+    "legacyPackageQuarantine": false,
+    "localCpaMutation": false,
+    "processTermination": false,
+    "recoveryRemoval": false
+  },
+  "automaticAction": false,
+  "confirmation": "MIGRATE IDLE LOCAL CODEXX CONTROL TO RETAINED RECOVERY RUNTIME",
+  "preconditions": [
+    "exact_idle_control_service",
+    "zero_active_control_connections",
+    "minimum_thirty_day_state_idle_window",
+    "private_recovery_bundle_verified",
+    "recovery_script_prepared_before_restart",
+    "decision_digest_match",
+    "external_local_cpa_healthy"
+  ],
+  "releaseVersion": "0.1.21",
+  "schema": "cloudx.legacy-local-control-migration-plan.v1",
+  "status": "confirmation-required"
+}

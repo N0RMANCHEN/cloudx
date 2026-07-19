@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.stale-local-codexx-exec-plan.v1.schema.json",
+  "title": "Cloudx stale orphaned local codexx exec retirement plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "confirmation", "automaticAction", "preconditions", "authorization"],
+  "properties": {
+    "schema": {"const": "cloudx.stale-local-codexx-exec-plan.v1"},
+    "status": {"const": "confirmation-required"},
+    "confirmation": {"const": "RETIRE STALE ORPHANED LOCAL CODEXX EXEC PROCESSES"},
+    "automaticAction": {"const": false},
+    "preconditions": {
+      "const": [
+        "orphan_parent_ppid_one",
+        "one_official_codex_child",
+        "minimum_thirty_day_age",
+        "revoked_standard_io",
+        "zero_network_sockets",
+        "sustained_cpu_bound_state",
+        "decision_digest_match",
+        "external_local_cpa_healthy"
+      ]
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["processInspection", "processTermination", "sigkill", "localCpaMutation", "serviceRestart", "fileMutation"],
+      "properties": {
+        "processInspection": {"const": false},
+        "processTermination": {"const": false},
+        "sigkill": {"const": false},
+        "localCpaMutation": {"const": false},
+        "serviceRestart": {"const": false},
+        "fileMutation": {"const": false}
+      }
+    }
+  }
+}
