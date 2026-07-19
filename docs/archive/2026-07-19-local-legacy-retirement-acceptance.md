@@ -2,7 +2,7 @@
 
 Date: 2026-07-19
 
-Source commit `2d13923043be7e88f78729fadb3de2529f50c9f9` was pushed before production use. The three operator scripts were extracted into a private immutable bundle and matched the committed SHA-256 values. No production transaction ran from the Git checkout.
+Source commit `2d13923043be7e88f78729fadb3de2529f50c9f9` was pushed before the first three production transactions. Their scripts were extracted into a private immutable bundle and matched the committed SHA-256 values. Final control retirement ran from separately pushed commit `c747b96f95cd350e49e33b6355d6c1beaa57660f`; its exact script SHA-256 was `858a3dcb4bafb18741eafeccf35ba142b6489aa13d0dfa8f813ca624bee4db3d`. No production transaction ran from the Git checkout.
 
 ## Stale Exec Retirement
 
@@ -27,6 +27,15 @@ Source commit `2d13923043be7e88f78729fadb3de2529f50c9f9` was pushed before produ
 - The standalone package recovery check passed. The retained control recovery remains ready; live-mode control recovery now correctly requires restoring the package first.
 - No process was terminated and no service restarted by package quarantine.
 
+## Final Control Retirement
+
+- Decision digest: `sha256:c0b54fd46466fbbb3fe317c18ea1f19711c981acde1e646492249917a27b8301`.
+- The still-zero-connection control PID `48303` matched retained bundle `20260715T122545Z` and migration backup `20260719T150309Z`.
+- A new recovery tool was prepared before `launchctl bootout`.
+- Only `com.codexx.control` was unloaded, and only its LaunchAgent plist entered private quarantine `20260719T154900Z`.
+- Port `8765` is closed, the LaunchAgent is not loaded, the live plist is absent, and the recovery `--check` reports ready.
+- `SIGKILL` was not sent, no official Codex process was terminated, and no account or Cloudx selector changed.
+
 ## Communication Continuity
 
-The external local CPA remained PID `61859` with port `8317` listening throughout all three transactions. Real official-Codex-through-CPA canaries passed before retirement, after control migration, and after package quarantine. Port `8765` remained healthy after the one intentional control-service reload. No CPA launcher, binary, configuration, account, credential, Cloudx selector, or active Codex communication path changed.
+The external local CPA remained PID `61859` with port `8317` listening throughout all four transactions. Real official-Codex-through-CPA canaries passed before retirement, after control migration, after package quarantine, after cloud runtime quarantine, and after final control retirement. Port `8765` remained healthy during the migration phase and is intentionally closed after final retirement. No CPA launcher, binary, configuration, account, credential, Cloudx selector, or active Codex communication path changed. Final audit found zero live codex-plus processes, closed ports `18317` and `8765`, and a free local import advisory lock.
