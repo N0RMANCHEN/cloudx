@@ -121,6 +121,8 @@ Manifest, local artifact, cloud artifact, and offline bundle SHA-256 values are 
 
 Publication changed no production selector or release directory. Local and cloud remain signed `0.1.19/0.1.18`; local CPA remains PID `61859`, cloud CPA remains PID `1613475` with restart count `0`, importer remains PID `133756` with restart count `0`, the cloud active pool retains one credential, the archive retains 45 entries, and failure/trigger inputs remain empty. Install cloud then local through separate exact gates before staging `.policy.4`; CPA activation remains a later independent restart boundary.
 
+The separately confirmed cloud `0.1.20` install is accepted. Root-only transaction `20260719T082934Z-8f5ce554` stored a complete selector recovery script and manual first, verified it against `0.1.19/0.1.18`, then cloned immutable `v0.1.20` and its artifact branch from one locally audited offline Git bundle. The tagged canonical installer returned stage `staged`, activation `active`, and `serviceRestarted=false`. Cloud now selects `0.1.20/0.1.19`; exact artifact/manifest, self-check, release status, handshake, nine unit/drop-in digests, two private prerequisite digests, watcher states, one active credential, 45 archive entries, empty failure input, and absent trigger all passed. CPA PID `1613475`, importer PID `133756`, and both restart counts `0` were preserved. A real local official-Codex-through-CPA canary passed afterward. Local remains `0.1.19/0.1.18`; its install is the next separate gate.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:

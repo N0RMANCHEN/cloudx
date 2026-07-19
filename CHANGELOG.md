@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Install signed Cloudx `0.1.20` on cloud from a verified offline Git bundle containing only immutable `v0.1.20` and `release-artifacts/v0.1.20`, retaining signed `0.1.19`. Root-only transaction `20260719T082934Z-8f5ce554` prepared and checked an independent selector recovery tool before activation; exact artifact/manifest, self-check, release status, handshake, service/credential/archive/watcher/unit/prerequisite aggregates, and a real post-install local Codex-through-CPA canary passed while CPA PID `1613475`, importer PID `133756`, and both restart counts remained unchanged with no service restart.
 - Advance repository development to `0.1.21` immediately after immutable signed `0.1.20` publication, preventing later source changes from rebuilding the released identity while endpoint installation and CPA `.policy.4` stage/activation remain separately controlled.
 
 ## 0.1.20 - 2026-07-19
