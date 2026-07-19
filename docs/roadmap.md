@@ -396,10 +396,10 @@ This milestone implements the operator-requested external CPA safety boundary wi
 
 ## M5: Legacy Retirement
 
-Status: pending.
+Status: in progress. The legacy HTTP importer is reversibly stopped/disabled with its complete rollback boundary retained; local package/session and legacy bridge gates remain.
 
 - [ ] Confirm there are no legacy local sessions, tunnels, import transactions, or rollback dependencies.
-- [ ] Retire the old HTTP importer only after SSH import has production acceptance evidence.
+- [x] Retire the old HTTP importer only after SSH import has production acceptance evidence.
 - [x] Replace the installed `codex-gateway-import` HTTP client with the signed SSH compatibility adapter while retaining an atomic rollback set and leaving the old service running.
 - [x] Complete a read-only stop-gate audit covering port activity, request history, systemd reverse dependencies, installed callers, legacy health output, and Phi consumers without stopping or disabling the importer.
 - [x] Recheck the stop gate after the Phi goal-watchdog formal-health cutover; confirm that its legacy signal dependency is gone but fresh cloud-host HTTP account and import requests independently keep retirement unapproved.
