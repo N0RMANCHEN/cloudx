@@ -20,7 +20,6 @@ import subprocess
 import sys
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
@@ -30,7 +29,6 @@ PLAN_SCHEMA = "cloudx.cloud-cpa-failure-policy-acceptance-plan.v1"
 RESULT_SCHEMA = "cloudx.cloud-cpa-failure-policy-acceptance.v1"
 ACTIVE_ARTIFACT = pathlib.Path("/opt/cloudx/current/cloudx-cloud.pyz")
 AUTH_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth")
-SHADOW_DIR = pathlib.Path("/var/lib/cloudx/shadow-auth")
 ARCHIVE_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth-archive")
 FAILURE_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth-failures")
 SWEEP_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth-sweeps")
@@ -46,6 +44,7 @@ GATEWAY_HOST = "100.90.97.113"
 GATEWAY_PORT = 8317
 EXPECTED_TEXT = "CLOUDX_CPA_POLICY_RECOVERY_OK"
 MAX_FILE_BYTES = 4 * 1024 * 1024
+MAX_INPUT_BYTES = 16 * 1024 * 1024
 MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 CANARY_PREFIX = "cloudx-m4b-limited-"
 
@@ -286,43 +285,41 @@ def _transaction_lock() -> Iterator[None]:
     TRANSACTION_ROOT.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chown(TRANSACTION_ROOT, 0, 0)
     TRANSACTION_ROOT.chmod(0o700)
-    lock_path = TRANSACTION_ROOT / ".acceptance.lock"
-    descriptor = os.open(
-        str(lock_path),
-        os.O_RDWR | os.O_CREAT | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0),
-        0o600,
-    )
+    descriptors = []
     try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        for lock_path in (TRANSACTION_ROOT / ".acceptance.lock", AUTH_DIR / ".cloudx-import.lock"):
+            descriptor = os.open(str(lock_path), os.O_RDWR | os.O_CREAT | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0), 0o600)
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            descriptors.append(descriptor)
         yield
     finally:
-        os.close(descriptor)
-def _classify_shadow() -> Tuple[List[pathlib.Path], Dict[str, int]]:
-    sys.path.insert(0, str(ACTIVE_ARTIFACT))
-    from cloudx_cloud import cpa_auth, cpa_health  # type: ignore[import-not-found]
-
-    runtime = cpa_health.native_runtime()
-    config = cpa_health.cloudx_config(SHADOW_DIR, ARCHIVE_DIR, failure_confirmations=1, proxy_url=PROXY_URL)
-    contexts = runtime.contexts(config, "api")
-    transport = runtime.transport(config, timeout_seconds=5)
-    if not isinstance(transport, dict) or transport.get("status") != "reachable":
-        raise AcceptanceRejected("probe_gate", "declared cloud HTTPS path is not reachable")
-    with ThreadPoolExecutor(max_workers=min(32, max(1, len(contexts)))) as executor:
-        probes = list(executor.map(lambda item: cpa_health.probe_context(runtime, config, item), contexts))
-    grouped: Dict[pathlib.Path, List[Optional[Dict[str, Any]]]] = {}
-    counts: Dict[str, int] = {}
-    for context, probe in zip(contexts, probes):
-        status = str((probe or {}).get("status") or "unavailable")
-        counts[status] = counts.get(status, 0) + 1
-        grouped.setdefault(pathlib.Path(str(context.get("path") or "")), []).append(probe)
-    limited = sorted(
-        path
-        for path, values in grouped.items()
-        if path.parent == SHADOW_DIR and values and all((item or {}).get("status") == "limited" for item in values)
-    )
-    if len(limited) < 3:
-        raise AcceptanceRejected("quota_samples", "three real quota-limited shadow credentials are unavailable")
-    return limited[:3], {"total": len(contexts), "limited": counts.get("limited", 0), "ready": counts.get("ready", 0)}
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+def _quota_samples(raw: bytes) -> List[bytes]:
+    if not raw or len(raw) > MAX_INPUT_BYTES:
+        raise AcceptanceRejected("quota_samples", "quota sample input is empty or oversized")
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise AcceptanceRejected("quota_samples", "quota sample input is invalid") from exc
+    if not isinstance(document, dict) or set(document) != {"schema", "samples"} or document.get("schema") != "cloudx.cpa-quota-samples.v1":
+        raise AcceptanceRejected("quota_samples", "quota sample contract is invalid")
+    encoded = document.get("samples")
+    if not isinstance(encoded, list) or len(encoded) != 3 or any(not isinstance(item, str) for item in encoded):
+        raise AcceptanceRejected("quota_samples", "exactly three quota samples are required")
+    samples: List[bytes] = []
+    for item in encoded:
+        try:
+            value = base64.b64decode(item.encode("ascii"), validate=True)
+            payload = json.loads(value.decode("utf-8"))
+        except (ValueError, UnicodeEncodeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise AcceptanceRejected("quota_samples", "quota sample is invalid") from exc
+        if not value or len(value) > MAX_FILE_BYTES or not isinstance(payload, dict):
+            raise AcceptanceRejected("quota_samples", "quota sample is empty, oversized, or not an object")
+        samples.append(value)
+    if len({_sha256_bytes(item) for item in samples}) != 3:
+        raise AcceptanceRejected("quota_samples", "quota samples must be distinct")
+    return samples
 def _preflight() -> Dict[str, Any]:
     if sys.platform != "linux" or os.geteuid() != 0:
         raise AcceptanceRejected("wrong_host", "cloud CPA acceptance requires root on Linux")
@@ -347,7 +344,6 @@ def _preflight() -> Dict[str, Any]:
     info = active[0].stat()
     if stat.S_IMODE(info.st_mode) != 0o600 or info.st_uid != cliproxy.pw_uid or info.st_gid != cliproxy.pw_gid:
         raise AcceptanceRejected("active_pool", "active baseline credential ownership or mode is unsafe")
-    limited, shadow = _classify_shadow()
     before_canary = _live_canary()
     if _regular_files(FAILURE_DIR, ".json"):
         raise AcceptanceRejected("watcher_input", "baseline canary emitted a failure receipt")
@@ -362,11 +358,9 @@ def _preflight() -> Dict[str, Any]:
         "sweep": {path.name: _sha256(path) for path in sweep},
         "stateDigest": _sha256(state_path) if state_path.is_file() else "",
         "archiveCount": 45,
-        "limitedPaths": limited,
-        "shadow": shadow,
         "beforeCanary": before_canary,
     }
-def _prepare_transaction(baseline: Dict[str, Any]) -> pathlib.Path:
+def _prepare_transaction(baseline: Dict[str, Any], quota_samples: Sequence[bytes]) -> pathlib.Path:
     transaction_id = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + secrets.token_hex(4)
     transaction = TRANSACTION_ROOT / transaction_id
     transaction.mkdir(mode=0o700)
@@ -380,9 +374,8 @@ def _prepare_transaction(baseline: Dict[str, Any]) -> pathlib.Path:
         _atomic_bytes(recovery, _safe_bytes(pathlib.Path(__file__), 1024 * 1024), mode=0o700)
         cliproxy = pwd.getpwnam("cliproxy")
         canaries: Dict[str, str] = {}
-        for index, source in enumerate(baseline["limitedPaths"], start=1):
+        for index, raw in enumerate(quota_samples, start=1):
             name = "%s%d.json" % (CANARY_PREFIX, index)
-            raw = _safe_bytes(source)
             _atomic_bytes(transaction / "staged" / name, raw)
             canaries[name] = _sha256_bytes(raw)
         manifest = {
@@ -437,6 +430,7 @@ def _write_trigger(path: pathlib.Path) -> None:
         "observedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
     })
 def _isolated_sweep(transaction: pathlib.Path, kind: str, source: Optional[pathlib.Path] = None) -> Dict[str, Any]:
+    classification = "quota" if kind.startswith("quota-") else kind
     root = transaction / "isolated" / kind
     auth = root / "auth"
     archive = root / "archive"
@@ -450,7 +444,7 @@ def _isolated_sweep(transaction: pathlib.Path, kind: str, source: Optional[pathl
         raw = _safe_bytes(source)
     else:
         payload: Dict[str, Any] = {"type": "codex", "access_token": _synthetic_token(), "disabled": False}
-        if kind == "provisional":
+        if classification == "provisional":
             payload["refresh_token"] = "cloudx-refreshable-401-canary"
         raw = (json.dumps(payload, sort_keys=True) + "\n").encode("utf-8")
     _atomic_bytes(auth / name, raw)
@@ -472,11 +466,11 @@ def _isolated_sweep(transaction: pathlib.Path, kind: str, source: Optional[pathl
     if not common:
         raise AcceptanceRejected("isolated_sweep", "%s isolated sweep did not run as required" % kind)
     result: Dict[str, Any] = {"kind": kind, "probeConcurrency": 1, "networkProbe": True}
-    if kind == "quota":
+    if classification == "quota":
         if document.get("limited") != 1 or document.get("archived_count") != 0 or not (auth / name).is_file():
             raise AcceptanceRejected("quota_archived", "real weekly quota evidence changed archive state")
         result.update({"limited": 1, "archived": 0})
-    elif kind == "provisional":
+    elif classification == "provisional":
         if document.get("archived_count") != 0 or not (auth / name).is_file() or _sha256(auth / name) != original_digest:
             raise AcceptanceRejected("provisional_archived", "refreshable 401 evidence changed archive state")
         result.update({"provisional401": True, "archived": 0})
@@ -689,13 +683,17 @@ def _idle_acceptance(transaction: pathlib.Path) -> Dict[str, Any]:
     result = {"probeGate": "not_triggered", "probeConcurrency": 0, "trigger": "absent", "cpaServiceUnchanged": True}
     _atomic_json(transaction / "evidence/idle.json", result)
     return result
-def _remote_apply() -> Dict[str, Any]:
+def _remote_apply(quota_samples: Sequence[bytes]) -> Dict[str, Any]:
     with _transaction_lock():
         baseline = _preflight()
-        transaction = _prepare_transaction(baseline)
+        transaction = _prepare_transaction(baseline, quota_samples)
         recovered: Optional[Dict[str, Any]] = None
         try:
-            quota = _isolated_sweep(transaction, "quota", transaction / "staged" / (CANARY_PREFIX + "1.json"))
+            quota_checks = [
+                _isolated_sweep(transaction, "quota-%d" % index, transaction / "staged" / (CANARY_PREFIX + "%d.json" % index))
+                for index in range(1, 4)
+            ]
+            quota = {"sampleCount": 3, "limited": sum(int(item["limited"]) for item in quota_checks), "archived": 0}
             provisional = _isolated_sweep(transaction, "provisional")
             permanent = _isolated_sweep(transaction, "permanent")
             _activate_limited(transaction)
@@ -707,7 +705,7 @@ def _remote_apply() -> Dict[str, Any]:
                 "status": "accepted",
                 "transactionId": transaction.name,
                 "businessPolicy": 2,
-                "shadowProbeConcurrency": baseline["shadow"]["total"],
+                "quotaSampleCount": 3,
                 "realQuota": quota,
                 "provisional": provisional,
                 "permanent": permanent,
@@ -777,7 +775,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 0
     if not args.apply or args.confirm != CONFIRMATION:
         raise AcceptanceRejected("confirmation_mismatch", "cloud CPA acceptance confirmation does not match")
-    print(json.dumps(_remote_apply(), sort_keys=True))
+    raw = sys.stdin.buffer.read(MAX_INPUT_BYTES + 1)
+    print(json.dumps(_remote_apply(_quota_samples(raw)), sort_keys=True))
     return 0
 
 if __name__ == "__main__":

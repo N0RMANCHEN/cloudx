@@ -27,11 +27,12 @@ class CloudCpaFailurePolicyWrapperTests(unittest.TestCase):
 
     def test_default_plan_is_non_authorizing_and_offline(self) -> None:
         output = StringIO()
-        with mock.patch.object(wrapper, "_tool_bytes") as tool, mock.patch.object(
+        with mock.patch.object(wrapper, "_tool_bytes") as tool, mock.patch.object(wrapper, "_quota_bundle") as quota, mock.patch.object(
             wrapper, "_ssh"
         ) as ssh, redirect_stdout(output):
             self.assertEqual(wrapper.main([]), 0)
         tool.assert_not_called()
+        quota.assert_not_called()
         ssh.assert_not_called()
         document = json.loads(output.getvalue())
         self.assertEqual(document["confirmation"], wrapper.CONFIRMATION)
@@ -41,10 +42,11 @@ class CloudCpaFailurePolicyWrapperTests(unittest.TestCase):
         self.assertFalse(document["automaticAction"])
 
     def test_apply_requires_exact_confirmation_before_tool_or_ssh(self) -> None:
-        with mock.patch.object(wrapper, "_tool_bytes") as tool, mock.patch.object(wrapper, "_ssh") as ssh:
+        with mock.patch.object(wrapper, "_tool_bytes") as tool, mock.patch.object(wrapper, "_quota_bundle") as quota, mock.patch.object(wrapper, "_ssh") as ssh:
             with self.assertRaisesRegex(wrapper.AcceptanceRejected, "confirmation"):
                 wrapper.main(["--apply", "--confirm", "wrong"])
         tool.assert_not_called()
+        quota.assert_not_called()
         ssh.assert_not_called()
 
     def test_remote_tool_upload_is_digest_bound_and_root_only(self) -> None:
@@ -71,6 +73,21 @@ class CloudCpaFailurePolicyWrapperTests(unittest.TestCase):
     def test_custom_cloud_host_is_rejected(self) -> None:
         with self.assertRaisesRegex(wrapper.AcceptanceRejected, "fixed"):
             wrapper.main(["--ssh-host", "other"])
+
+    def test_apply_streams_quota_bundle_only_after_confirmation(self) -> None:
+        bundle = b'{"schema":"cloudx.cpa-quota-samples.v1","samples":[]}'
+        accepted = json.dumps({"status": "accepted"}).encode("utf-8")
+        with mock.patch.object(wrapper, "_quota_bundle", return_value=bundle), mock.patch.object(
+            wrapper, "_install_remote_tool", return_value=pathlib.PurePosixPath("/private/tool.py")
+        ), mock.patch.object(wrapper, "_ssh", return_value=self._completed(accepted)) as ssh, redirect_stdout(StringIO()):
+            self.assertEqual(wrapper.main(["--apply", "--confirm", wrapper.CONFIRMATION]), 0)
+        self.assertEqual(ssh.call_args.kwargs["input_bytes"], bundle)
+
+    def test_quota_bundle_requires_three_distinct_samples(self) -> None:
+        bundle = wrapper._encode_quota_samples([b'{"a":1}', b'{"a":2}', b'{"a":3}'])
+        self.assertEqual(json.loads(bundle)["schema"], "cloudx.cpa-quota-samples.v1")
+        with self.assertRaisesRegex(wrapper.AcceptanceRejected, "distinct"):
+            wrapper._encode_quota_samples([b"same", b"same", b"other"])
 
 
 class CloudCpaFailurePolicyTransactionTests(unittest.TestCase):
@@ -238,17 +255,17 @@ class CloudCpaFailurePolicyTransactionTests(unittest.TestCase):
     def test_failed_live_phase_invokes_prebuilt_recovery(self) -> None:
         root = self.transactions / "failed"
         root.mkdir()
-        baseline = {"shadow": {"total": 22}, "service": {"MainPID": 1, "NRestarts": 0}}
+        baseline = {"service": {"MainPID": 1, "NRestarts": 0}}
         recovered = {"activeRestored": True}
         with mock.patch.object(transaction, "_transaction_lock", return_value=nullcontext()), mock.patch.object(
             transaction, "_preflight", return_value=baseline
         ), mock.patch.object(transaction, "_prepare_transaction", return_value=root), mock.patch.object(
-            transaction, "_isolated_sweep", return_value={}
+            transaction, "_isolated_sweep", return_value={"limited": 1}
         ), mock.patch.object(transaction, "_activate_limited", side_effect=transaction.AcceptanceRejected("boom", "failed")), mock.patch.object(
             transaction, "_recover", return_value=recovered
         ) as recovery:
             with self.assertRaisesRegex(transaction.AcceptanceRejected, "restored"):
-                transaction._remote_apply()
+                transaction._remote_apply([b'{"a":1}', b'{"a":2}', b'{"a":3}'])
         recovery.assert_called_once_with(root)
         receipt = json.loads((root / "receipt.json").read_text())
         self.assertEqual(receipt["status"], "failed-recovered")
@@ -256,6 +273,18 @@ class CloudCpaFailurePolicyTransactionTests(unittest.TestCase):
 
     def test_recovery_tool_self_test_is_executable(self) -> None:
         self.assertEqual(transaction._remote_self_test()["status"], "passed")
+
+    def test_remote_quota_contract_is_bounded_distinct_and_exactly_three(self) -> None:
+        samples = [b'{"sample":1}', b'{"sample":2}', b'{"sample":3}']
+        raw = wrapper._encode_quota_samples(samples)
+        self.assertEqual(transaction._quota_samples(raw), samples)
+        duplicate = wrapper._encode_quota_samples([b'{"sample":1}', b'{"sample":2}', b'{"sample":3}'])
+        document = json.loads(duplicate)
+        document["samples"][2] = document["samples"][1]
+        with self.assertRaisesRegex(transaction.AcceptanceRejected, "distinct"):
+            transaction._quota_samples(json.dumps(document).encode("utf-8"))
+        with self.assertRaisesRegex(transaction.AcceptanceRejected, "exactly three"):
+            transaction._quota_samples(b'{"schema":"cloudx.cpa-quota-samples.v1","samples":[]}')
 
 
 if __name__ == "__main__":
