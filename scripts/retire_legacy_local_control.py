@@ -159,7 +159,9 @@ def _contract(release_version: str, home: Optional[pathlib.Path] = None) -> Mapp
 
 
 def _digest(contract: Mapping[str, Any]) -> str:
-    raw = json.dumps(contract, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    stable = dict(contract)
+    stable.pop("minimumIdleSeconds", None)
+    raw = json.dumps(stable, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return "sha256:" + hashlib.sha256(raw).hexdigest()
 
 

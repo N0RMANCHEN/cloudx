@@ -99,6 +99,11 @@ class LegacyLocalControlRetirementTests(unittest.TestCase):
                 ])
         decision.assert_not_called()
 
+    def test_digest_excludes_only_monotonically_growing_idle_age(self) -> None:
+        later = dict(self.contract)
+        later["minimumIdleSeconds"] += 10
+        self.assertEqual(retirement._digest(later), self.digest)
+
     def test_backup_is_private_and_recovery_script_compiles(self) -> None:
         backup = retirement._prepare_backup(self.home, self.plist_raw, self.contract)
         self.assertEqual(stat.S_IMODE(backup.stat().st_mode), 0o700)
