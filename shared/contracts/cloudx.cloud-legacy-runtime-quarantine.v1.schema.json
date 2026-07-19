@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.cloud-legacy-runtime-quarantine.v1.schema.json",
+  "title": "Cloudx dormant cloud legacy runtime quarantine receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "status", "releaseVersion", "decisionDigest", "backupId", "targetFileCount", "targetBytes",
+    "targetTreeSha256", "dependencySourceCount", "referenceUnitCount", "liveProcessReferences",
+    "scheduledReferences", "recoveryScriptPrepared", "httpImporterRollbackSnapshotRetained", "gatewayPid",
+    "gatewayProcessUnchanged", "selectorsUnchanged", "runtimeLive", "runtimeDeleted", "serviceRestarted",
+    "daemonReloaded", "credentialMutation", "phiServiceRestarted", "releaseActivated", "quarantineRetained"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.cloud-legacy-runtime-quarantine.v1"},
+    "status": {"const": "quarantined"},
+    "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "decisionDigest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "backupId": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z$"},
+    "targetFileCount": {"type": "integer", "minimum": 1, "maximum": 2000},
+    "targetBytes": {"type": "integer", "minimum": 1, "maximum": 67108864},
+    "targetTreeSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "dependencySourceCount": {"const": 5},
+    "referenceUnitCount": {"const": 3},
+    "liveProcessReferences": {"const": 0},
+    "scheduledReferences": {"const": 0},
+    "recoveryScriptPrepared": {"const": true},
+    "httpImporterRollbackSnapshotRetained": {"const": true},
+    "gatewayPid": {"type": "integer", "minimum": 1},
+    "gatewayProcessUnchanged": {"const": true},
+    "selectorsUnchanged": {"const": true},
+    "runtimeLive": {"const": false},
+    "runtimeDeleted": {"const": false},
+    "serviceRestarted": {"const": false},
+    "daemonReloaded": {"const": false},
+    "credentialMutation": {"const": false},
+    "phiServiceRestarted": {"const": false},
+    "releaseActivated": {"const": false},
+    "quarantineRetained": {"const": true}
+  }
+}

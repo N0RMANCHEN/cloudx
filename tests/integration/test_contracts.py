@@ -370,6 +370,36 @@ class ContractTests(unittest.TestCase):
         self.assertFalse(receipt["localCpaChanged"])
         self.assertFalse(receipt["accountMutation"])
 
+    def test_cloud_legacy_runtime_quarantine_is_reversible_and_service_inert(self) -> None:
+        plan = json.loads(
+            (CONTRACTS / "examples/cloud-legacy-runtime-quarantine-plan.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        decision = json.loads(
+            (CONTRACTS / "examples/cloud-legacy-runtime-quarantine-decision.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        receipt = json.loads(
+            (CONTRACTS / "examples/cloud-legacy-runtime-quarantine.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertFalse(plan["automaticAction"])
+        self.assertFalse(any(plan["authorization"].values()))
+        self.assertEqual(decision["liveProcessReferences"], 0)
+        self.assertTrue(decision["rollbackSnapshotVerified"])
+        self.assertTrue(decision["rollbackArchiveContainsTarget"])
+        self.assertTrue(receipt["recoveryScriptPrepared"])
+        self.assertTrue(receipt["httpImporterRollbackSnapshotRetained"])
+        self.assertFalse(receipt["runtimeLive"])
+        self.assertFalse(receipt["runtimeDeleted"])
+        self.assertFalse(receipt["serviceRestarted"])
+        self.assertFalse(receipt["daemonReloaded"])
+        self.assertFalse(receipt["credentialMutation"])
+        self.assertFalse(receipt["phiServiceRestarted"])
+
     def test_phi_mesh_compatibility_profile_references_existing_contracts(self) -> None:
         profile = json.loads(
             (CONTRACTS / "examples/phi-mesh-compatibility-profile.json").read_text(encoding="utf-8")

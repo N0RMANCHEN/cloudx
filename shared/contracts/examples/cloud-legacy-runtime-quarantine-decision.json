@@ -1,0 +1,20 @@
+{
+  "currentVersion": "0.1.21",
+  "decisionDigest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "dependencySourceCount": 5,
+  "gatewayPid": 100,
+  "gatewayRestarts": 0,
+  "liveProcessReferences": 0,
+  "previousVersion": "0.1.20",
+  "referenceUnitCount": 3,
+  "releaseVersion": "0.1.21",
+  "rollbackArchiveContainsTarget": true,
+  "rollbackSnapshotVerified": true,
+  "scheduledReferences": 0,
+  "schema": "cloudx.cloud-legacy-runtime-quarantine-decision.v1",
+  "serviceRestartRequired": false,
+  "status": "quarantine-ready",
+  "targetBytes": 4096,
+  "targetFileCount": 2,
+  "targetTreeSha256": "5555555555555555555555555555555555555555555555555555555555555555"
+}

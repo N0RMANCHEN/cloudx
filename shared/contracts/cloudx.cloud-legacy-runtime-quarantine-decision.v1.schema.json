@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.cloud-legacy-runtime-quarantine-decision.v1.schema.json",
+  "title": "Cloudx dormant cloud legacy runtime quarantine decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "status", "decisionDigest", "releaseVersion", "targetFileCount", "targetBytes",
+    "targetTreeSha256", "liveProcessReferences", "dependencySourceCount", "referenceUnitCount",
+    "scheduledReferences", "rollbackSnapshotVerified", "rollbackArchiveContainsTarget", "gatewayPid",
+    "gatewayRestarts", "currentVersion", "previousVersion", "serviceRestartRequired"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.cloud-legacy-runtime-quarantine-decision.v1"},
+    "status": {"const": "quarantine-ready"},
+    "decisionDigest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "targetFileCount": {"type": "integer", "minimum": 1, "maximum": 2000},
+    "targetBytes": {"type": "integer", "minimum": 1, "maximum": 67108864},
+    "targetTreeSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "liveProcessReferences": {"const": 0},
+    "dependencySourceCount": {"const": 5},
+    "referenceUnitCount": {"const": 3},
+    "scheduledReferences": {"const": 0},
+    "rollbackSnapshotVerified": {"const": true},
+    "rollbackArchiveContainsTarget": {"const": true},
+    "gatewayPid": {"type": "integer", "minimum": 1},
+    "gatewayRestarts": {"type": "integer", "minimum": 0},
+    "currentVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "previousVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "serviceRestartRequired": {"const": false}
+  }
+}

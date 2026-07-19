@@ -399,14 +399,16 @@ This milestone implements the operator-requested external CPA safety boundary wi
 
 ## M5: Legacy Retirement
 
-Status: in progress. The legacy HTTP importer is reversibly stopped/disabled with its complete rollback boundary retained, and the signed legacy-health bridge now owns production publication after an accepted rollback rehearsal. The replacement workstation has no legacy port-`18317` tunnel, but three live legacy package processes remain; cloud rollback consumers and both bridge rollback sets remain retained.
+Status: in progress. The legacy HTTP importer is reversibly stopped/disabled with its complete rollback boundary retained, and the signed legacy-health bridge owns production publication after an accepted rollback rehearsal. The replacement workstation's stale exec groups, idle control runtime dependency, and three live package targets are now safely retired with complete recovery and uninterrupted local CPA communication. The dormant cloud `codexx_app` tree remains the final active-path runtime target; compatibility and rollback archives remain intentionally retained.
 
 - [ ] Confirm there are no legacy local sessions, tunnels, import transactions, or rollback dependencies.
 - [x] Re-audit M5 after workstation replacement; remove the absent `/Users/BofeiChen` endpoint from live assumptions, verify port `18317` closed and both import locks free, and record the three surviving local legacy processes plus cloud bridge/runtime rollback blockers without stopping a process or service.
 - [x] Add versioned, default-offline, digest-bound transactions and a complete recovery runbook to retire only proven unusable orphaned local exec groups, migrate the independently idle control LaunchAgent to the retained private runtime, and prepare standalone package restoration before quarantine without local CPA lifecycle authority.
-- [ ] Retire the two proven-stale orphaned local exec groups with `SIGTERM` only from an immutable committed operator bundle; preserve the control listener, local CPA PID/port, Cloudx selectors, and real communication.
-- [ ] Migrate the zero-connection legacy control LaunchAgent to the retained private recovery runtime with one bounded port-`8765` restart; validate retained/live recovery and preserve local CPA continuously.
-- [ ] Quarantine the three live legacy package targets after all live references are gone; accept native import, fresh-shell selection, official Codex/Git, standalone restore, and unchanged local CPA without terminating or restarting a process.
+- [x] Retire the two proven-stale orphaned local exec groups with `SIGTERM` only from an immutable committed operator bundle; preserve the control listener, local CPA PID/port, Cloudx selectors, and real communication.
+- [x] Migrate the zero-connection legacy control LaunchAgent to the retained private recovery runtime with one bounded port-`8765` restart; validate retained/live recovery and preserve local CPA continuously.
+- [x] Quarantine the three live legacy package targets after all live references are gone; accept native import, fresh-shell selection, official Codex/Git, standalone restore, and unchanged local CPA without terminating or restarting a process.
+- [x] Add a default-offline, digest-bound cloud runtime quarantine with bounded tree hashing, zero process/cron references, declared dormant unit references, complete importer-archive verification, direct root-only recovery, and no service/gateway/CPA/Phi/credential/release mutation authority.
+- [ ] Execute the cloud runtime quarantine from an immutable root-only operator bundle and accept exact recovery, gateway PID/restart, signed selectors/self-check, public health/handshake, bridge/Phi timer, importer archive, and local communication continuity.
 - [x] Retire the old HTTP importer only after SSH import has production acceptance evidence.
 - [x] Replace the installed `codex-gateway-import` HTTP client with the signed SSH compatibility adapter while retaining an atomic rollback set and leaving the old service running.
 - [x] Complete a read-only stop-gate audit covering port activity, request history, systemd reverse dependencies, installed callers, legacy health output, and Phi consumers without stopping or disabling the importer.
@@ -418,7 +420,7 @@ Status: in progress. The legacy HTTP importer is reversibly stopped/disabled wit
 - [x] Add a default-read-only exact-confirmation stop/restore transaction that requires fresh signed stop-gate parity, verifies the rollback manifest, closes only port `8780`, repeats SSH/health/Phi/gateway canaries, and automatically restores the importer on failure.
 - [x] Replace the legacy quota monitor writer only after Cloudx health and reversible quarantine have accepted observation evidence.
 - [x] Disable and archive the unattended import repair timer.
-- [ ] Remove the old codex-plus shell hook and installed package only after native `codex`, account switching, and rollback pass in a fresh shell.
+- [x] Remove the old codex-plus shell hook and installed package only after native `codex`, account switching, and rollback pass in a fresh shell.
 - [x] Add a default-read-only exact-confirmation quarantine/restore transaction for the live local codex-plus runtime, launcher, and recovery entrypoint while preserving official Codex/Git, Cloudx selectors/hook/entrypoints, external CPA state, accounts, and the private recovery bundle.
 - [x] Validate native return, API compatibility selection, named-account selection, official Codex resolution, cloud mode, private recovery, and release-matched rollback in isolated fresh shells; publish and activate the hardened signed hook without editing the regenerated active shim.
 - [x] Publish and stage signed `0.1.13` so repeated hook installation is whitespace-idempotent and read-only SSH probes detach from caller stdin while import and release-stage payloads retain explicit byte pipes; activation remains separate.

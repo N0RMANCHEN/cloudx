@@ -1,0 +1,34 @@
+{
+  "authorization": {
+    "credentialMutation": false,
+    "daemonReload": false,
+    "gatewayMutation": false,
+    "phiMutation": false,
+    "releaseMutation": false,
+    "rollbackRemoval": false,
+    "runtimeDeletion": false,
+    "runtimeQuarantine": false,
+    "serviceDisable": false,
+    "serviceEnable": false,
+    "serviceRestart": false,
+    "serviceStart": false,
+    "serviceStop": false
+  },
+  "automaticAction": false,
+  "confirmation": "QUARANTINE DORMANT CLOUD CODEXX APP RUNTIME WITH AUTOMATIC RESTORE",
+  "preconditions": [
+    "exact_signed_cloud_release_active",
+    "bounded_non_writable_runtime_inventory",
+    "zero_live_process_references",
+    "only_declared_dormant_unit_references",
+    "zero_scheduled_references",
+    "http_importer_rollback_archive_verified",
+    "manual_recovery_prepared_before_move",
+    "decision_digest_match",
+    "gateway_and_compatibility_continuity"
+  ],
+  "releaseVersion": "0.1.21",
+  "schema": "cloudx.cloud-legacy-runtime-quarantine-plan.v1",
+  "status": "confirmation-required",
+  "target": "/opt/codex-gateway/codexx_app"
+}

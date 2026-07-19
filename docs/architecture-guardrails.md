@@ -41,6 +41,8 @@ CPA outage diagnosis remains inside the Cloudx endpoint implementation. Proxied 
 
 M5 local pre-retirement operations are split from package quarantine. A process transaction may target only exact long-idle orphaned exec groups and has no service/file/CPA authority; a control transaction may restart only the independently idle legacy control LaunchAgent after preparing a tested retained/live recovery bundle. The package transaction cannot terminate either class of process and cannot begin until no live path reference remains. All three preserve the official Codex executable and external CPA boundary.
 
+The cloud M5 runtime transaction is code-only quarantine, not a service cutover. It may move the dormant `codexx_app` tree only after binding every remaining source reference to inactive/disabled legacy units and proving the root-only importer archive plus a newly prepared direct restore path. It contains no service lifecycle, daemon reload, gateway, CPA, Phi, credential, or release mutation surface.
+
 Local CPA policy activation is a separate external-service boundary. Before any launcher write or stop, a signed-version gate, real baseline Codex canary, private original-launcher snapshot, independently executable recovery tool, exact manual command, and repeated zero-established-connection proof must all pass. Automatic recovery and operator recovery are one implementation; they restore the baseline launcher, stabilize launchd unload/bootstrap transitions, verify health and communication separately, retain safe receipts, and never terminate Codex processes.
 
 ## File Size

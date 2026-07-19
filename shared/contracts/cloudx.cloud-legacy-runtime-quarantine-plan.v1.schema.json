@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.cloud-legacy-runtime-quarantine-plan.v1.schema.json",
+  "title": "Cloudx dormant cloud legacy runtime quarantine plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "confirmation", "releaseVersion", "target", "automaticAction", "preconditions", "authorization"],
+  "properties": {
+    "schema": {"const": "cloudx.cloud-legacy-runtime-quarantine-plan.v1"},
+    "status": {"const": "confirmation-required"},
+    "confirmation": {"const": "QUARANTINE DORMANT CLOUD CODEXX APP RUNTIME WITH AUTOMATIC RESTORE"},
+    "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "target": {"const": "/opt/codex-gateway/codexx_app"},
+    "automaticAction": {"const": false},
+    "preconditions": {
+      "const": [
+        "exact_signed_cloud_release_active",
+        "bounded_non_writable_runtime_inventory",
+        "zero_live_process_references",
+        "only_declared_dormant_unit_references",
+        "zero_scheduled_references",
+        "http_importer_rollback_archive_verified",
+        "manual_recovery_prepared_before_move",
+        "decision_digest_match",
+        "gateway_and_compatibility_continuity"
+      ]
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtimeQuarantine", "runtimeDeletion", "serviceStart", "serviceStop", "serviceRestart",
+        "serviceEnable", "serviceDisable", "daemonReload", "gatewayMutation", "credentialMutation",
+        "releaseMutation", "phiMutation", "rollbackRemoval"
+      ],
+      "properties": {
+        "runtimeQuarantine": {"const": false},
+        "runtimeDeletion": {"const": false},
+        "serviceStart": {"const": false},
+        "serviceStop": {"const": false},
+        "serviceRestart": {"const": false},
+        "serviceEnable": {"const": false},
+        "serviceDisable": {"const": false},
+        "daemonReload": {"const": false},
+        "gatewayMutation": {"const": false},
+        "credentialMutation": {"const": false},
+        "releaseMutation": {"const": false},
+        "phiMutation": {"const": false},
+        "rollbackRemoval": {"const": false}
+      }
+    }
+  }
+}
