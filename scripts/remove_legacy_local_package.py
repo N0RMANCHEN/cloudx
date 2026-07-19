@@ -341,7 +341,15 @@ def _native_import_dry_run(artifact: pathlib.Path) -> None:
         source = pathlib.Path(value) / "credential.json"
         source.write_text(json.dumps(fixture), encoding="utf-8")
         completed = subprocess.run(
-            [sys.executable, str(artifact), "import", str(source), "--dry-run", "--json"],
+            [
+                sys.executable,
+                str(artifact),
+                "codexx",
+                "import",
+                str(source),
+                "--dry-run",
+                "--json",
+            ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -372,16 +380,20 @@ def _fresh_shell(home: pathlib.Path) -> None:
     expected_codex = shutil.which("codex", path=path)
     if not expected_codex or expected_codex.startswith(str(home)):
         raise RuntimeError("official Codex executable is unavailable")
+    expected_git = shutil.which("git", path=path)
+    if not expected_git or expected_git.startswith(str(home)):
+        raise RuntimeError("official Git executable is unavailable")
     script = "\n".join([
         "set -e",
         "source \"$HOME/.zshrc\"",
         "[[ \"$(whence -p codex)\" = \"$EXPECTED_CODEX\" ]]",
-        "[[ \"$(whence -p git)\" = \"/usr/bin/git\" ]]",
+        "[[ \"$(whence -p git)\" = \"$EXPECTED_GIT\" ]]",
         "[[ \"$(whence -w codexx)\" = \"codexx: function\" ]]",
         "codexx api >/dev/null",
         "[[ \"$CODEXX_ACTIVE_ACCOUNT\" = \"api\" ]]",
         "codexx exit >/dev/null",
-        "[[ \"$CODEXX_ACTIVE_ACCOUNT\" = \"native\" ]]",
+        "[[ -z \"${CODEXX_ACTIVE_ACCOUNT:-}\" ]]",
+        "[[ -z \"${CODEX_HOME:-}\" ]]",
         "print -r -- accepted",
     ])
     environment = {
@@ -391,6 +403,7 @@ def _fresh_shell(home: pathlib.Path) -> None:
         "PATH": path,
         "SHELL": "/bin/zsh",
         "EXPECTED_CODEX": expected_codex,
+        "EXPECTED_GIT": expected_git,
         "CLOUDX_DISABLE_UPDATE_CHECK": "1",
     }
     completed = subprocess.run(

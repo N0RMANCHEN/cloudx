@@ -122,6 +122,55 @@ class LegacyLocalRemovalTests(unittest.TestCase):
         home.assert_not_called()
         lock.assert_not_called()
 
+    def test_native_import_dry_run_uses_current_codexx_artifact_entrypoint(self) -> None:
+        result = {
+            "schema": "cloudx.local-cpa-import.v1",
+            "status": "preview",
+            "dryRun": True,
+            "adapter": "cloudx_native_compatibility",
+            "errors": [],
+            "counts": {"parsed": 1},
+            "externalService": {"managed": False, "restarted": False},
+        }
+        completed = SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps(result),
+            stderr="",
+        )
+        with mock.patch.object(removal.subprocess, "run", return_value=completed) as run:
+            removal._native_import_dry_run(self.artifact)
+        command = run.call_args.args[0]
+        self.assertEqual(
+            command[:4],
+            [sys.executable, str(self.artifact), "codexx", "import"],
+        )
+        self.assertEqual(command[-2:], ["--dry-run", "--json"])
+
+    def test_fresh_shell_accepts_external_homebrew_git_and_cleared_exit_state(self) -> None:
+        completed = SimpleNamespace(returncode=0, stdout="accepted\n", stderr="")
+
+        def resolved(name: str, *, path: str) -> str:
+            del path
+            return {
+                "codex": "/opt/homebrew/bin/codex",
+                "git": "/opt/homebrew/bin/git",
+            }[name]
+
+        with mock.patch.object(removal.shutil, "which", side_effect=resolved), mock.patch.object(
+            removal.subprocess,
+            "run",
+            return_value=completed,
+        ) as run:
+            removal._fresh_shell(self.home)
+        command = run.call_args.args[0]
+        environment = run.call_args.kwargs["env"]
+        script = command[-1]
+        self.assertEqual(environment["EXPECTED_CODEX"], "/opt/homebrew/bin/codex")
+        self.assertEqual(environment["EXPECTED_GIT"], "/opt/homebrew/bin/git")
+        self.assertIn('"$EXPECTED_GIT"', script)
+        self.assertIn('[[ -z "${CODEXX_ACTIVE_ACCOUNT:-}" ]]', script)
+        self.assertIn('[[ -z "${CODEX_HOME:-}" ]]', script)
+
     def test_apply_rejects_when_requested_release_is_not_active(self) -> None:
         with mock.patch.object(removal, "user_home", return_value=self.home), mock.patch.object(
             removal, "_transaction_lock", return_value=nullcontext()
