@@ -26,10 +26,10 @@ class PhiCloudxReleaseOrderingTests(unittest.TestCase):
     def _by_name(items: list[dict[str, object]]) -> dict[str, dict[str, object]]:
         return {str(item["name"]): item for item in items}
 
-    def test_current_evidence_truthfully_records_the_unaccepted_legacy_bridge(self) -> None:
+    def test_current_evidence_accepts_every_direct_and_bridged_release_pair(self) -> None:
         evidence = load_evidence()
         result = evaluate(evidence)
-        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["status"], "compatible")
         matrix = {
             (item["cloudxRelease"], item["phiRelease"]): item
             for item in result["matrix"]
@@ -37,19 +37,16 @@ class PhiCloudxReleaseOrderingTests(unittest.TestCase):
         self.assertTrue(matrix[("current", "current")]["compatible"])
         self.assertEqual(matrix[("current", "current")]["healthPath"], "direct")
         self.assertTrue(matrix[("previous", "current")]["compatible"])
-        self.assertFalse(matrix[("current", "previous")]["compatible"])
-        self.assertEqual(matrix[("current", "previous")]["healthPath"], "legacy_bridge_pending")
-        self.assertEqual(
-            matrix[("current", "previous")]["reasons"],
-            ["legacy_bridge_not_runtime_accepted"],
-        )
-        self.assertEqual(result["legacyBridgeStatus"], "source-ready")
-        self.assertEqual(len(result["legacyBridgeBlockers"]), 2)
+        self.assertTrue(matrix[("current", "previous")]["compatible"])
+        self.assertEqual(matrix[("current", "previous")]["healthPath"], "legacy_bridge")
+        self.assertEqual(matrix[("current", "previous")]["reasons"], [])
+        self.assertEqual(result["legacyBridgeStatus"], "runtime-accepted")
+        self.assertEqual(result["legacyBridgeBlockers"], [])
         orders = self._by_name(result["orders"])
         self.assertTrue(orders["cloudx_rollback"]["compatible"])
-        self.assertFalse(orders["phi_rollback"]["compatible"])
-        self.assertFalse(orders["cloudx_first_upgrade"]["compatible"])
-        self.assertFalse(orders["phi_first_upgrade"]["compatible"])
+        self.assertTrue(orders["phi_rollback"]["compatible"])
+        self.assertTrue(orders["cloudx_first_upgrade"]["compatible"])
+        self.assertTrue(orders["phi_first_upgrade"]["compatible"])
 
     def test_formal_phi_n_minus_one_would_make_all_release_orders_compatible(self) -> None:
         document = json.loads(DEFAULT_EVIDENCE.read_text(encoding="utf-8"))
@@ -100,13 +97,13 @@ class PhiCloudxReleaseOrderingTests(unittest.TestCase):
             with self.assertRaises(EvidenceRejected):
                 load_evidence(path)
 
-    def test_cli_accepts_valid_blocking_evidence_but_can_require_compatibility(self) -> None:
+    def test_cli_accepts_current_compatible_evidence_and_strict_gate(self) -> None:
         output = StringIO()
         with redirect_stdout(output):
             self.assertEqual(main([]), 0)
-        self.assertEqual(output.getvalue().strip(), "release-ordering: blocked (2 blockers)")
+        self.assertEqual(output.getvalue().strip(), "release-ordering: compatible (0 blockers)")
         with redirect_stdout(StringIO()):
-            self.assertEqual(main(["--require-compatible"]), 2)
+            self.assertEqual(main(["--require-compatible"]), 0)
 
 
 if __name__ == "__main__":

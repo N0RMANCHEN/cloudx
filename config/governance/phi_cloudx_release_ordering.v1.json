@@ -1,7 +1,7 @@
 {
   "schema": "cloudx.phi-release-ordering-evidence.v1",
-  "capturedAt": "2026-07-17T05:10:00Z",
-  "expectedStatus": "blocked",
+  "capturedAt": "2026-07-19T13:10:28Z",
+  "expectedStatus": "compatible",
   "legacyBridgeEvidence": "config/governance/phi_cloudx_legacy_health_bridge.v1.json",
   "cloudx": {
     "current": {

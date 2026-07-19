@@ -23,17 +23,14 @@ from check_phi_cloudx_legacy_health_bridge import (  # noqa: E402
 
 
 class PhiLegacyHealthBridgeTests(unittest.TestCase):
-    def test_current_evidence_is_source_ready_and_non_authorizing(self) -> None:
+    def test_current_evidence_is_runtime_accepted_and_non_authorizing(self) -> None:
         evidence = load_evidence()
         validate_cloudx_source(evidence)
         result = evaluate(evidence)
-        self.assertEqual(result["status"], "source-ready")
+        self.assertEqual(result["status"], "runtime-accepted")
         self.assertTrue(result["sourceReady"])
         self.assertTrue(all(result["sourceAcceptance"].values()))
-        self.assertEqual(result["blockers"], [
-            "bridge_unit_not_installed",
-            "rollback_not_rehearsed",
-        ])
+        self.assertEqual(result["blockers"], [])
         self.assertFalse(result["automaticAction"])
         self.assertFalse(any(result["authorization"].values()))
 
@@ -78,13 +75,13 @@ class PhiLegacyHealthBridgeTests(unittest.TestCase):
         with self.assertRaisesRegex(BridgeEvidenceRejected, "tag does not match"):
             validate_cloudx_source(evidence)
 
-    def test_cli_accepts_source_readiness_but_can_require_runtime_acceptance(self) -> None:
+    def test_cli_accepts_current_runtime_evidence_and_strict_gate(self) -> None:
         output = StringIO()
         with redirect_stdout(output):
             self.assertEqual(main([]), 0)
-        self.assertEqual(output.getvalue().strip(), "legacy-health-bridge: source-ready (2 blockers)")
+        self.assertEqual(output.getvalue().strip(), "legacy-health-bridge: runtime-accepted (0 blockers)")
         with redirect_stdout(StringIO()):
-            self.assertEqual(main(["--require-runtime-accepted"]), 2)
+            self.assertEqual(main(["--require-runtime-accepted"]), 0)
 
 
 if __name__ == "__main__":

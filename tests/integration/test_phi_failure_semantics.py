@@ -43,7 +43,6 @@ class PhiCloudxFailureSemanticsTests(unittest.TestCase):
         self.assertEqual(
             result["blockers"],
             [
-                "release_ordering_not_compatible",
                 "privileged_boundary_not_secure",
                 "phi_int_p1_1_not_complete",
                 "phi_ct_p1_3_not_complete",
@@ -125,7 +124,7 @@ class PhiCloudxFailureSemanticsTests(unittest.TestCase):
             self.assertEqual(main([]), 0)
         self.assertEqual(
             output.getvalue().strip(),
-            "phi-failure-semantics: blocked (5 blockers; 9 scenarios; phi-snapshot=recorded)",
+            "phi-failure-semantics: blocked (4 blockers; 9 scenarios; phi-snapshot=recorded)",
         )
         with redirect_stdout(StringIO()):
             self.assertEqual(main(["--require-accepted"]), 2)

@@ -1,7 +1,7 @@
 {
   "schema": "cloudx.phi-legacy-health-bridge-evidence.v1",
-  "capturedAt": "2026-07-17T12:21:44Z",
-  "expectedStatus": "source-ready",
+  "capturedAt": "2026-07-19T13:10:28Z",
+  "expectedStatus": "runtime-accepted",
   "cloudx": {
     "version": "0.1.15",
     "sourceRef": "9ffa3208f39053c2b3af1136a530ce98eac7ad41",
@@ -46,7 +46,7 @@
   },
   "runtimeAcceptance": {
     "signedArtifactPublished": true,
-    "bridgeUnitInstalled": false,
-    "rollbackRehearsed": false
+    "bridgeUnitInstalled": true,
+    "rollbackRehearsed": true
   }
 }
