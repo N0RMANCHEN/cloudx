@@ -31,6 +31,10 @@ RECEIPT_SCHEMA = "cloudx.local-cpa-policy-activation-receipt.v2"
 DEFAULT_DELAY_SECONDS = 180
 MINIMUM_DELAY_SECONDS = 120
 MAXIMUM_DELAY_SECONDS = 600
+DEFAULT_QUIESCENCE_WAIT_SECONDS = 7 * 24 * 60 * 60
+MINIMUM_QUIESCENCE_WAIT_SECONDS = 60 * 60
+MAXIMUM_QUIESCENCE_WAIT_SECONDS = 7 * 24 * 60 * 60
+QUIESCENCE_POLL_SECONDS = 60
 MAX_FILE_BYTES = 2 * 1024 * 1024
 
 
@@ -138,7 +142,10 @@ def current_cloudx_version(home: pathlib.Path) -> str:
         return ""
 
 
-def plan(delay_seconds: int) -> Dict[str, Any]:
+def plan(
+    delay_seconds: int,
+    quiescence_wait_seconds: int = DEFAULT_QUIESCENCE_WAIT_SECONDS,
+) -> Dict[str, Any]:
     module = installer_module()
     value = module.expanded_target("local", module.load_contract(CONTRACT))
     unused_stage, activation = module.confirmations("local", value)
@@ -150,6 +157,9 @@ def plan(delay_seconds: int) -> Dict[str, Any]:
         "candidateSha256": value["candidateSha256"],
         "requiredActiveCloudxVersion": REQUIRED_ACTIVE_CLOUDX_VERSION,
         "deferredSeconds": delay_seconds,
+        "waitsForNaturalQuiescence": True,
+        "maximumQuiescenceWaitSeconds": quiescence_wait_seconds,
+        "quiescencePollSeconds": QUIESCENCE_POLL_SECONDS,
         "currentTurnRestarted": False,
         "codexProcessesStopped": False,
         "sharedCPAUnavailableDuringRestart": True,
@@ -166,10 +176,14 @@ def plan(delay_seconds: int) -> Dict[str, Any]:
     }
 
 
-def schedule(delay_seconds: int, confirmation: str) -> Dict[str, Any]:
+def schedule(
+    delay_seconds: int,
+    confirmation: str,
+    quiescence_wait_seconds: int = DEFAULT_QUIESCENCE_WAIT_SECONDS,
+) -> Dict[str, Any]:
     if sys.platform != "darwin" or os.geteuid() == 0:
         raise ScheduleRejected("local CPA activation scheduling requires the macOS login user")
-    document = plan(delay_seconds)
+    document = plan(delay_seconds, quiescence_wait_seconds)
     if confirmation != document["confirmation"]:
         raise ScheduleRejected("local CPA activation confirmation does not match")
     home = pathlib.Path.home().resolve()
@@ -208,6 +222,7 @@ def schedule(delay_seconds: int, confirmation: str) -> Dict[str, Any]:
     atomic_write(worker_copy, worker_raw)
     atomic_write(job / "launcher.before", launcher_snapshot.data)
     execute_after = time.time() + delay_seconds
+    quiescence_deadline = execute_after + quiescence_wait_seconds
     launcher_sha256 = sha256(launcher_snapshot.data)
     recovery_confirmation = "RESTORE LOCAL CPA BASELINE %s %s" % (job_id, launcher_sha256[:12])
     job_document = {
@@ -215,6 +230,8 @@ def schedule(delay_seconds: int, confirmation: str) -> Dict[str, Any]:
         "jobId": job_id,
         "createdAt": utc_now(),
         "executeAfterEpoch": execute_after,
+        "quiescenceDeadlineEpoch": quiescence_deadline,
+        "quiescencePollSeconds": QUIESCENCE_POLL_SECONDS,
         "confirmation": confirmation,
         "requiredActiveCloudxVersion": document["requiredActiveCloudxVersion"],
         "candidateVersion": document["candidateVersion"],
@@ -282,7 +299,9 @@ def schedule(delay_seconds: int, confirmation: str) -> Dict[str, Any]:
         "jobId": job_id,
         "workerPid": process.pid,
         "executeAfterEpoch": execute_after,
+        "quiescenceDeadlineEpoch": quiescence_deadline,
         "deferredSeconds": delay_seconds,
+        "maximumQuiescenceWaitSeconds": quiescence_wait_seconds,
         "currentTurnRestarted": False,
         "receipt": str(job / "receipt.json"),
         "log": str(log_path),
@@ -349,6 +368,38 @@ def run_recovery(job: pathlib.Path, recovery: pathlib.Path, document: Dict[str, 
     }
 
 
+def wait_for_quiescence(
+    job: pathlib.Path,
+    recovery: pathlib.Path,
+    document: Dict[str, Any],
+) -> bool:
+    deadline = float(document["quiescenceDeadlineEpoch"])
+    interval = float(document.get("quiescencePollSeconds", QUIESCENCE_POLL_SECONDS))
+    emit_worker_event(document["jobId"], "quiescence-wait", "started")
+    while True:
+        completed = subprocess.run(
+            [sys.executable, str(recovery), "--job", str(job), "--check-quiescent"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=30.0,
+            check=False,
+            cwd=str(job),
+        )
+        result = parse_result(completed.stdout) or {}
+        if completed.returncode == 0 and result.get("status") == "quiescent":
+            emit_worker_event(document["jobId"], "quiescence-wait", "accepted")
+            return True
+        if completed.returncode not in {0, 1} or result.get("status") != "busy":
+            raise ScheduleRejected("local CPA quiescence monitor failed")
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            emit_worker_event(document["jobId"], "quiescence-wait", "failed")
+            return False
+        time.sleep(min(interval, remaining))
+
+
 def worker(job: pathlib.Path) -> int:
     receipt_path = job / "receipt.json"
     document: Optional[Dict[str, Any]] = None
@@ -378,6 +429,33 @@ def worker(job: pathlib.Path) -> int:
         home = pathlib.Path.home().resolve()
         if current_cloudx_version(home) != document["requiredActiveCloudxVersion"]:
             raise ScheduleRejected("required signed Cloudx release changed before activation")
+        if "quiescenceDeadlineEpoch" in document and not wait_for_quiescence(
+            job,
+            copies["recovery"][0],
+            document,
+        ):
+            atomic_json(
+                receipt_path,
+                {
+                    "schema": RECEIPT_SCHEMA,
+                    "jobId": document["jobId"],
+                    "status": "failed",
+                    "completedAt": utc_now(),
+                    "installerExit": None,
+                    "candidateVersion": document["candidateVersion"],
+                    "candidateSha256": document["candidateSha256"],
+                    "failureCode": "connections_present",
+                    "communicationCanary": "not-run",
+                    "recoveryStatus": "not-required",
+                    "recoveryCommunicationCanary": "not-run",
+                    "recoveryServiceRestarted": False,
+                    "serviceAvailable": True,
+                    "manualRecoveryPrepared": True,
+                    "recoveryPlan": str(job / "RECOVERY.txt"),
+                    "automaticRollbackOnInstallerFailure": True,
+                },
+            )
+            return 1
         emit_worker_event(document["jobId"], "activation", "started")
         activation_invoked = True
         completed = subprocess.run(
@@ -475,6 +553,11 @@ def worker(job: pathlib.Path) -> int:
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     root.add_argument("--delay-seconds", type=int, default=DEFAULT_DELAY_SECONDS)
+    root.add_argument(
+        "--quiescence-wait-seconds",
+        type=int,
+        default=DEFAULT_QUIESCENCE_WAIT_SECONDS,
+    )
     root.add_argument("--apply", action="store_true")
     root.add_argument("--confirm", default="")
     root.add_argument("--worker", type=pathlib.Path, help=argparse.SUPPRESS)
@@ -487,10 +570,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return worker(args.worker.resolve())
     if not MINIMUM_DELAY_SECONDS <= args.delay_seconds <= MAXIMUM_DELAY_SECONDS:
         raise ScheduleRejected("local CPA activation delay must be between 120 and 600 seconds")
+    if not MINIMUM_QUIESCENCE_WAIT_SECONDS <= args.quiescence_wait_seconds <= MAXIMUM_QUIESCENCE_WAIT_SECONDS:
+        raise ScheduleRejected("local CPA natural-quiescence wait must be between one hour and seven days")
     if not args.apply:
-        print(json.dumps(plan(args.delay_seconds), sort_keys=True))
+        print(json.dumps(plan(args.delay_seconds, args.quiescence_wait_seconds), sort_keys=True))
         return 0
-    print(json.dumps(schedule(args.delay_seconds, args.confirm), sort_keys=True))
+    print(json.dumps(schedule(args.delay_seconds, args.confirm, args.quiescence_wait_seconds), sort_keys=True))
     return 0
 
 

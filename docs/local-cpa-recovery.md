@@ -11,7 +11,7 @@ Before Cloudx may stop the shared local CPA, all of the following must be true:
 3. The scheduler has created a private activation job containing the installer, recovery tool, pinned deployment contract, original launcher snapshot, job manifest, and `RECOVERY.txt`.
 4. Every copied file and the original baseline binary matches the digest in the private job manifest.
 5. A real official-Codex request succeeds through the baseline CPA.
-6. Five consecutive connection audits report zero established port-`8317` socket rows.
+6. The detached worker may wait up to seven days without mutation; activation begins only after five consecutive connection audits report zero established port-`8317` socket rows.
 
 If any connection remains, activation stops before editing the launcher or calling `launchctl bootout`. Cloudx never terminates a Codex process to manufacture quiescence.
 
@@ -32,8 +32,10 @@ The plan must report:
 - `manualRecoveryPreparedBeforeRestart=true`
 - `automaticRecoveryUsesManualTool=true`
 - `failureStageReceipt=true`
+- `waitsForNaturalQuiescence=true`
+- `maximumQuiescenceWaitSeconds=604800`
 
-Only after a separate exact activation confirmation may the scheduler create a job. Its result prints the exact job ID, receipt, log, recovery plan, and recovery argument vector. Save that output outside the CPA-backed conversation before the deferred worker begins.
+Only after a separate exact activation confirmation may the scheduler create a job. Its result prints the exact job ID, receipt, log, recovery plan, recovery argument vector, and quiescence deadline. Save that output outside the CPA-backed conversation before the deferred worker begins. During the wait it performs only the bounded socket audit once per minute; it neither edits the launcher nor stops CPA. The installer repeats the five-sample gate immediately before any mutation.
 
 Each job directory is mode `0700`. `job.json`, `launcher.before`, the copied tools, `RECOVERY.txt`, logs, and receipts are mode `0600`. The original baseline executable remains outside the job and is verified by SHA-256 before every recovery.
 
@@ -88,7 +90,7 @@ CODEX_HOME="$HOME/.codex-accounts/api/.codex" \
 
 ## Failure Codes
 
-- `connections_present`: no service or launcher change occurred. Finish or close CPA-backed requests, verify zero connections, and create a new separately confirmed job; do not kill Codex processes.
+- `connections_present`: the seven-day natural-quiescence window expired; no service or launcher change occurred. Finish or close CPA-backed requests, verify zero connections, and create a new separately confirmed job; do not kill Codex processes.
 - `unload_timeout`: launchd never proved the old generation absent. Inspect the current PID, listener, and health before doing anything else; do not issue repeated blind `bootout` commands.
 - `bootstrap_failed`: the launcher snapshot is restored but launchd did not load it. Re-run the exact recovery command; it retries bootstrap and is safe when the service is already healthy.
 - `health_failed`: a baseline process may be loaded but health was not accepted. Inspect `launchctl print`, the listener, and the CPA log before retrying.

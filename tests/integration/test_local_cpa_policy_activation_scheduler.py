@@ -24,6 +24,9 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
     def test_plan_defers_restart_and_requires_three_real_communication_gates(self) -> None:
         document = MODULE.plan(180)
         self.assertEqual(document["deferredSeconds"], 180)
+        self.assertTrue(document["waitsForNaturalQuiescence"])
+        self.assertEqual(document["maximumQuiescenceWaitSeconds"], 7 * 24 * 60 * 60)
+        self.assertEqual(document["quiescencePollSeconds"], 60)
         self.assertFalse(document["currentTurnRestarted"])
         self.assertFalse(document["codexProcessesStopped"])
         self.assertTrue(document["sharedCPAUnavailableDuringRestart"])
@@ -100,6 +103,67 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
             self.assertEqual(document["baselineSha256"], MODULE.sha256(baseline_raw))
             self.assertEqual(document["launcherSnapshotSha256"], MODULE.sha256(launcher_raw))
             self.assertEqual(result["recoveryCommand"][-1], document["recoveryConfirmation"])
+            self.assertGreater(document["quiescenceDeadlineEpoch"], document["executeAfterEpoch"])
+            self.assertEqual(result["maximumQuiescenceWaitSeconds"], 7 * 24 * 60 * 60)
+
+    def test_quiescence_monitor_waits_without_mutating_until_five_sample_gate_passes(self) -> None:
+        job = pathlib.Path("/private/job")
+        recovery = job / "recover_local_cpa_policy.py"
+        document = {
+            "jobId": "test-job",
+            "quiescenceDeadlineEpoch": 1000.0,
+            "quiescencePollSeconds": 60,
+        }
+        busy = MODULE.subprocess.CompletedProcess(
+            args=[], returncode=1, stdout=json.dumps({"status": "busy"}), stderr=""
+        )
+        ready = MODULE.subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=json.dumps({"status": "quiescent"}), stderr=""
+        )
+        with mock.patch.object(MODULE.subprocess, "run", side_effect=[busy, ready]) as run, mock.patch.object(
+            MODULE.time, "time", side_effect=[0.0]
+        ), mock.patch.object(MODULE.time, "sleep") as sleep:
+            self.assertTrue(MODULE.wait_for_quiescence(job, recovery, document))
+        self.assertEqual(run.call_count, 2)
+        sleep.assert_called_once_with(60)
+
+    def test_quiescence_timeout_records_no_activation_or_recovery(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            job = pathlib.Path(temporary)
+            files = {
+                "installer": job / "install_cpa_policy_candidate.py",
+                "recovery": job / "recover_local_cpa_policy.py",
+                "contract": job / "deployment-contract.json",
+                "worker": job / "schedule_local_cpa_policy_activation.py",
+                "launcher": job / "launcher.before",
+            }
+            for name, path in files.items():
+                path.write_bytes((name + "-bytes").encode("ascii"))
+            MODULE.atomic_json(job / "job.json", {
+                "schema": MODULE.JOB_SCHEMA,
+                "jobId": "test-job",
+                "executeAfterEpoch": 0,
+                "quiescenceDeadlineEpoch": 1,
+                "confirmation": "ACTIVATE LOCAL CPA POLICY test abcdef123456",
+                "requiredActiveCloudxVersion": "0.1.21",
+                "candidateVersion": "test-policy.1",
+                "candidateSha256": "a" * 64,
+                "installerSha256": MODULE.sha256(files["installer"].read_bytes()),
+                "recoveryToolSha256": MODULE.sha256(files["recovery"].read_bytes()),
+                "contractSha256": MODULE.sha256(files["contract"].read_bytes()),
+                "workerSha256": MODULE.sha256(files["worker"].read_bytes()),
+                "launcherSnapshotSha256": MODULE.sha256(files["launcher"].read_bytes()),
+                "recoveryConfirmation": "RESTORE LOCAL CPA BASELINE test-job abcdef123456",
+            })
+            with mock.patch.object(MODULE, "current_cloudx_version", return_value="0.1.21"), mock.patch.object(
+                MODULE, "wait_for_quiescence", return_value=False
+            ), mock.patch.object(MODULE.subprocess, "run") as run:
+                self.assertEqual(MODULE.worker(job), 1)
+            run.assert_not_called()
+            receipt = json.loads((job / "receipt.json").read_text(encoding="utf-8"))
+            self.assertEqual(receipt["failureCode"], "connections_present")
+            self.assertEqual(receipt["recoveryStatus"], "not-required")
+            self.assertTrue(receipt["serviceAvailable"])
 
     def test_worker_accepts_only_installer_result_with_real_communication_canary(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
