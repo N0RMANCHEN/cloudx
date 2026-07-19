@@ -73,6 +73,7 @@
     "scripts/remove_legacy_local_package.py",
     "scripts/retire_stale_local_codexx_exec.py",
     "scripts/retire_legacy_local_control.py",
+    "scripts/schedule_local_cpa_failure_watcher.py",
     "scripts/rehearse_legacy_health_bridge_rollback.py",
     "scripts/rehearse_legacy_health_bridge_cutover.py",
     "scripts/run_legacy_health_bridge_canary.py",

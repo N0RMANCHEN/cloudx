@@ -3,12 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
-from unittest.mock import patch
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -83,10 +83,11 @@ class PhiCloudxFailureSemanticsTests(unittest.TestCase):
             with self.assertRaises(EvidenceRejected):
                 load_evidence(self._write(document, value))
 
-    def test_optional_phi_snapshot_verifies_head_hashes_and_roadmap_statuses(self) -> None:
+    def test_optional_phi_snapshot_verifies_recorded_commit_independent_of_current_head(self) -> None:
         document = json.loads(DEFAULT_EVIDENCE.read_text(encoding="utf-8"))
         with tempfile.TemporaryDirectory() as value:
             root = pathlib.Path(value) / "phi"
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
             payloads = {
                 "docs/architecture/personal-agent-mesh.md": b"mesh\n",
                 "docs/standards/product-acceptance.md": b"acceptance\n",
@@ -102,18 +103,38 @@ class PhiCloudxFailureSemanticsTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(payloads[record["path"]])
                 record["sha256"] = hashlib.sha256(payloads[record["path"]]).hexdigest()
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+            subprocess.run(
+                [
+                    "git", "-C", str(root), "-c", "user.name=Cloudx Test",
+                    "-c", "user.email=cloudx-test.invalid", "commit", "-qm", "snapshot",
+                ],
+                check=True,
+            )
+            document["phiSnapshot"]["sourceRef"] = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                stdout=subprocess.PIPE,
+                text=True,
+                check=True,
+            ).stdout.strip()
             evidence_path = self._write(document, value)
             evidence = load_evidence(evidence_path)
-            with patch(
-                "check_phi_cloudx_failure_semantics._git_head",
-                return_value=evidence["phiSnapshot"]["sourceRef"],
-            ):
-                self.assertTrue(verify_phi_snapshot(evidence, root))
-                (root / "docs/architecture/personal-agent-mesh.md").write_text(
-                    "changed\n", encoding="utf-8"
-                )
-                with self.assertRaises(EvidenceRejected):
-                    verify_phi_snapshot(evidence, root)
+            self.assertTrue(verify_phi_snapshot(evidence, root))
+            (root / "docs/architecture/personal-agent-mesh.md").write_text(
+                "changed\n", encoding="utf-8"
+            )
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+            subprocess.run(
+                [
+                    "git", "-C", str(root), "-c", "user.name=Cloudx Test",
+                    "-c", "user.email=cloudx-test.invalid", "commit", "-qm", "later work",
+                ],
+                check=True,
+            )
+            self.assertTrue(verify_phi_snapshot(evidence, root))
+            evidence["phiSnapshot"]["files"][0]["sha256"] = "0" * 64
+            with self.assertRaises(EvidenceRejected):
+                verify_phi_snapshot(evidence, root)
 
     def test_fixture_and_result_remain_secret_free(self) -> None:
         fixture = DEFAULT_EVIDENCE.read_text(encoding="utf-8")

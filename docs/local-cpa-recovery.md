@@ -39,6 +39,19 @@ Only after a separate exact activation confirmation may the scheduler create a j
 
 Each job directory is mode `0700`. `job.json`, `launcher.before`, the copied tools, `RECOVERY.txt`, logs, and receipts are mode `0600`. The original baseline executable remains outside the job and is verified by SHA-256 before every recovery.
 
+## Defer The Failure Watcher Separately
+
+The dual-input failure watcher is a second transaction; policy activation does not authorize it. A separately confirmed follower may be created while the policy worker is still waiting:
+
+```bash
+python3 scripts/schedule_local_cpa_failure_watcher.py \
+  --activation-job "$HOME/.local/state/cloudx/cpa-policy-activation-jobs/<job-id>"
+```
+
+The read-only plan must name the same activation job, exact `.policy.5` version and digest, required signed Cloudx `0.1.21`, and confirmation `ACTIVATE LOCAL CPA FAILURE WATCHER 0.1.21`. Apply copies the watcher installer, deployment contract, activation scheduler dependency, and follower into a private mode-`0700` job before detaching.
+
+The follower waits only for the activation job's atomically written v2 receipt. It invokes the watcher transaction only when that receipt is `accepted`, binds the exact candidate version and SHA-256, records `communicationCanary=passed`, and reports `serviceAvailable=true`. A timeout, failed activation, mismatched identity, failed communication, or unavailable service writes a failed follower receipt and changes neither the maintenance launcher nor CPA. The accepted watcher transaction retains its own private launcher backup and automatic rollback, changes only the maintenance LaunchAgent, and never restarts CPA or stops Codex.
+
 ## Recover The Baseline
 
 Use the exact job path printed by the scheduler. Do not guess a job or use the historical failed job.

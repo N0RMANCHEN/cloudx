@@ -513,40 +513,56 @@ def validate_contract_bindings(evidence: Mapping[str, Any]) -> None:
         raise EvidenceRejected("compatibility profile no longer provides independent rollback semantics")
 
 
-def _git_head(root: pathlib.Path) -> str:
-    process = subprocess.run(
-        ["git", "-C", str(root), "rev-parse", "HEAD"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-        check=False,
-    )
+def _require_git_commit(root: pathlib.Path, source_ref: str) -> None:
+    try:
+        process = subprocess.run(
+            ["git", "-C", str(root), "cat-file", "-e", "%s^{commit}" % source_ref],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10.0,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise EvidenceRejected("Phi snapshot root is not a readable Git checkout") from exc
     if process.returncode != 0:
-        raise EvidenceRejected("Phi snapshot root is not a readable Git checkout")
-    return process.stdout.strip()
+        raise EvidenceRejected("recorded Phi snapshot commit is unavailable")
+
+
+def _git_blob(root: pathlib.Path, source_ref: str, relative_path: str) -> bytes:
+    try:
+        process = subprocess.run(
+            ["git", "-C", str(root), "cat-file", "blob", "%s:%s" % (source_ref, relative_path)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=10.0,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise EvidenceRejected("recorded Phi snapshot file is unavailable") from exc
+    if process.returncode != 0:
+        raise EvidenceRejected("recorded Phi snapshot file is unavailable")
+    if len(process.stdout) > 2 * 1024 * 1024:
+        raise EvidenceRejected("recorded Phi snapshot file exceeds the audit bound")
+    return process.stdout
 
 
 def verify_phi_snapshot(evidence: Mapping[str, Any], phi_root: pathlib.Path) -> bool:
     root = phi_root.resolve()
     snapshot = evidence["phiSnapshot"]
-    if _git_head(root) != snapshot["sourceRef"]:
-        raise EvidenceRejected("Phi checkout HEAD differs from the recorded snapshot")
+    _require_git_commit(root, snapshot["sourceRef"])
+    payloads: Dict[str, bytes] = {}
     for record in snapshot["files"]:
-        path = (root / record["path"]).resolve()
-        try:
-            path.relative_to(root)
-        except ValueError as exc:
-            raise EvidenceRejected("Phi snapshot path escapes its checkout") from exc
-        try:
-            payload = path.read_bytes()
-        except OSError as exc:
-            raise EvidenceRejected("Phi snapshot file is unavailable") from exc
-        if len(payload) > 2 * 1024 * 1024:
-            raise EvidenceRejected("Phi snapshot file exceeds the audit bound")
+        payload = _git_blob(root, snapshot["sourceRef"], record["path"])
+        payloads[record["path"]] = payload
         if hashlib.sha256(payload).hexdigest() != record["sha256"]:
-            raise EvidenceRejected("Phi snapshot file digest differs from recorded evidence")
+            raise EvidenceRejected("recorded Phi snapshot file digest differs from evidence")
 
-    roadmap = _load_json(root / "docs/roadmap/roadmap.json", "Phi roadmap")
+    try:
+        roadmap = json.loads(payloads["docs/roadmap/roadmap.json"].decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise EvidenceRejected("recorded Phi roadmap is invalid") from exc
+    if not isinstance(roadmap, dict):
+        raise EvidenceRejected("recorded Phi roadmap must be an object")
     items = roadmap.get("items")
     if not isinstance(items, list):
         raise EvidenceRejected("Phi roadmap items are invalid")

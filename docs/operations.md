@@ -274,7 +274,7 @@ python3 scripts/check_phi_cloudx_release_ordering.py --json
 python3 scripts/check_phi_cloudx_release_ordering.py --require-compatible
 ```
 
-The first command validates the strict evidence shape and evaluates all four release pairs, both upgrade orders, and both single-product rollback directions. Exit `0` means the recorded audit is internally valid, even when its truthful state is `blocked`. `--require-compatible` exits `2` until every required order is compatible. The current evidence identifies a direct formal-health path for Phi current and an explicit pending legacy bridge for Phi N-1; the ordering gate remains blocked until that bridge is published from a signed artifact, installed as its separate fixed-artifact unit, and accepted through rollback rehearsal.
+The first command validates the strict evidence shape and evaluates all four release pairs, both upgrade orders, and both single-product rollback directions. Exit `0` means the recorded audit is internally valid, even when a future truthful state is `blocked`; `--require-compatible` accepts only a fully compatible matrix. Current production evidence binds the signed migration-only Phi N-1 bridge, its isolated canary, primary/legacy/primary rollback rehearsal, and signed-primary restoration. The ordering gate is `compatible` with zero blockers.
 
 Inspect the bridge source and exact Phi N-1 compatibility separately with:
 
