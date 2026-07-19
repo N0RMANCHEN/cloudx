@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.legacy-health-bridge-artifact-stage-plan.v1.schema.json",
+  "title": "Cloudx pinned legacy health bridge artifact staging plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "confirmation",
+    "releaseVersion",
+    "releaseRef",
+    "releaseRefCommit",
+    "manifestSha256",
+    "releaseArtifact",
+    "automaticAction",
+    "authorization"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.legacy-health-bridge-artifact-stage-plan.v1"},
+    "status": {"const": "confirmation-required"},
+    "confirmation": {"const": "STAGE CLOUDX LEGACY HEALTH BRIDGE ARTIFACT 0.1.15 WITHOUT ACTIVATION"},
+    "releaseVersion": {"const": "0.1.15"},
+    "releaseRef": {"const": "refs/heads/release-artifacts/v0.1.15"},
+    "releaseRefCommit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "manifestSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "releaseArtifact": {"const": "/opt/cloudx/releases/0.1.15/cloudx-cloud.pyz"},
+    "automaticAction": {"const": false},
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["networkFetch", "releaseDirectoryWrite", "releaseActivation", "selectorMutation", "serviceRestart"],
+      "properties": {
+        "networkFetch": {"const": false},
+        "releaseDirectoryWrite": {"const": false},
+        "releaseActivation": {"const": false},
+        "selectorMutation": {"const": false},
+        "serviceRestart": {"const": false}
+      }
+    }
+  }
+}

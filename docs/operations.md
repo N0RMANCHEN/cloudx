@@ -285,6 +285,15 @@ python3 scripts/rehearse_legacy_health_bridge_rollback.py --phi-root <phi-checko
 
 The rehearsal builds the current cloud candidate in a temporary root, seeds isolated `0.1.13/0.1.12` selectors, runs the candidate bridge, invokes the real Cloudx rollback implementation in both directions, and requires the persisted legacy bytes to remain identical across all three states. It emits no temporary path and grants no production publication, staging, unit, service, or selector authority.
 
+The bridge is deliberately fixed to signed `0.1.15`. If a newer endpoint no longer has that immutable artifact cached, do not weaken the ordinary downgrade rejection or repoint the unit to `/opt/cloudx/current`. Inspect the separate pinned compatibility-stage plan:
+
+```bash
+python3 scripts/stage_legacy_health_bridge_artifact.py \
+  --release-version 0.1.15
+```
+
+The default `cloudx.legacy-health-bridge-artifact-stage-plan.v1` document performs no fetch or runtime read and keeps every authorization false. Apply requires the exact `STAGE CLOUDX LEGACY HEALTH BRIDGE ARTIFACT 0.1.15 WITHOUT ACTIVATION` confirmation and root. It fetches only `release-artifacts/v0.1.15`, requires commit `332cb865a97d654efca4b4321b90cdc140e57e64`, verifies the signed manifest digest and source identity, runs the artifact self-check, and atomically installs only `/opt/cloudx/releases/0.1.15`. It requires the active and previous selectors plus current artifact digest to remain byte-for-byte equivalent before and after, and invokes no service manager. Ordinary endpoint staging continues to reject older versions.
+
 Inspect the separate bridge unit-file installation transaction without changing the host:
 
 ```bash

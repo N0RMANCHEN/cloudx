@@ -1,0 +1,18 @@
+{
+  "authorization": {
+    "networkFetch": false,
+    "releaseActivation": false,
+    "releaseDirectoryWrite": false,
+    "selectorMutation": false,
+    "serviceRestart": false
+  },
+  "automaticAction": false,
+  "confirmation": "STAGE CLOUDX LEGACY HEALTH BRIDGE ARTIFACT 0.1.15 WITHOUT ACTIVATION",
+  "manifestSha256": "3d1f9747cefab855725d105f584e938a27bc93baf488598b746418978547595a",
+  "releaseArtifact": "/opt/cloudx/releases/0.1.15/cloudx-cloud.pyz",
+  "releaseRef": "refs/heads/release-artifacts/v0.1.15",
+  "releaseRefCommit": "332cb865a97d654efca4b4321b90cdc140e57e64",
+  "releaseVersion": "0.1.15",
+  "schema": "cloudx.legacy-health-bridge-artifact-stage-plan.v1",
+  "status": "confirmation-required"
+}

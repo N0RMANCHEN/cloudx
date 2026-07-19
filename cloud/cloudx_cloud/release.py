@@ -163,40 +163,129 @@ def _verify_artifact_self_check(artifact: pathlib.Path, version: str, protocol: 
         raise RuntimeError("staged cloud artifact self-check is not healthy")
 
 
-def stage(raw: bytes) -> Dict[str, Any]:
+def _stage_verified_release(
+    extracted: pathlib.Path,
+    *,
+    allow_older_compatibility: bool,
+    expected_version: Optional[str] = None,
+    expected_source_commit: Optional[str] = None,
+    expected_manifest_sha256: Optional[str] = None,
+) -> Dict[str, Any]:
     root = release_root()
+    manifest_path, signature_path, artifact, manifest = _release_files(extracted)
+    version = manifest["version"]
+    manifest_sha256 = digest(manifest_path)
+    artifact_sha256 = digest(artifact)
+    if allow_older_compatibility:
+        if not expected_version or not expected_source_commit or not expected_manifest_sha256:
+            raise RuntimeError("pinned compatibility identity is incomplete")
+        if version != expected_version:
+            raise RuntimeError("compatibility release version does not match the pinned identity")
+        if manifest.get("sourceCommit") != expected_source_commit:
+            raise RuntimeError("compatibility release source does not match the pinned identity")
+        if manifest_sha256 != expected_manifest_sha256:
+            raise RuntimeError("compatibility release manifest does not match the pinned identity")
+    current = root / "current"
+    if (
+        not allow_older_compatibility
+        and current.is_symlink()
+        and _version_tuple(version) < _version_tuple(current.resolve().name)
+    ):
+        raise RuntimeError("staging a downgrade is not allowed; use rollback")
+    destination = root / "releases" / version
+    target = destination / "cloudx-cloud.pyz"
+    if destination.exists():
+        if not target.is_file() or target.is_symlink() or digest(target) != artifact_sha256:
+            raise RuntimeError("a different release is already staged at this version")
+        if allow_older_compatibility:
+            existing_manifest = destination / "manifest.json"
+            existing_signature = destination / "manifest.json.sig"
+            existing_signers = destination / "allowed_signers"
+            required = (existing_manifest, existing_signature, existing_signers)
+            if any(not path.is_file() or path.is_symlink() for path in required):
+                raise RuntimeError("the staged compatibility release is incomplete")
+            if digest(existing_manifest) != expected_manifest_sha256:
+                raise RuntimeError("the staged compatibility manifest does not match the pinned identity")
+            if existing_signers.read_bytes() != _allowed_signers():
+                raise RuntimeError("the staged compatibility signer root is inconsistent")
+            _verify_signature(existing_manifest, existing_signature)
+            _verify_artifact_self_check(target, version, manifest.get("protocol"))
+        return {
+            "schema": (
+                "cloudx.release-pinned-compatibility-stage.v1"
+                if allow_older_compatibility
+                else "cloudx.release-stage.v1"
+            ),
+            "version": version,
+            "status": "already-staged",
+            "manifestSha256": manifest_sha256,
+            "artifactSha256": artifact_sha256,
+        }
+    releases = root / "releases"
+    releases.mkdir(parents=True, exist_ok=True, mode=0o755)
+    temporary = releases / (".stage-%s-%d" % (version, os.getpid()))
+    shutil.rmtree(temporary, ignore_errors=True)
+    temporary.mkdir(mode=0o755)
+    try:
+        target = temporary / "cloudx-cloud.pyz"
+        shutil.copy2(artifact, target)
+        target.chmod(0o755)
+        shutil.copy2(manifest_path, temporary / "manifest.json")
+        shutil.copy2(signature_path, temporary / "manifest.json.sig")
+        (temporary / "allowed_signers").write_bytes(_allowed_signers())
+        _verify_artifact_self_check(target, version, manifest.get("protocol"))
+        os.replace(str(temporary), str(destination))
+    except Exception:
+        shutil.rmtree(temporary, ignore_errors=True)
+        raise
+    return {
+        "schema": (
+            "cloudx.release-pinned-compatibility-stage.v1"
+            if allow_older_compatibility
+            else "cloudx.release-stage.v1"
+        ),
+        "version": version,
+        "status": "staged",
+        "manifestSha256": manifest_sha256,
+        "artifactSha256": artifact_sha256,
+    }
+
+
+def stage(raw: bytes) -> Dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="cloudx-release-stage-") as value:
         extracted = pathlib.Path(value)
         _extract(raw, extracted)
-        manifest_path, signature_path, artifact, manifest = _release_files(extracted)
-        version = manifest["version"]
-        current = root / "current"
-        if current.is_symlink() and _version_tuple(version) < _version_tuple(current.resolve().name):
-            raise RuntimeError("staging a downgrade is not allowed; use rollback")
-        destination = root / "releases" / version
-        target = destination / "cloudx-cloud.pyz"
-        if destination.exists():
-            if target.is_file() and digest(target) == digest(artifact):
-                return {"schema": "cloudx.release-stage.v1", "version": version, "status": "already-staged"}
-            raise RuntimeError("a different release is already staged at this version")
-        releases = root / "releases"
-        releases.mkdir(parents=True, exist_ok=True, mode=0o755)
-        temporary = releases / (".stage-%s-%d" % (version, os.getpid()))
-        shutil.rmtree(temporary, ignore_errors=True)
-        temporary.mkdir(mode=0o755)
-        try:
-            target = temporary / "cloudx-cloud.pyz"
-            shutil.copy2(artifact, target)
-            target.chmod(0o755)
-            shutil.copy2(manifest_path, temporary / "manifest.json")
-            shutil.copy2(signature_path, temporary / "manifest.json.sig")
-            (temporary / "allowed_signers").write_bytes(_allowed_signers())
-            _verify_artifact_self_check(target, version, manifest.get("protocol"))
-            os.replace(str(temporary), str(destination))
-        except Exception:
-            shutil.rmtree(temporary, ignore_errors=True)
-            raise
-        return {"schema": "cloudx.release-stage.v1", "version": version, "status": "staged"}
+        result = _stage_verified_release(extracted, allow_older_compatibility=False)
+    return {
+        "schema": "cloudx.release-stage.v1",
+        "version": result["version"],
+        "status": result["status"],
+    }
+
+
+def stage_pinned_compatibility(
+    raw: bytes,
+    *,
+    expected_version: str,
+    expected_source_commit: str,
+    expected_manifest_sha256: str,
+) -> Dict[str, Any]:
+    """Stage one exact signed compatibility artifact without changing selectors."""
+    _version_tuple(expected_version)
+    if not re.fullmatch(r"[a-f0-9]{40}", expected_source_commit):
+        raise RuntimeError("invalid pinned compatibility source commit")
+    if not re.fullmatch(r"[a-f0-9]{64}", expected_manifest_sha256):
+        raise RuntimeError("invalid pinned compatibility manifest digest")
+    with tempfile.TemporaryDirectory(prefix="cloudx-compatibility-stage-") as value:
+        extracted = pathlib.Path(value)
+        _extract(raw, extracted)
+        return _stage_verified_release(
+            extracted,
+            allow_older_compatibility=True,
+            expected_version=expected_version,
+            expected_source_commit=expected_source_commit,
+            expected_manifest_sha256=expected_manifest_sha256,
+        )
 
 
 def _atomic_link(link: pathlib.Path, target: pathlib.Path) -> None:

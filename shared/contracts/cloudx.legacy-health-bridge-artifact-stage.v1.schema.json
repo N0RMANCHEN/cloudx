@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.legacy-health-bridge-artifact-stage.v1.schema.json",
+  "title": "Cloudx pinned legacy health bridge artifact staging receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "releaseVersion",
+    "releaseRefCommit",
+    "sourceCommit",
+    "manifestSha256",
+    "artifactSha256",
+    "releaseArtifact",
+    "selectorsBefore",
+    "selectorsAfter",
+    "releaseActivated",
+    "serviceRestarted"
+  ],
+  "$defs": {
+    "selectorSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currentVersion", "previousVersion", "currentArtifactSha256"],
+      "properties": {
+        "currentVersion": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+          ]
+        },
+        "previousVersion": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+          ]
+        },
+        "currentArtifactSha256": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+          ]
+        }
+      }
+    }
+  },
+  "properties": {
+    "schema": {"const": "cloudx.legacy-health-bridge-artifact-stage.v1"},
+    "status": {"enum": ["staged", "already-staged"]},
+    "releaseVersion": {"const": "0.1.15"},
+    "releaseRefCommit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "sourceCommit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "manifestSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "artifactSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "releaseArtifact": {"const": "/opt/cloudx/releases/0.1.15/cloudx-cloud.pyz"},
+    "selectorsBefore": {"$ref": "#/$defs/selectorSnapshot"},
+    "selectorsAfter": {"$ref": "#/$defs/selectorSnapshot"},
+    "releaseActivated": {"const": false},
+    "serviceRestarted": {"const": false}
+  }
+}

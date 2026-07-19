@@ -63,6 +63,28 @@ class ContractTests(unittest.TestCase):
         for forbidden in ("api_key", "bearer ", "token-", "secret-value"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_legacy_health_bridge_artifact_stage_is_pinned_and_selector_inert(self) -> None:
+        plan = json.loads(
+            (CONTRACTS / "examples/legacy-health-bridge-artifact-stage-plan.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        receipt = json.loads(
+            (CONTRACTS / "examples/legacy-health-bridge-artifact-stage.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(plan["releaseVersion"], "0.1.15")
+        self.assertEqual(plan["releaseRefCommit"], "332cb865a97d654efca4b4321b90cdc140e57e64")
+        self.assertFalse(plan["automaticAction"])
+        self.assertFalse(any(plan["authorization"].values()))
+        self.assertEqual(receipt["selectorsAfter"], receipt["selectorsBefore"])
+        self.assertFalse(receipt["releaseActivated"])
+        self.assertFalse(receipt["serviceRestarted"])
+        serialized = json.dumps({"plan": plan, "receipt": receipt}).casefold()
+        for forbidden in ("api_key", "bearer ", "token-", "secret-value"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_legacy_health_bridge_canary_is_isolated_and_non_authorizing(self) -> None:
         plan = json.loads(
             (CONTRACTS / "examples/legacy-health-bridge-canary-plan.json").read_text(encoding="utf-8")

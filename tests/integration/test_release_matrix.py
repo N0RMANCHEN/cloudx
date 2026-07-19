@@ -89,6 +89,7 @@ class ReleaseVerificationMatrixTests(unittest.TestCase):
         artifact_version: Optional[str] = None,
         manifest_protocol: Optional[dict] = None,
         manifest_extra: Optional[dict] = None,
+        source_commit: Optional[str] = None,
     ) -> Tuple[pathlib.Path, pathlib.Path]:
         release_dir = self.root / "release" / ("%s-from-%s" % (version, artifact_version or version))
         release_dir.mkdir(parents=True)
@@ -98,7 +99,7 @@ class ReleaseVerificationMatrixTests(unittest.TestCase):
             "schema": "cloudx.release-manifest.v1",
             "product": "cloudx",
             "version": version,
-            "sourceCommit": "matrix-%s" % version,
+            "sourceCommit": source_commit or "matrix-%s" % version,
             "protocol": manifest_protocol or {"min": 1, "max": 1},
             "contracts": {"health": 1, "handshake": 1, "httpImporterStopGate": 1, "import": 1},
             "artifacts": [self._record(local_artifact, "local"), self._record(cloud_artifact, "cloud")],
@@ -154,6 +155,49 @@ class ReleaseVerificationMatrixTests(unittest.TestCase):
             self.assertEqual((self.config.home / ".local/lib/cloudx/current").resolve().name, "0.1.0")
             self.assertEqual((cloud_root / "current").resolve().name, "0.1.0")
             self.assertEqual(cloud_release.status()["previousVersion"], "0.2.0")
+
+    def test_pinned_compatibility_stage_allows_older_artifact_without_selectors(self) -> None:
+        old_release, old_bundle = self._release("0.1.0", source_commit="a" * 40)
+        unused_current, current_bundle = self._release("0.2.0")
+        cloud_root = self.root / "pinned-compatibility-cloud-root"
+        manifest_digest = hashlib.sha256((old_release / "manifest.json").read_bytes()).hexdigest()
+        with mock.patch(
+            "cloudx_cloud.release._allowed_signers",
+            return_value=self.signers,
+        ), mock.patch.dict(os.environ, {"CLOUDX_RELEASE_ROOT": str(cloud_root)}):
+            cloud_release.stage(self._bundle_bytes(current_bundle))
+            cloud_release.activate("0.2.0", "0.2.0")
+            selectors_before = cloud_release.status()
+
+            with self.assertRaisesRegex(RuntimeError, "downgrade"):
+                cloud_release.stage(self._bundle_bytes(old_bundle))
+            with self.assertRaisesRegex(RuntimeError, "manifest"):
+                cloud_release.stage_pinned_compatibility(
+                    self._bundle_bytes(old_bundle),
+                    expected_version="0.1.0",
+                    expected_source_commit="a" * 40,
+                    expected_manifest_sha256="0" * 64,
+                )
+            self.assertFalse((cloud_root / "releases/0.1.0").exists())
+
+            staged = cloud_release.stage_pinned_compatibility(
+                self._bundle_bytes(old_bundle),
+                expected_version="0.1.0",
+                expected_source_commit="a" * 40,
+                expected_manifest_sha256=manifest_digest,
+            )
+            repeated = cloud_release.stage_pinned_compatibility(
+                self._bundle_bytes(old_bundle),
+                expected_version="0.1.0",
+                expected_source_commit="a" * 40,
+                expected_manifest_sha256=manifest_digest,
+            )
+
+            self.assertEqual(staged["status"], "staged")
+            self.assertEqual(repeated["status"], "already-staged")
+            self.assertEqual(staged["schema"], "cloudx.release-pinned-compatibility-stage.v1")
+            self.assertEqual(cloud_release.status(), selectors_before)
+            self.assertTrue((cloud_root / "releases/0.1.0/cloudx-cloud.pyz").is_file())
 
     def test_tampering_is_rejected_on_both_endpoints(self) -> None:
         release_dir, unused_bundle = self._release("0.1.0")
