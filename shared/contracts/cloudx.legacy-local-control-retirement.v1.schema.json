@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.legacy-local-control-retirement.v1.schema.json",
+  "title": "Cloudx idle legacy local control LaunchAgent retirement receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "decisionDigest", "releaseVersion", "previousPid", "port", "portClosed", "launchAgentLoaded", "launchAgentLive", "backupId", "retainedBundleId", "migrationBackupId", "recoveryScriptPrepared", "controlServiceStopped", "controlServiceRestarted", "sigkillSent", "localCpaPid", "localCpaChanged", "codexProcessTerminated", "accountMutation", "cloudxSelectorsUnchanged", "quarantineRetained"],
+  "properties": {
+    "schema": {"const": "cloudx.legacy-local-control-retirement.v1"},
+    "status": {"const": "retired"},
+    "decisionDigest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "previousPid": {"type": "integer", "minimum": 1},
+    "port": {"const": 8765},
+    "portClosed": {"const": true},
+    "launchAgentLoaded": {"const": false},
+    "launchAgentLive": {"const": false},
+    "backupId": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z$"},
+    "retainedBundleId": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z$"},
+    "migrationBackupId": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z$"},
+    "recoveryScriptPrepared": {"const": true},
+    "controlServiceStopped": {"const": true},
+    "controlServiceRestarted": {"const": false},
+    "sigkillSent": {"const": false},
+    "localCpaPid": {"type": "integer", "minimum": 1},
+    "localCpaChanged": {"const": false},
+    "codexProcessTerminated": {"const": false},
+    "accountMutation": {"const": false},
+    "cloudxSelectorsUnchanged": {"const": true},
+    "quarantineRetained": {"const": true}
+  }
+}

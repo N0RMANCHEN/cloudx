@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.legacy-local-control-retirement-plan.v1.schema.json",
+  "title": "Cloudx idle legacy local control LaunchAgent retirement plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "confirmation", "releaseVersion", "automaticAction", "preconditions", "authorization"],
+  "properties": {
+    "schema": {"const": "cloudx.legacy-local-control-retirement-plan.v1"},
+    "status": {"const": "confirmation-required"},
+    "confirmation": {"const": "RETIRE IDLE LOCAL CODEXX CONTROL LAUNCHAGENT WITH AUTOMATIC RESTORE"},
+    "releaseVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "automaticAction": {"const": false},
+    "preconditions": {
+      "const": [
+        "retained_control_runtime_active",
+        "zero_active_control_connections",
+        "minimum_thirty_day_state_idle_window",
+        "exact_migration_backup_verified",
+        "retirement_recovery_prepared_before_stop",
+        "decision_digest_match",
+        "external_local_cpa_healthy"
+      ]
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["controlServiceStop", "launchAgentQuarantine", "controlServiceStart", "localCpaMutation", "codexProcessTermination", "accountMutation", "cloudxMutation", "recoveryRemoval"],
+      "properties": {
+        "controlServiceStop": {"const": false},
+        "launchAgentQuarantine": {"const": false},
+        "controlServiceStart": {"const": false},
+        "localCpaMutation": {"const": false},
+        "codexProcessTermination": {"const": false},
+        "accountMutation": {"const": false},
+        "cloudxMutation": {"const": false},
+        "recoveryRemoval": {"const": false}
+      }
+    }
+  }
+}

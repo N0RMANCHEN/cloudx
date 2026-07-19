@@ -1,0 +1,15 @@
+{
+  "activeConnections": 0,
+  "controlPid": 102,
+  "decisionDigest": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+  "localCpaChanged": false,
+  "localCpaPid": 300,
+  "migrationBackupId": "20260719T150309Z",
+  "minimumIdleSeconds": 2592000,
+  "port": 8765,
+  "releaseVersion": "0.1.21",
+  "retainedBundleId": "20260715T122545Z",
+  "schema": "cloudx.legacy-local-control-retirement-decision.v1",
+  "serviceStopRequired": true,
+  "status": "retirement-ready"
+}

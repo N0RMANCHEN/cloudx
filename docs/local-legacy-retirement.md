@@ -1,12 +1,13 @@
 # Local Legacy Retirement Runbook
 
-This runbook retires the remaining local codex-plus runtime without stopping, restarting, rebinding, or reconfiguring the external local CPA on port `8317`. It uses three separately confirmed transactions in a fixed order. None may run from a Git checkout; copy the exact committed scripts into a private immutable operator bundle first.
+This runbook retires the remaining local codex-plus runtime without stopping, restarting, rebinding, or reconfiguring the external local CPA on port `8317`. It uses four separately confirmed transactions in a fixed order. None may run from a Git checkout; copy the exact committed scripts into a private immutable operator bundle first.
 
 ## Safety Boundary
 
 - The stale-exec transaction may send `SIGTERM` only to digest-bound, PPID-1 `codexx.py exec` groups that are at least thirty days old, have revoked standard I/O, have no network socket, contain exactly one official Codex child, and remain CPU-bound across repeated samples. It never sends `SIGKILL`, writes a file, or restarts a service.
 - The control migration may restart only `com.codexx.control` on port `8765` after five zero-connection samples and a thirty-day state-idle check. It prepares retained and live-runtime recovery plists plus an executable recovery script before the restart. It never touches CPA, Codex sessions, accounts, or Cloudx selectors.
 - The package transaction may move only `codexx_app`, `codexx.py`, and `codexx-legacy` into same-filesystem private quarantine after all live references are gone. It prepares a standalone restore script before the first move and automatically restores partial moves or failed acceptance.
+- The final control retirement may unload only the still-zero-connection `com.codexx.control` LaunchAgent after verifying that it runs from the retained bundle and exactly matches the earlier migration backup. It prepares a separate executable recovery tool, then quarantines the LaunchAgent plist so login cannot restart it. It never touches CPA or any Codex process.
 
 Stop immediately if the CPA PID changes, port `8317` becomes unavailable, a target decision digest changes, port `8765` has an active connection, or any script reports a different target set.
 
@@ -22,13 +23,14 @@ mkdir -p "$bundle"
 git archive "$commit" \
   scripts/retire_stale_local_codexx_exec.py \
   scripts/migrate_legacy_local_control.py \
+  scripts/retire_legacy_local_control.py \
   scripts/remove_legacy_local_package.py |
   tar -x -C "$bundle" --strip-components=1
 chmod 700 "$bundle" "$bundle"/*.py
 git diff --quiet && git diff --cached --quiet
 ```
 
-Record the commit and SHA-256 of all three copied scripts. Do not place account data, API keys, auth files, or runtime logs in this bundle.
+Record the commit and SHA-256 of all four copied scripts. Do not place account data, API keys, auth files, or runtime logs in this bundle.
 
 Capture the baseline without reading credentials:
 
@@ -133,6 +135,42 @@ Restore only with the exact confirmation:
 
 This restores files only. It does not restart CPA, Codex, the legacy control service, or Cloudx. To return completely to the former live control path, restore the package first and then use the control backup's `--mode live` recovery command.
 
+## 4. Retire The Idle Control LaunchAgent
+
+After package quarantine and a fresh communication canary, print the offline plan and obtain a new zero-connection decision:
+
+```bash
+python3 "$bundle/retire_legacy_local_control.py" --release-version 0.1.21
+python3 "$bundle/retire_legacy_local_control.py" --check --release-version 0.1.21
+```
+
+The decision must bind the currently running retained bundle, exact migration backup, thirty-day idle state, zero port-`8765` connections, signed selectors, and unchanged CPA PID. Apply only with that fresh digest:
+
+```bash
+python3 "$bundle/retire_legacy_local_control.py" \
+  --apply \
+  --confirm "RETIRE IDLE LOCAL CODEXX CONTROL LAUNCHAGENT WITH AUTOMATIC RESTORE" \
+  --decision-digest '<fresh-decision-digest>' \
+  --release-version 0.1.21
+```
+
+The transaction prepares another private recovery directory before calling `launchctl bootout`, then moves only `com.codexx.control.plist` into quarantine. Acceptance requires port `8765` closed, the LaunchAgent unloaded and absent from its live path, `SIGKILL=false`, no official Codex process termination, unchanged Cloudx selectors, and the original CPA PID still listening on `8317`.
+
+Verify recovery without restarting the retired service:
+
+```bash
+./recover.py --check
+```
+
+Restore and start only the retained control service with:
+
+```bash
+./recover.py \
+  --confirm "RESTORE RETIRED LOCAL CODEXX CONTROL LAUNCHAGENT"
+```
+
+Recovery does not stop, restart, or reconfigure CPA. If the restored control service is no longer needed, repeat the separately confirmed retirement transaction rather than deleting its files manually.
+
 ## Closeout Evidence
 
-Record only secret-free evidence: source commit, script digests, decision digests, old/new process IDs, listener states, recovery backup IDs, transaction receipts, active Cloudx selectors, and canary outcomes. Do not record process command lines containing user paths, auth filenames, account identities, request bodies, or credentials.
+Record only secret-free evidence: source commit, script digests, decision digests, old/new process IDs, listener states, recovery backup IDs, transaction receipts, active Cloudx selectors, and canary outcomes. Final local acceptance requires no live codex-plus process, port `18317` and `8765` closed, and CPA `8317` plus real communication healthy. Do not record process command lines containing user paths, auth filenames, account identities, request bodies, or credentials.

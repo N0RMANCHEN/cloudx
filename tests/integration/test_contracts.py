@@ -400,6 +400,35 @@ class ContractTests(unittest.TestCase):
         self.assertFalse(receipt["credentialMutation"])
         self.assertFalse(receipt["phiServiceRestarted"])
 
+    def test_legacy_control_retirement_is_recoverable_and_cpa_inert(self) -> None:
+        plan = json.loads(
+            (CONTRACTS / "examples/legacy-local-control-retirement-plan.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        decision = json.loads(
+            (CONTRACTS / "examples/legacy-local-control-retirement-decision.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        receipt = json.loads(
+            (CONTRACTS / "examples/legacy-local-control-retirement.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertFalse(plan["automaticAction"])
+        self.assertFalse(any(plan["authorization"].values()))
+        self.assertEqual(decision["activeConnections"], 0)
+        self.assertTrue(decision["serviceStopRequired"])
+        self.assertTrue(receipt["controlServiceStopped"])
+        self.assertTrue(receipt["portClosed"])
+        self.assertFalse(receipt["launchAgentLoaded"])
+        self.assertFalse(receipt["launchAgentLive"])
+        self.assertFalse(receipt["controlServiceRestarted"])
+        self.assertFalse(receipt["sigkillSent"])
+        self.assertFalse(receipt["localCpaChanged"])
+        self.assertFalse(receipt["codexProcessTerminated"])
+
     def test_phi_mesh_compatibility_profile_references_existing_contracts(self) -> None:
         profile = json.loads(
             (CONTRACTS / "examples/phi-mesh-compatibility-profile.json").read_text(encoding="utf-8")

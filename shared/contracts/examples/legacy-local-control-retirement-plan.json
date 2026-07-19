@@ -1,0 +1,26 @@
+{
+  "authorization": {
+    "accountMutation": false,
+    "cloudxMutation": false,
+    "codexProcessTermination": false,
+    "controlServiceStart": false,
+    "controlServiceStop": false,
+    "launchAgentQuarantine": false,
+    "localCpaMutation": false,
+    "recoveryRemoval": false
+  },
+  "automaticAction": false,
+  "confirmation": "RETIRE IDLE LOCAL CODEXX CONTROL LAUNCHAGENT WITH AUTOMATIC RESTORE",
+  "preconditions": [
+    "retained_control_runtime_active",
+    "zero_active_control_connections",
+    "minimum_thirty_day_state_idle_window",
+    "exact_migration_backup_verified",
+    "retirement_recovery_prepared_before_stop",
+    "decision_digest_match",
+    "external_local_cpa_healthy"
+  ],
+  "releaseVersion": "0.1.21",
+  "schema": "cloudx.legacy-local-control-retirement-plan.v1",
+  "status": "confirmation-required"
+}
