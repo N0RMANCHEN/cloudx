@@ -333,7 +333,7 @@ Disable only the new compatibility capability/profile and retain the current sin
 
 ## M4B: CPA Credential Failure And Concurrency Safety
 
-Status: cloud and local both select signed Cloudx `0.1.21/0.1.20`. Exact cloud `.policy.5` and its signed failure/sweep watchers have passed production M4B acceptance; exact local `.policy.5` is staged/inactive while the original local CPA and inactive watcher remain. Zero-connection local activation and local watcher acceptance remain separate gates.
+Status: cloud and local both select signed Cloudx `0.1.21/0.1.20`. Exact cloud `.policy.5` and its signed failure/sweep watchers have passed production M4B acceptance. Exact local `.policy.5` is staged/inactive; immutable job `20260719T160250Z-9a24174c` has prepared manual recovery and is waiting up to seven days for natural five-sample zero-connection evidence without mutating the launcher or CPA. Local watcher acceptance remains a later separate gate.
 
 This milestone implements the operator-requested external CPA safety boundary without upgrading either installed upstream revision or making Cloudx the CPA lifecycle owner.
 
@@ -377,6 +377,7 @@ This milestone implements the operator-requested external CPA safety boundary wi
 - [x] Stage both exact `.policy.5` candidates through separate confirmations without changing a process, service, launcher, unit, credential, archive, watcher input, or release selector.
 - [x] Activate cloud `.policy.5` through a new independently recoverable `.policy.4` restart boundary and accept exact identity, health, policy `2`, real model traffic, and local communication.
 - [x] Repeat M4B production acceptance against the natural typed all-candidate cooldown trigger.
+- [x] Replace the one-shot deferred local activation attempt with an immutable seven-day natural-quiescence monitor that prepares recovery first, observes only socket counts while busy, invokes the installer only after five zero samples, and changes nothing on timeout; schedule production job `20260719T160250Z-9a24174c` with CPA PID `61859` unchanged.
 - [ ] Activate local `.policy.5` only through a new separate confirmation after the recovery bundle and five-sample zero-connection gate pass; accept health, two-request business policy, real communication, both aggregate trigger sources, and manual/automatic recovery canaries while retaining original binary and snapshot.
 - [x] Activate the cloud signed failure/sweep watcher after its `.policy.3` producer; preserve health-timer state, CPA/importer identities, selectors, credentials, archive and local communication, and accept an idle run with no trigger, zero probe concurrency, and zero archive.
 - [ ] Activate the local dual-input watcher only after local `.policy.5` is live; preserve CPA/Codex identities and verify immediate receipt consumption plus missed-trigger fallback without a CPA restart.
