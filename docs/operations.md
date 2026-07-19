@@ -101,6 +101,14 @@ The separately approved cloud failure/sweep watcher transaction is active. After
 
 The separately approved first-active-capacity transaction is accepted. Ordinary cloud import remained shadow-only and was not treated as capacity. One direct-Codex-verified `soul0` credential then entered the active pool through signed dry-run/apply and rollback-bounded stdin handling. Two source-hardening attempts privately restored the empty pool after an expected available observation and one hot-load HTTP `400`; final transaction `20260718T183809Z-6171f256` passed real model traffic with `codex-auto-review`, HTTP `200`, exact response text, public policy `2`, identity-free `available` observation, active/available count one, archive count 45, CPA PID `1613475`, restart count `0`, and no service restart or raw transaction copy. Signed health plus formal publishers now report one ready/available account and `cloudx.capacity.v1 state=healthy_capacity`, gateway HTTP `200`.
 
+## Published Release 0.1.19
+
+The immutable annotated tag `v0.1.19` identifies source `51c5294ed6dd5b504ef4384e9860c70e2593ae78`; tag object `205f25b2f3ad060b66082716a69ef2e4006c18ea` peels to that exact commit. Main CI run `29669596380`, non-publishing signing canary `29669662202`, and tag workflow `29677581155` all passed. The immutable artifact ref is `d4bddf35a1305186ffe568438ceaca6afb5cce61`; stable is `e5f7fafb7539b09f5b3e0f5424999bccd5a06dac`.
+
+Manifest, local artifact, cloud artifact, and offline bundle SHA-256 values are respectively `d6de8428c97ac30371626a6b4f9b41b47da134a5dd3e3900c5d2c90eb3ec996f`, `2d54f0e8d5b1e38bd4d5e231620c31691b8f5d926c2222ab5be59fc0832dfb03`, `33b575ec67844f36c2343cbef255cf740a93d288d910cf0405fdab1bb299e430`, and `cce684675b289e6fac34a1f56e82bb9be5624b7445a671e8b111d1b6689cf3d6`. Fresh clones and all seven Release assets verified current-root acceptance, pre-rotation-root rejection, exact source/manifest/stable binding, byte-identical offline contents, both self-checks, and local/cloud `staged -> already-staged` behavior without selectors.
+
+Publication left both real endpoints on `0.1.18/0.1.17`, local CPA PID `61859`, cloud CPA PID `1613475` with restart count `0`, importer PID `133756`, one active cloud credential, 45 prior archive entries, and empty failure/trigger inputs. Install cloud first with `INSTALL CLOUDX CLOUD 0.1.19`, then install local with `INSTALL CLOUDX LOCAL 0.1.19`; publication itself authorizes neither endpoint activation nor any service restart.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:
