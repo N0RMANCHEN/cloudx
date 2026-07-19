@@ -111,6 +111,8 @@ Publication left both real endpoints on `0.1.18/0.1.17`, local CPA PID `61859`, 
 
 The separately confirmed cloud `0.1.19` install is complete. Private transaction `20260719T072339Z-2a6bd2fa` prepared a signed `0.1.18` selector recovery before mutation, cloned immutable `v0.1.19` through the existing mihomo proxy, and invoked the tagged canonical installer. Cloud now selects `0.1.19/0.1.18`; exact source/artifact/manifest, self-check, release status, and handshake passed. CPA PID `1613475`, importer PID `133756`, both restart counts `0`, one active credential, 45 archive entries, empty failure/trigger inputs, watcher/unit bytes, and private prerequisite bytes were preserved. Local remained `0.1.18/0.1.17` with CPA PID `61859`; no service restarted. Local `0.1.19` installation remains the next separate gate.
 
+The separately confirmed local `0.1.19` install is also complete. Recovery job `20260719T073812Z-336c544b` captured native/shell/CPA/auth/process state and a real baseline canary before mutation, then retained an executable exact-selector/file restoration path with a real recovery canary. The immutable tagged installer activated `0.1.19/0.1.18` with no native seed. Artifact/source/manifest, self-check, fresh-shell API mode, official Codex resolution, and real post-install communication passed; native auth/config, CPA binary/config/LaunchAgent, 34 CPA JSON files, CPA PID `61859`, and all eight captured Codex PIDs remained unchanged. Cloud stayed `0.1.19/0.1.18`; no service restarted.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:
