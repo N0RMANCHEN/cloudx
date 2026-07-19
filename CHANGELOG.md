@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Install signed Cloudx `0.1.19` on cloud through the immutable tag and existing mihomo proxy, retaining signed `0.1.18` as N-1. Artifact/source/manifest, self-check, release status, and handshake passed; CPA PID `1613475`, importer PID `133756`, both restart counts, one active credential, 45 archive entries, watcher/unit bytes, prerequisites, and local CPA continuity were preserved with no service restart.
 - Advance repository development to `0.1.20` immediately after immutable signed `0.1.19` publication, preventing later source changes from rebuilding the released identity while endpoint installation and M4B production acceptance remain separately controlled.
 
 ## 0.1.19 - 2026-07-19

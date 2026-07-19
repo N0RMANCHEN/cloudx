@@ -109,6 +109,8 @@ Manifest, local artifact, cloud artifact, and offline bundle SHA-256 values are 
 
 Publication left both real endpoints on `0.1.18/0.1.17`, local CPA PID `61859`, cloud CPA PID `1613475` with restart count `0`, importer PID `133756`, one active cloud credential, 45 prior archive entries, and empty failure/trigger inputs. Install cloud first with `INSTALL CLOUDX CLOUD 0.1.19`, then install local with `INSTALL CLOUDX LOCAL 0.1.19`; publication itself authorizes neither endpoint activation nor any service restart.
 
+The separately confirmed cloud `0.1.19` install is complete. Private transaction `20260719T072339Z-2a6bd2fa` prepared a signed `0.1.18` selector recovery before mutation, cloned immutable `v0.1.19` through the existing mihomo proxy, and invoked the tagged canonical installer. Cloud now selects `0.1.19/0.1.18`; exact source/artifact/manifest, self-check, release status, and handshake passed. CPA PID `1613475`, importer PID `133756`, both restart counts `0`, one active credential, 45 archive entries, empty failure/trigger inputs, watcher/unit bytes, and private prerequisite bytes were preserved. Local remained `0.1.18/0.1.17` with CPA PID `61859`; no service restarted. Local `0.1.19` installation remains the next separate gate.
+
 ## Diagnose API Failures
 
 Run diagnosis immediately after a failed Codex turn:
