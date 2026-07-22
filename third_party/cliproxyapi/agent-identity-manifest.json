@@ -1,0 +1,22 @@
+{
+  "schema": "cloudx.cliproxy-agent-identity.v1",
+  "upstreamRepository": "https://github.com/router-for-me/CLIProxyAPI.git",
+  "upstreamTag": "v7.0.2",
+  "upstreamCommit": "1fca942b9c2c5bbdf78334eb4744a098983a05e9",
+  "patch": "patches/v7.0.2-agent-identity.patch",
+  "patchSha256": "f4b60990a2f80871de0322aae1ebb9ce2252330678d7d25e9046147a162139b8",
+  "goVersion": "1.26.0",
+  "goos": "darwin",
+  "goarch": "arm64",
+  "version": "7.0.2-codexx-fast-service-tier-agent-identity.1",
+  "commitLabel": "1fca942+cloudx-agent-identity.1",
+  "buildDate": "2026-07-22T05:30:00Z",
+  "candidateSha256": "85e8a2a051088ce28cabd4a34847eb77a72a36bac90c3f234e7367e61f189f04",
+  "candidateSize": 41484338,
+  "capabilities": [
+    "codex-agent-identity-v1"
+  ],
+  "capabilityProbePath": "/healthz",
+  "capabilityProbeHeader": "X-Cloudx-CPA-Capabilities",
+  "preservesFastServiceTier": true
+}

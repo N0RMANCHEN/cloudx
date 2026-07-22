@@ -1,0 +1,23 @@
+{
+  "schema": "cloudx.cliproxy-agent-identity-deployment.v1",
+  "version": "7.0.2-codexx-fast-service-tier-agent-identity.1",
+  "candidateSha256": "85e8a2a051088ce28cabd4a34847eb77a72a36bac90c3f234e7367e61f189f04",
+  "candidateSize": 41484338,
+  "requiredActiveCloudxVersion": "0.1.22",
+  "baselineBinary": ".local/bin/cli-proxy-api",
+  "baselineSha256": "9f5b098585723bb99399a6cba13da616099b653f62f9f59c7183d961567705c3",
+  "baselineMetadata": ".local/bin/cli-proxy-api.version.json",
+  "baselineMetadataSha256": "c47cb9d07e0d7cfe7ab5e08d21a3624f8c65b448dca1caedaf4f16ca4faa3b9a",
+  "stageRoot": ".local/lib/cliproxy-agent-identity/releases",
+  "backupRoot": ".local/state/cloudx/cpa-agent-identity-backups",
+  "capabilityManifest": ".local/bin/cli-proxy-api.capabilities.json",
+  "authDirectory": ".cli-proxy-api",
+  "config": ".cli-proxy-api/config.yaml",
+  "launcher": "Library/LaunchAgents/com.codexx.cliproxyapi.plist",
+  "serviceLabel": "com.codexx.cliproxyapi",
+  "listenHost": "127.0.0.1",
+  "listenPort": 8317,
+  "capabilities": [
+    "codex-agent-identity-v1"
+  ]
+}

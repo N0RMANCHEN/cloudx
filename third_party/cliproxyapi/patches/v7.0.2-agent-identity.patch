@@ -1,0 +1,699 @@
+diff --git a/internal/api/cloudx_agent_identity_capability.go b/internal/api/cloudx_agent_identity_capability.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..ecb6e8a5b7414f57a2838d8bed50fef6378e67a3
+--- /dev/null
++++ b/internal/api/cloudx_agent_identity_capability.go
+@@ -0,0 +1,15 @@
++package api
++
++import "github.com/gin-gonic/gin"
++
++const (
++	cloudxAgentIdentityCapability       = "codex-agent-identity-v1"
++	cloudxAgentIdentityCapabilityHeader = "X-Cloudx-CPA-Capabilities"
++)
++
++func cloudxAgentIdentityCapabilityMiddleware() gin.HandlerFunc {
++	return func(c *gin.Context) {
++		c.Header(cloudxAgentIdentityCapabilityHeader, cloudxAgentIdentityCapability)
++		c.Next()
++	}
++}
+diff --git a/internal/api/server.go b/internal/api/server.go
+index 04f1fb0ab0d59f028a78d84a79a514aa02d9e94d..030a0fcc299647b9897e9398885aad4e64b1677b 100644
+--- a/internal/api/server.go
++++ b/internal/api/server.go
+@@ -224,6 +224,7 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
+ 	// Add middleware
+ 	engine.Use(logging.GinLogrusLogger())
+ 	engine.Use(logging.GinLogrusRecovery())
++	engine.Use(cloudxAgentIdentityCapabilityMiddleware())
+ 	for _, mw := range optionState.extraMiddleware {
+ 		engine.Use(mw)
+ 	}
+diff --git a/internal/api/server_test.go b/internal/api/server_test.go
+index e107702a88b9ca633056e3cb8a39fd4c5207b65f..329449737f6189ee0328e1bbc19b2cecf9c7ebc8 100644
+--- a/internal/api/server_test.go
++++ b/internal/api/server_test.go
+@@ -69,6 +69,9 @@ func TestHealthz(t *testing.T) {
+ 		if resp.Status != "ok" {
+ 			t.Fatalf("unexpected response status: got %q want %q", resp.Status, "ok")
+ 		}
++		if got := rr.Header().Get(cloudxAgentIdentityCapabilityHeader); got != cloudxAgentIdentityCapability {
++			t.Fatalf("capability header: got %q want %q", got, cloudxAgentIdentityCapability)
++		}
+ 	})
+ 
+ 	t.Run("HEAD", func(t *testing.T) {
+diff --git a/internal/runtime/executor/codex_agent_identity.go b/internal/runtime/executor/codex_agent_identity.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..f79ebc9821dcef1ef5a1598f7561eb843ed954ab
+--- /dev/null
++++ b/internal/runtime/executor/codex_agent_identity.go
+@@ -0,0 +1,335 @@
++package executor
++
++import (
++	"bytes"
++	"context"
++	"crypto"
++	"crypto/ed25519"
++	"crypto/sha512"
++	"crypto/x509"
++	"encoding/base64"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++	"net/http"
++	"net/url"
++	"strings"
++	"sync"
++	"time"
++
++	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
++	"golang.org/x/crypto/curve25519"
++	"golang.org/x/crypto/nacl/box"
++)
++
++const (
++	codexAgentIdentityAuthMode       = "agentIdentity"
++	codexAgentIdentityRequestLimit   = 1024 * 1024
++	codexAgentIdentityRequestTimeout = 30 * time.Second
++)
++
++var (
++	codexAgentIdentityAuthAPIBaseURL = "https://auth.openai.com/api/accounts"
++	codexAgentIdentityTaskMu         sync.Mutex
++	codexAgentIdentityTaskCache      sync.Map
++)
++
++type codexAgentIdentityKey struct {
++	runtimeID  string
++	privateKey ed25519.PrivateKey
++	cacheKey   string
++	taskID     string
++}
++
++type codexAgentIdentityTaskResponse struct {
++	TaskID               string `json:"task_id"`
++	TaskIDCamel          string `json:"taskId"`
++	EncryptedTaskID      string `json:"encrypted_task_id"`
++	EncryptedTaskIDCamel string `json:"encryptedTaskId"`
++}
++
++func codexAgentIdentityMetadataString(auth *cliproxyauth.Auth, key string) string {
++	if auth == nil || auth.Metadata == nil {
++		return ""
++	}
++	value, _ := auth.Metadata[key].(string)
++	return strings.TrimSpace(value)
++}
++
++func isCodexAgentIdentity(auth *cliproxyauth.Auth) bool {
++	return strings.EqualFold(codexAgentIdentityMetadataString(auth, "auth_mode"), codexAgentIdentityAuthMode)
++}
++
++func codexAgentIdentityPrivateKey(auth *cliproxyauth.Auth) (ed25519.PrivateKey, error) {
++	raw := codexAgentIdentityMetadataString(auth, "agent_private_key")
++	if raw == "" {
++		return nil, errors.New("codex agent identity: private key is missing")
++	}
++	der, err := base64.StdEncoding.DecodeString(raw)
++	if err != nil {
++		return nil, errors.New("codex agent identity: private key is not valid base64")
++	}
++	parsed, err := x509.ParsePKCS8PrivateKey(der)
++	if err != nil {
++		return nil, errors.New("codex agent identity: private key is not valid PKCS#8")
++	}
++	privateKey, ok := parsed.(ed25519.PrivateKey)
++	if !ok || len(privateKey) != ed25519.PrivateKeySize {
++		return nil, errors.New("codex agent identity: private key is not Ed25519")
++	}
++	return privateKey, nil
++}
++
++func codexAgentIdentityKeyFromAuth(auth *cliproxyauth.Auth) (codexAgentIdentityKey, error) {
++	privateKey, err := codexAgentIdentityPrivateKey(auth)
++	if err != nil {
++		return codexAgentIdentityKey{}, err
++	}
++	runtimeID := codexAgentIdentityMetadataString(auth, "agent_runtime_id")
++	if runtimeID == "" {
++		return codexAgentIdentityKey{}, errors.New("codex agent identity: runtime id is missing")
++	}
++	publicKey, ok := privateKey.Public().(ed25519.PublicKey)
++	if !ok {
++		return codexAgentIdentityKey{}, errors.New("codex agent identity: public key is unavailable")
++	}
++	cacheKey := runtimeID + ":" + base64.RawStdEncoding.EncodeToString(publicKey)
++	taskID := ""
++	if cached, found := codexAgentIdentityTaskCache.Load(cacheKey); found {
++		taskID, _ = cached.(string)
++	}
++	return codexAgentIdentityKey{
++		runtimeID:  runtimeID,
++		privateKey: privateKey,
++		cacheKey:   cacheKey,
++		taskID:     strings.TrimSpace(taskID),
++	}, nil
++}
++
++func codexAgentIdentitySignRegistration(key codexAgentIdentityKey, now time.Time) (string, string, error) {
++	timestamp := now.UTC().Format(time.RFC3339)
++	signature, err := key.privateKey.Sign(nil, []byte(key.runtimeID+":"+timestamp), crypto.Hash(0))
++	if err != nil {
++		return "", "", errors.New("codex agent identity: failed to sign task registration")
++	}
++	return timestamp, base64.StdEncoding.EncodeToString(signature), nil
++}
++
++func codexAgentIdentityAssertion(auth *cliproxyauth.Auth, now time.Time) (string, bool) {
++	if !isCodexAgentIdentity(auth) {
++		return "", false
++	}
++	key, err := codexAgentIdentityKeyFromAuth(auth)
++	if err != nil || key.taskID == "" {
++		return "", false
++	}
++	timestamp := now.UTC().Format(time.RFC3339)
++	signature, err := key.privateKey.Sign(
++		nil,
++		[]byte(key.runtimeID+":"+key.taskID+":"+timestamp),
++		crypto.Hash(0),
++	)
++	if err != nil {
++		return "", false
++	}
++	envelope, err := json.Marshal(map[string]string{
++		"agent_runtime_id": key.runtimeID,
++		"task_id":          key.taskID,
++		"timestamp":        timestamp,
++		"signature":        base64.StdEncoding.EncodeToString(signature),
++	})
++	if err != nil {
++		return "", false
++	}
++	return "AgentAssertion " + base64.RawURLEncoding.EncodeToString(envelope), true
++}
++
++func codexAgentIdentityDecryptTaskID(key codexAgentIdentityKey, encoded string) (string, error) {
++	ciphertext, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encoded))
++	if err != nil {
++		return "", errors.New("codex agent identity: encrypted task id is not valid base64")
++	}
++	digest := sha512.Sum512(key.privateKey.Seed())
++	var curvePrivate [32]byte
++	copy(curvePrivate[:], digest[:32])
++	curvePrivate[0] &= 248
++	curvePrivate[31] &= 127
++	curvePrivate[31] |= 64
++	curvePublicBytes, err := curve25519.X25519(curvePrivate[:], curve25519.Basepoint)
++	if err != nil {
++		return "", errors.New("codex agent identity: failed to derive decryption key")
++	}
++	var curvePublic [32]byte
++	copy(curvePublic[:], curvePublicBytes)
++	plaintext, ok := box.OpenAnonymous(nil, ciphertext, &curvePublic, &curvePrivate)
++	if !ok {
++		return "", errors.New("codex agent identity: failed to decrypt task id")
++	}
++	taskID := strings.TrimSpace(string(plaintext))
++	if taskID == "" {
++		return "", errors.New("codex agent identity: decrypted task id is empty")
++	}
++	return taskID, nil
++}
++
++func codexAgentIdentityHTTPClient(auth *cliproxyauth.Auth) (*http.Client, error) {
++	transport := http.DefaultTransport.(*http.Transport).Clone()
++	if auth != nil && strings.TrimSpace(auth.ProxyURL) != "" {
++		proxyURL, err := url.Parse(strings.TrimSpace(auth.ProxyURL))
++		if err != nil {
++			return nil, errors.New("codex agent identity: proxy URL is invalid")
++		}
++		transport.Proxy = http.ProxyURL(proxyURL)
++	}
++	return &http.Client{Transport: transport, Timeout: codexAgentIdentityRequestTimeout}, nil
++}
++
++func codexAgentIdentityRegisterTask(
++	ctx context.Context,
++	auth *cliproxyauth.Auth,
++	key codexAgentIdentityKey,
++) (string, error) {
++	timestamp, signature, err := codexAgentIdentitySignRegistration(key, time.Now())
++	if err != nil {
++		return "", err
++	}
++	body, err := json.Marshal(map[string]string{"timestamp": timestamp, "signature": signature})
++	if err != nil {
++		return "", errors.New("codex agent identity: failed to serialize task registration")
++	}
++	registrationURL := strings.TrimRight(codexAgentIdentityAuthAPIBaseURL, "/") +
++		"/v1/agent/" + url.PathEscape(key.runtimeID) + "/task/register"
++	request, err := http.NewRequestWithContext(ctx, http.MethodPost, registrationURL, bytes.NewReader(body))
++	if err != nil {
++		return "", errors.New("codex agent identity: failed to create task registration request")
++	}
++	request.Header.Set("Content-Type", "application/json")
++	request.Header.Set("Accept", "application/json")
++	client, err := codexAgentIdentityHTTPClient(auth)
++	if err != nil {
++		return "", err
++	}
++	response, err := client.Do(request)
++	if err != nil {
++		return "", errors.New("codex agent identity: task registration request failed")
++	}
++	defer response.Body.Close()
++	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
++		return "", fmt.Errorf("codex agent identity: task registration returned status %d", response.StatusCode)
++	}
++	var result codexAgentIdentityTaskResponse
++	if err := json.NewDecoder(io.LimitReader(response.Body, 64*1024)).Decode(&result); err != nil {
++		return "", errors.New("codex agent identity: task registration response is invalid")
++	}
++	for _, taskID := range []string{result.TaskID, result.TaskIDCamel} {
++		if strings.TrimSpace(taskID) != "" {
++			return strings.TrimSpace(taskID), nil
++		}
++	}
++	encrypted := strings.TrimSpace(result.EncryptedTaskID)
++	if encrypted == "" {
++		encrypted = strings.TrimSpace(result.EncryptedTaskIDCamel)
++	}
++	if encrypted == "" {
++		return "", errors.New("codex agent identity: task registration response omitted task id")
++	}
++	return codexAgentIdentityDecryptTaskID(key, encrypted)
++}
++
++func codexAgentIdentityRegisterAndCache(ctx context.Context, auth *cliproxyauth.Auth, force bool) error {
++	key, err := codexAgentIdentityKeyFromAuth(auth)
++	if err != nil {
++		return err
++	}
++	if !force && key.taskID != "" {
++		return nil
++	}
++	codexAgentIdentityTaskMu.Lock()
++	defer codexAgentIdentityTaskMu.Unlock()
++	key, err = codexAgentIdentityKeyFromAuth(auth)
++	if err != nil {
++		return err
++	}
++	if !force && key.taskID != "" {
++		return nil
++	}
++	taskID, err := codexAgentIdentityRegisterTask(ctx, auth, key)
++	if err != nil {
++		return err
++	}
++	codexAgentIdentityTaskCache.Store(key.cacheKey, taskID)
++	return nil
++}
++
++func prepareCodexAgentIdentity(ctx context.Context, auth *cliproxyauth.Auth) error {
++	if !isCodexAgentIdentity(auth) {
++		return nil
++	}
++	return codexAgentIdentityRegisterAndCache(ctx, auth, false)
++}
++
++func applyCodexAgentIdentityHeaders(request *http.Request, auth *cliproxyauth.Auth) {
++	if request == nil || !isCodexAgentIdentity(auth) {
++		return
++	}
++	if assertion, ok := codexAgentIdentityAssertion(auth, time.Now()); ok {
++		request.Header.Set("Authorization", assertion)
++	}
++	if auth != nil && auth.Metadata != nil {
++		if fedramp, ok := auth.Metadata["chatgpt_account_is_fedramp"].(bool); ok && fedramp {
++			request.Header.Set("X-OpenAI-Fedramp", "true")
++		}
++	}
++}
++
++func isCodexAgentIdentityTaskInvalid(statusCode int, body []byte) bool {
++	if statusCode != http.StatusUnauthorized {
++		return false
++	}
++	lower := strings.ToLower(string(body))
++	compact := strings.NewReplacer(" ", "", "\t", "", "\r", "", "\n", "").Replace(lower)
++	for _, marker := range []string{
++		`"code":"invalid_task_id"`,
++		`"code":"task_not_found"`,
++		`"code":"task_expired"`,
++		`"error":"invalid_task_id"`,
++	} {
++		if strings.Contains(compact, marker) {
++			return true
++		}
++	}
++	return false
++}
++
++func doCodexRequestWithAgentIdentityRecovery(
++	ctx context.Context,
++	client *http.Client,
++	request *http.Request,
++	auth *cliproxyauth.Auth,
++) (*http.Response, error) {
++	response, err := client.Do(request)
++	if err != nil || response == nil || !isCodexAgentIdentity(auth) || response.StatusCode != http.StatusUnauthorized {
++		return response, err
++	}
++	body, readErr := io.ReadAll(io.LimitReader(response.Body, codexAgentIdentityRequestLimit+1))
++	_ = response.Body.Close()
++	if readErr != nil {
++		return nil, errors.New("codex agent identity: failed to inspect unauthorized response")
++	}
++	if len(body) > codexAgentIdentityRequestLimit || !isCodexAgentIdentityTaskInvalid(response.StatusCode, body) || request.GetBody == nil {
++		response.Body = io.NopCloser(bytes.NewReader(body))
++		return response, nil
++	}
++	if err := codexAgentIdentityRegisterAndCache(ctx, auth, true); err != nil {
++		return nil, err
++	}
++	retryBody, err := request.GetBody()
++	if err != nil {
++		return nil, errors.New("codex agent identity: failed to replay request body")
++	}
++	retry := request.Clone(ctx)
++	retry.Body = retryBody
++	applyCodexAgentIdentityHeaders(retry, auth)
++	return client.Do(retry)
++}
+diff --git a/internal/runtime/executor/codex_agent_identity_test.go b/internal/runtime/executor/codex_agent_identity_test.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..215a79e0c83479c9687054dc541ac6e31eecc55b
+--- /dev/null
++++ b/internal/runtime/executor/codex_agent_identity_test.go
+@@ -0,0 +1,169 @@
++package executor
++
++import (
++	"bytes"
++	"context"
++	"crypto/ed25519"
++	"crypto/rand"
++	"crypto/x509"
++	"encoding/base64"
++	"encoding/json"
++	"io"
++	"net/http"
++	"net/http/httptest"
++	"strings"
++	"sync"
++	"sync/atomic"
++	"testing"
++
++	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
++)
++
++func testCodexAgentIdentityAuth(t *testing.T, runtimeID string) (*cliproxyauth.Auth, ed25519.PublicKey) {
++	t.Helper()
++	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
++	if err != nil {
++		t.Fatal(err)
++	}
++	der, err := x509.MarshalPKCS8PrivateKey(privateKey)
++	if err != nil {
++		t.Fatal(err)
++	}
++	return &cliproxyauth.Auth{Provider: "codex", Metadata: map[string]any{
++		"auth_mode":         "agentIdentity",
++		"agent_runtime_id":  runtimeID,
++		"agent_private_key": base64.StdEncoding.EncodeToString(der),
++		"account_id":        "acct-test",
++	}}, publicKey
++}
++
++func TestCodexAgentIdentityRegistersAndBuildsAssertion(t *testing.T) {
++	codexAgentIdentityTaskCache = sync.Map{}
++	auth, publicKey := testCodexAgentIdentityAuth(t, "runtime-test")
++	var registrations atomic.Int32
++	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
++		registrations.Add(1)
++		var payload map[string]string
++		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
++			t.Fatal(err)
++		}
++		signature, err := base64.StdEncoding.DecodeString(payload["signature"])
++		if err != nil || !ed25519.Verify(
++			publicKey,
++			[]byte("runtime-test:"+payload["timestamp"]),
++			signature,
++		) {
++			t.Fatal("registration signature did not verify")
++		}
++		_ = json.NewEncoder(writer).Encode(map[string]string{"task_id": "task-test"})
++	}))
++	defer server.Close()
++	previousBaseURL := codexAgentIdentityAuthAPIBaseURL
++	codexAgentIdentityAuthAPIBaseURL = server.URL
++	defer func() { codexAgentIdentityAuthAPIBaseURL = previousBaseURL }()
++
++	if err := prepareCodexAgentIdentity(context.Background(), auth); err != nil {
++		t.Fatal(err)
++	}
++	if err := prepareCodexAgentIdentity(context.Background(), auth); err != nil {
++		t.Fatal(err)
++	}
++	if registrations.Load() != 1 {
++		t.Fatalf("registrations = %d, want 1", registrations.Load())
++	}
++	request := httptest.NewRequest(http.MethodPost, "https://chatgpt.com/backend-api/codex/responses", nil)
++	applyCodexHeaders(request, auth, "synthetic-token-must-not-be-used", true, nil)
++	authorization := request.Header.Get("Authorization")
++	if !strings.HasPrefix(authorization, "AgentAssertion ") {
++		t.Fatalf("Authorization = %q, want AgentAssertion", authorization)
++	}
++	envelopeBytes, err := base64.RawURLEncoding.DecodeString(
++		strings.TrimPrefix(authorization, "AgentAssertion "),
++	)
++	if err != nil {
++		t.Fatal(err)
++	}
++	var envelope map[string]string
++	if err := json.Unmarshal(envelopeBytes, &envelope); err != nil {
++		t.Fatal(err)
++	}
++	signature, err := base64.StdEncoding.DecodeString(envelope["signature"])
++	if err != nil || !ed25519.Verify(
++		publicKey,
++		[]byte("runtime-test:task-test:"+envelope["timestamp"]),
++		signature,
++	) {
++		t.Fatal("agent assertion signature did not verify")
++	}
++	if request.Header.Get("Chatgpt-Account-Id") != "acct-test" {
++		t.Fatal("ChatGPT account header is missing")
++	}
++}
++
++func TestCodexAgentIdentityIgnoresImportedTaskID(t *testing.T) {
++	codexAgentIdentityTaskCache = sync.Map{}
++	auth, _ := testCodexAgentIdentityAuth(t, "runtime-fresh")
++	auth.Metadata["task_id"] = "task-from-another-gateway"
++	key, err := codexAgentIdentityKeyFromAuth(auth)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if key.taskID != "" {
++		t.Fatalf("task ID = %q, want fresh registration", key.taskID)
++	}
++}
++
++func TestCodexAgentIdentityRecoversInvalidTaskOnce(t *testing.T) {
++	codexAgentIdentityTaskCache = sync.Map{}
++	auth, _ := testCodexAgentIdentityAuth(t, "runtime-recovery")
++	var registrations atomic.Int32
++	registrationServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
++		index := registrations.Add(1)
++		_ = json.NewEncoder(writer).Encode(map[string]string{"task_id": "task-" + string(rune('0'+index))})
++	}))
++	defer registrationServer.Close()
++	previousBaseURL := codexAgentIdentityAuthAPIBaseURL
++	codexAgentIdentityAuthAPIBaseURL = registrationServer.URL
++	defer func() { codexAgentIdentityAuthAPIBaseURL = previousBaseURL }()
++	if err := prepareCodexAgentIdentity(context.Background(), auth); err != nil {
++		t.Fatal(err)
++	}
++	var calls atomic.Int32
++	upstream := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
++		_, _ = io.Copy(io.Discard, request.Body)
++		if calls.Add(1) == 1 {
++			writer.WriteHeader(http.StatusUnauthorized)
++			_, _ = writer.Write([]byte(`{"error":{"code":"invalid_task_id"}}`))
++			return
++		}
++		writer.WriteHeader(http.StatusOK)
++	}))
++	defer upstream.Close()
++	request, err := http.NewRequest(
++		http.MethodPost,
++		upstream.URL,
++		bytes.NewReader([]byte(`{"model":"test"}`)),
++	)
++	if err != nil {
++		t.Fatal(err)
++	}
++	applyCodexAgentIdentityHeaders(request, auth)
++	response, err := doCodexRequestWithAgentIdentityRecovery(
++		context.Background(),
++		upstream.Client(),
++		request,
++		auth,
++	)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer response.Body.Close()
++	if response.StatusCode != http.StatusOK || calls.Load() != 2 || registrations.Load() != 2 {
++		t.Fatalf(
++			"status=%d calls=%d registrations=%d",
++			response.StatusCode,
++			calls.Load(),
++			registrations.Load(),
++		)
++	}
++}
+diff --git a/internal/runtime/executor/codex_executor.go b/internal/runtime/executor/codex_executor.go
+index a1bbe6b84a5998dbffd900db42bead6c17292431..535c6df81ff73e57e3a057aa4d7466a656409573 100644
+--- a/internal/runtime/executor/codex_executor.go
++++ b/internal/runtime/executor/codex_executor.go
+@@ -116,7 +116,12 @@ func (e *CodexExecutor) PrepareRequest(req *http.Request, auth *cliproxyauth.Aut
+ 		return nil
+ 	}
+ 	apiKey, _ := codexCreds(auth)
+-	if strings.TrimSpace(apiKey) != "" {
++	if err := prepareCodexAgentIdentity(req.Context(), auth); err != nil {
++		return err
++	}
++	if isCodexAgentIdentity(auth) {
++		applyCodexAgentIdentityHeaders(req, auth)
++	} else if strings.TrimSpace(apiKey) != "" {
+ 		req.Header.Set("Authorization", "Bearer "+apiKey)
+ 	}
+ 	var attrs map[string]string
+@@ -140,7 +145,7 @@ func (e *CodexExecutor) HttpRequest(ctx context.Context, auth *cliproxyauth.Auth
+ 		return nil, err
+ 	}
+ 	httpClient := helps.NewProxyAwareHTTPClient(ctx, e.cfg, auth, 0)
+-	return httpClient.Do(httpReq)
++	return doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, auth)
+ }
+ 
+ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (resp cliproxyexecutor.Response, err error) {
+@@ -187,6 +192,9 @@ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, re
+ 	}
+ 
+ 	url := strings.TrimSuffix(baseURL, "/") + "/responses"
++	if err = prepareCodexAgentIdentity(ctx, auth); err != nil {
++		return resp, err
++	}
+ 	httpReq, err := e.cacheHelper(ctx, from, url, req, body)
+ 	if err != nil {
+ 		return resp, err
+@@ -210,7 +218,7 @@ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, re
+ 		AuthValue: authValue,
+ 	})
+ 	httpClient := helps.NewProxyAwareHTTPClient(ctx, e.cfg, auth, 0)
+-	httpResp, err := httpClient.Do(httpReq)
++	httpResp, err := doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, auth)
+ 	if err != nil {
+ 		helps.RecordAPIResponseError(ctx, e.cfg, err)
+ 		return resp, err
+@@ -338,6 +346,9 @@ func (e *CodexExecutor) executeCompact(ctx context.Context, auth *cliproxyauth.A
+ 	}
+ 
+ 	url := strings.TrimSuffix(baseURL, "/") + "/responses/compact"
++	if err = prepareCodexAgentIdentity(ctx, auth); err != nil {
++		return resp, err
++	}
+ 	httpReq, err := e.cacheHelper(ctx, from, url, req, body)
+ 	if err != nil {
+ 		return resp, err
+@@ -361,7 +372,7 @@ func (e *CodexExecutor) executeCompact(ctx context.Context, auth *cliproxyauth.A
+ 		AuthValue: authValue,
+ 	})
+ 	httpClient := helps.NewProxyAwareHTTPClient(ctx, e.cfg, auth, 0)
+-	httpResp, err := httpClient.Do(httpReq)
++	httpResp, err := doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, auth)
+ 	if err != nil {
+ 		helps.RecordAPIResponseError(ctx, e.cfg, err)
+ 		return resp, err
+@@ -436,6 +447,9 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
+ 	}
+ 
+ 	url := strings.TrimSuffix(baseURL, "/") + "/responses"
++	if err = prepareCodexAgentIdentity(ctx, auth); err != nil {
++		return nil, err
++	}
+ 	httpReq, err := e.cacheHelper(ctx, from, url, req, body)
+ 	if err != nil {
+ 		return nil, err
+@@ -460,7 +474,7 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
+ 	})
+ 
+ 	httpClient := helps.NewProxyAwareHTTPClient(ctx, e.cfg, auth, 0)
+-	httpResp, err := httpClient.Do(httpReq)
++	httpResp, err := doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, auth)
+ 	if err != nil {
+ 		helps.RecordAPIResponseError(ctx, e.cfg, err)
+ 		return nil, err
+@@ -774,7 +788,11 @@ func (e *CodexExecutor) cacheHelper(ctx context.Context, from sdktranslator.Form
+ 
+ func applyCodexHeaders(r *http.Request, auth *cliproxyauth.Auth, token string, stream bool, cfg *config.Config) {
+ 	r.Header.Set("Content-Type", "application/json")
+-	r.Header.Set("Authorization", "Bearer "+token)
++	if isCodexAgentIdentity(auth) {
++		applyCodexAgentIdentityHeaders(r, auth)
++	} else {
++		r.Header.Set("Authorization", "Bearer "+token)
++	}
+ 
+ 	var ginHeaders http.Header
+ 	if ginCtx, ok := r.Context().Value("gin").(*gin.Context); ok && ginCtx != nil && ginCtx.Request != nil {
+diff --git a/internal/translator/codex/openai/responses/codex_openai-responses_request.go b/internal/translator/codex/openai/responses/codex_openai-responses_request.go
+index cc218b12b3480b9f70c01f0b07205d6a0d9d99e0..c3cb313f7c6eeec97da19e23239f1c82f5fdecbf 100644
+--- a/internal/translator/codex/openai/responses/codex_openai-responses_request.go
++++ b/internal/translator/codex/openai/responses/codex_openai-responses_request.go
+@@ -27,7 +27,11 @@ func ConvertOpenAIResponsesRequestToCodex(modelName string, inputRawJSON []byte,
+ 	rawJSON, _ = sjson.DeleteBytes(rawJSON, "temperature")
+ 	rawJSON, _ = sjson.DeleteBytes(rawJSON, "top_p")
+ 	if v := gjson.GetBytes(rawJSON, "service_tier"); v.Exists() {
+-		if v.String() != "priority" {
++		switch v.String() {
++		case "priority":
++		case "fast":
++			rawJSON, _ = sjson.SetBytes(rawJSON, "service_tier", "priority")
++		default:
+ 			rawJSON, _ = sjson.DeleteBytes(rawJSON, "service_tier")
+ 		}
+ 	}
+diff --git a/internal/translator/codex/openai/responses/codex_openai-responses_request_test.go b/internal/translator/codex/openai/responses/codex_openai-responses_request_test.go
+index 3b48a76e04125bb36db8ad15ddcf854b956b94fd..d994fcb42cd56a4ee2f32029df564d219046cfc7 100644
+--- a/internal/translator/codex/openai/responses/codex_openai-responses_request_test.go
++++ b/internal/translator/codex/openai/responses/codex_openai-responses_request_test.go
+@@ -6,6 +6,17 @@ import (
+ 	"github.com/tidwall/gjson"
+ )
+ 
++func TestConvertOpenAIResponsesRequestToCodexMapsFastServiceTier(t *testing.T) {
++	output := ConvertOpenAIResponsesRequestToCodex(
++		"gpt-5.2",
++		[]byte(`{"model":"gpt-5.2","input":"hello","service_tier":"fast"}`),
++		false,
++	)
++	if got := gjson.GetBytes(output, "service_tier").String(); got != "priority" {
++		t.Fatalf("service_tier = %q, want priority", got)
++	}
++}
++
+ // TestConvertSystemRoleToDeveloper_BasicConversion tests the basic system -> developer role conversion
+ func TestConvertSystemRoleToDeveloper_BasicConversion(t *testing.T) {
+ 	inputJSON := []byte(`{

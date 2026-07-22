@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import pathlib
@@ -14,7 +15,7 @@ from unittest import mock
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "local"))
 
-from cloudx_local import local_cpa_import  # noqa: E402
+from cloudx_local import agent_identity, local_cpa_import  # noqa: E402
 from cloudx_local.config import LocalConfig  # noqa: E402
 
 
@@ -70,6 +71,24 @@ class LocalCpaImportTests(unittest.TestCase):
             "refresh_token": "rt.%s.signature" % suffix,
             "id_token": "id.%s.signature" % suffix,
             "account_id": "account-%s" % suffix,
+        }
+
+    @staticmethod
+    def _agent_auth(email: str, suffix: str, seed_byte: int = 1) -> dict[str, object]:
+        prefix = bytes.fromhex("302e020100300506032b657004220420")
+        private_key = base64.b64encode(prefix + bytes([seed_byte]) * 32).decode("ascii")
+        return {
+            "auth_mode": "agentIdentity",
+            "agent_runtime_id": "runtime-%s" % suffix,
+            "agent_private_key": private_key,
+            "task_id": "task-from-another-gateway",
+            "id_token": "synthetic.%s.unsigned" % suffix,
+            "chatgpt_account_id": "account-%s" % suffix,
+            "chatgpt_user_id": "user-%s" % suffix,
+            "workspace_id": "workspace-%s" % suffix,
+            "email": email,
+            "plan_type": "plus",
+            "chatgpt_account_is_fedramp": False,
         }
 
     def _source(self, name: str, value: object) -> pathlib.Path:
@@ -136,6 +155,73 @@ class LocalCpaImportTests(unittest.TestCase):
         ])
         result = local_cpa_import.import_path(self.config, array)
         self.assertEqual((result.parsed_objects, result.written_files), (2, 2))
+
+    def test_agent_identity_requires_declared_external_capability_without_writing(self) -> None:
+        credential = self._agent_auth("agent@example.com", "one")
+        source = self._source("agent.json", {
+            "type": "sub2api-data",
+            "version": 1,
+            "accounts": [{
+                "name": "agent@example.com",
+                "platform": "openai",
+                "type": "oauth",
+                "credentials": credential,
+            }],
+        })
+
+        with self.assertRaises(local_cpa_import.LocalImportError) as caught:
+            local_cpa_import.import_path(self.config, source, dry_run=True)
+
+        self.assertEqual(caught.exception.code, "external_capability_missing")
+        self.assertIn(agent_identity.EXTERNAL_CAPABILITY, str(caught.exception))
+        self.assertNotIn(str(credential["agent_private_key"]), str(caught.exception))
+        self.assertFalse(self.auth_dir.exists())
+
+    def test_agent_identity_preserves_signing_material_and_drops_gateway_state(self) -> None:
+        credential = self._agent_auth("agent@example.com", "one")
+        source = self._source("agent.json", {
+            "type": "sub2api-data",
+            "version": 1,
+            "accounts": [{"name": "agent@example.com", "credentials": credential}],
+        })
+        with mock.patch("cloudx_local.cpa_capabilities.attest") as attest:
+            preview = local_cpa_import.import_path(self.config, source, dry_run=True)
+        self.assertEqual((preview.parsed_objects, preview.written_files, preview.verified_files), (1, 1, 0))
+        self.assertFalse(self.auth_dir.exists())
+        with mock.patch("cloudx_local.cpa_capabilities.attest") as attest:
+            result = local_cpa_import.import_path(self.config, source)
+        attest.assert_called_once_with(self.config, agent_identity.EXTERNAL_CAPABILITY)
+
+        self.assertEqual((result.written_files, result.verified_files), (1, 1))
+        target = self.auth_dir / "codex-agent-example.com.json"
+        document = json.loads(target.read_text(encoding="utf-8"))
+        self.assertEqual(document["auth_mode"], "agentIdentity")
+        self.assertEqual(document["auth_kind"], "oauth")
+        self.assertEqual(document["agent_runtime_id"], credential["agent_runtime_id"])
+        self.assertEqual(document["agent_private_key"], credential["agent_private_key"])
+        self.assertFalse(document["websockets"])
+        for discarded in ("access_token", "refresh_token", "id_token", "task_id"):
+            self.assertNotIn(discarded, document)
+        self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o600)
+
+    def test_agent_identity_deduplication_and_key_validation_fail_closed(self) -> None:
+        source = self._source("agents.json", {
+            "accounts": [
+                {"name": "one@example.com", "credentials": self._agent_auth("one@example.com", "one", 1)},
+                {"name": "two@example.com", "credentials": self._agent_auth("two@example.com", "two", 2)},
+            ],
+        })
+        with mock.patch("cloudx_local.cpa_capabilities.attest"):
+            result = local_cpa_import.import_path(self.config, source, dry_run=True)
+        self.assertEqual((result.parsed_objects, result.duplicate_objects, result.written_files), (2, 0, 2))
+
+        invalid = self._agent_auth("bad@example.com", "bad")
+        invalid["agent_private_key"] = base64.b64encode(b"not-an-ed25519-pkcs8-key").decode("ascii")
+        bad_source = self._source("bad-agent.json", {"accounts": [{"credentials": invalid}]})
+        with self.assertRaises(local_cpa_import.LocalImportError) as caught:
+            local_cpa_import.import_path(self.config, bad_source, dry_run=True)
+        self.assertEqual(caught.exception.code, "credential_invalid")
+        self.assertNotIn(str(invalid["agent_private_key"]), str(caught.exception))
 
     def test_dry_run_has_no_filesystem_or_refresh_side_effect(self) -> None:
         source = self._source("one.json", self._auth("one@example.com", "one"))
@@ -225,17 +311,27 @@ class LocalCpaImportTests(unittest.TestCase):
                 local_cpa_import.import_path(config, source)
             self.assertEqual(caught.exception.code, "target_unsafe")
 
-    def test_config_load_accepts_explicit_external_local_cpa_auth_directory(self) -> None:
+    def test_config_load_accepts_external_local_cpa_runtime_contract_paths(self) -> None:
         config_path = self.home / ".config/cloudx/config.json"
         config_path.parent.mkdir(parents=True)
         expected = self.home / "external-cpa-auth"
-        config_path.write_text(json.dumps({"localCpa": {"authDir": str(expected)}}), encoding="utf-8")
+        binary = self.home / "bin/cli-proxy-api"
+        manifest = self.home / "state/cli-proxy-api.capabilities.json"
+        config_path.write_text(json.dumps({"localCpa": {
+            "authDir": str(expected),
+            "binary": str(binary),
+            "capabilityManifest": str(manifest),
+            "capabilityProbeUrl": "http://127.0.0.1:18318/healthz",
+        }}), encoding="utf-8")
         with mock.patch.dict(os.environ, {
             "CLOUDX_USER_HOME": str(self.home),
             "CLOUDX_CONFIG": str(config_path),
         }, clear=False):
             loaded = LocalConfig.load()
         self.assertEqual(loaded.local_cpa_auth_dir, expected)
+        self.assertEqual(loaded.local_cpa_binary, binary)
+        self.assertEqual(loaded.local_cpa_capability_manifest, manifest)
+        self.assertEqual(loaded.local_cpa_capability_probe_url, "http://127.0.0.1:18318/healthz")
 
 
 if __name__ == "__main__":

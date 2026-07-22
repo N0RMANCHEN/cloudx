@@ -179,6 +179,22 @@ The default target is `~/.cli-proxy-api`. Configure a different external auth di
 
 Source `0.1.16` also recognizes the exact CPA export wrapper with outer `platform=openai`, outer `type=oauth`, and a nested `credentials` object. Another OAuth platform remains rejected. Cloud import acceptance proves only a locked, validated, atomic credential write; always follow it with idempotent dry-run and real model traffic. A model-list response or `written` count is not evidence that the workspace is active, has quota, or can refresh.
 
+Sub2API `agentIdentity` inputs additionally require an independently installed external CPA that registers `/api/accounts/v1/agent/<runtime-id>/task/register` tasks and signs per-request `AgentAssertion` authorization. After that exact external binary is independently verified and active, declare its contract in `~/.config/cloudx/config.json`:
+
+```json
+{
+  "localCpa": {
+    "authDir": "/absolute/path/to/the/external/auth-directory",
+    "capabilityManifest": "/absolute/path/to/cli-proxy-api.capabilities.json",
+    "capabilityProbeUrl": "http://127.0.0.1:8317/healthz"
+  }
+}
+```
+
+The manifest defaults to `~/.local/bin/cli-proxy-api.capabilities.json` and uses `cloudx.local-cpa-capabilities.v1`. It names the selected absolute binary, its SHA-256, runtime version, and capabilities. `CLOUDX_LOCAL_CPA_CAPABILITY_MANIFEST` and `CLOUDX_LOCAL_CPA_CAPABILITY_PROBE_URL` are process-scoped overrides; `localCpa.binary` or `CLOUDX_LOCAL_CPA_BINARY` may additionally pin the expected executable path. Cloudx hashes the current regular executable and probes the literal loopback `/healthz` URL on every preview and write. A CPA update with only old sidecar evidence fails closed; a new matching manifest plus live header is accepted without changing Cloudx configuration.
+
+The exact reviewed reference candidate can be reproduced with `scripts/build_cpa_agent_identity_candidate.py`. `scripts/install_cpa_agent_identity_candidate.py` defaults to a non-authorizing plan, stages beside the active binary without process action, and requires a separate exact activation confirmation, five consecutive zero-connection samples, signed Cloudx version binding, a private rollback set, and a live capability canary before publishing the stable manifest. This operator transaction is not invoked by import and does not make Cloudx the silent owner of CPA updates. Cloudx drops the input's unsigned synthetic ID token and old `task_id`, preserves the validated Ed25519 signing material, and forces `websockets=false` so the capable external CPA registers fresh gateway-local state on first use.
+
 `codexx-legacy` remains a private rollback command for older installed releases. Do not remove its recovery bundle until a signed release containing the native adapter has been activated, a real local import and rollback have passed, and the separate M5 deletion decision is approved.
 
 ## Prepare Legacy Local Package Quarantine

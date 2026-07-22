@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
+from . import agent_identity, cpa_capabilities
 from .config import LocalConfig
 from .files import atomic_write, ensure_private_directory
 
@@ -36,6 +37,8 @@ AUTH_MARKERS = (
     '"id_token"',
     '"credentials"',
     '"accounts"',
+    '"agent_private_key"',
+    '"agent_runtime_id"',
     CLIPROXY_AUTH_BUNDLE_TYPE,
 )
 
@@ -203,6 +206,13 @@ def _sub2api_payload(entry: Mapping[str, Any]) -> Dict[str, Any]:
 def _flat_auth(entry: Mapping[str, Any], label: str) -> Dict[str, Any]:
     sub2api = _sub2api_payload(entry)
     payload = sub2api or dict(entry)
+    if agent_identity.is_agent_identity(payload):
+        try:
+            return agent_identity.normalize(payload)
+        except agent_identity.AgentIdentityError as exc:
+            raise LocalImportError(
+                "credential_invalid", "Agent Identity credential is invalid: %s" % exc
+            ) from exc
     auth_type = str(payload.get("type") or payload.get("provider") or "").strip().casefold()
     if not sub2api and auth_type and auth_type != "codex":
         raise LocalImportError("unsupported_provider", "%s is not a Codex credential" % label)
@@ -503,7 +513,8 @@ def _discover_directory(
 
 
 def _fingerprint(flat: Mapping[str, Any]) -> str:
-    return hashlib.sha256("\0".join(_auth_tokens(flat)).encode("utf-8")).hexdigest()
+    parts = agent_identity.fingerprint_parts(flat) or _auth_tokens(flat)
+    return hashlib.sha256("\0".join(parts).encode("utf-8")).hexdigest()
 
 
 def _deduplicate(
@@ -641,7 +652,9 @@ def _write_plans(
                 if target.read_bytes() != plan.payload:
                     raise LocalImportError("verification_failed", "written auth file failed byte verification")
                 document = json.loads(plan.payload.decode("utf-8"))
-                if not isinstance(document, dict) or not any(_auth_tokens(document)):
+                if not isinstance(document, dict) or not (
+                    any(_auth_tokens(document)) or agent_identity.is_valid(document)
+                ):
                     raise LocalImportError("verification_failed", "written auth file failed credential verification")
         except Exception as exc:
             rollback_failed = False
@@ -673,6 +686,16 @@ def _complete_import(
 ) -> LocalImportResult:
     parsed = len(flats)
     unique, unique_hints, duplicates = _deduplicate(flats, hints)
+    if any(agent_identity.is_agent_identity(flat) for flat in unique):
+        try:
+            cpa_capabilities.attest(config, agent_identity.EXTERNAL_CAPABILITY)
+        except cpa_capabilities.CpaCapabilityError as exc:
+            raise LocalImportError(
+                "external_capability_missing",
+                "Agent Identity credentials require a hash-bound live external local CPA "
+                "capability %s (%s); Cloudx does not install or restart that service"
+                % (agent_identity.EXTERNAL_CAPABILITY, exc.reason),
+            ) from exc
     plans = _plan_files(unique, unique_hints, name_prefix)
     written, unchanged, verified = _write_plans(_auth_dir(config), plans, force, dry_run)
     return LocalImportResult(

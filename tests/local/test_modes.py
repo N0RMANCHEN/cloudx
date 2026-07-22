@@ -195,6 +195,12 @@ class ModeTests(unittest.TestCase):
         self.assertIn("Reason (invalid_json): unable to parse JSON near <redacted input>", errors.getvalue())
         self.assertNotIn("sk-sensitive-token-value", errors.getvalue())
 
+    def test_local_import_reason_redacts_agent_private_key(self) -> None:
+        secret = "private-agent-key-material"
+        rendered = local_cpa.import_ui.sanitize_reason("agent_private_key=%s" % secret)
+        self.assertIn("agent_private_key=<redacted>", rendered)
+        self.assertNotIn(secret, rendered)
+
     @mock.patch("cloudx_local.local_cpa.import_ui.human_output", return_value=True)
     @mock.patch("cloudx_local.local_cpa.local_cpa_import.import_path")
     def test_interactive_local_no_change_explains_ignored_and_duplicate_items(

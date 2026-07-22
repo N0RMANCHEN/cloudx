@@ -1,0 +1,9 @@
+{
+  "schema": "cloudx.local-cpa-capabilities.v1",
+  "binary": "/opt/local-cpa/bin/cli-proxy-api",
+  "binarySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "runtimeVersion": "7.0.2-agent-identity",
+  "capabilities": [
+    "codex-agent-identity-v1"
+  ]
+}

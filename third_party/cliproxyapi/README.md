@@ -24,6 +24,16 @@ top-level filename, and the SHA-256 of the still-active auth file before moving
 that file into a private same-filesystem archive. The move is reversible. CPA
 itself never deletes or moves an auth file.
 
+`agent-identity-manifest.json` separately pins the replacement workstation's
+official `v7.0.2` source, one reviewed Agent Identity plus fast-tier patch, the
+Go toolchain, deterministic build identity, and candidate bytes. The patched
+runtime registers a fresh task, emits per-request `AgentAssertion` signatures,
+re-registers once for an invalid task, and exposes only the capability name on
+the existing loopback `/healthz` response. It never trusts an imported task ID.
+Cloudx binds that live response to a sidecar manifest and the exact on-disk
+binary digest, so a later upstream replacement is re-evaluated automatically
+instead of inheriting a stale capability assertion.
+
 `policy-manifest.json` pins the upstream commit, patch digest, Go version,
 target platform, and build identity. `scripts/build_cpa_policy_candidate.py`
 applies a patch to a clean exact checkout, runs focused regression tests, and

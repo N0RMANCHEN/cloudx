@@ -58,6 +58,8 @@ codexx exit
 
 Interactive local and cloud imports share one readable result summary with explicit status, destination, counts, verification scope, and safe failure reasons. Local and cloud `--json` expose their versioned import contracts for automation. The local adapter writes only to the configured external CPA auth directory; it does not manage or restart that service.
 
+Tokenless Sub2API `agentIdentity` input is fail-closed: Cloudx validates its Ed25519 signing metadata, discards synthetic bearer/task state, and accepts import only when a versioned sidecar binds `codex-agent-identity-v1` to the exact external binary and that running CPA advertises the same capability on loopback health. The check repeats on every import, so an external CPA update automatically invalidates stale evidence. Import itself never builds, patches, replaces, or restarts the service that performs task registration and `AgentAssertion` signing.
+
 API diagnosis distinguishes explicit deactivation, exhausted allowance, transient rate limiting, relogin, access denial, gateway failures, and unknown evidence. It never rewrites the official Codex command or gateway response, and a later generic `no auth available` response does not erase a recent definitive root cause.
 
 ## Repository Layout

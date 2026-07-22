@@ -64,6 +64,9 @@ class LocalConfig:
     local_cpa_failure_dir: Optional[pathlib.Path] = None
     local_cpa_sweep_dir: Optional[pathlib.Path] = None
     local_cpa_proxy_url: str = ""
+    local_cpa_binary: Optional[pathlib.Path] = None
+    local_cpa_capability_manifest: Optional[pathlib.Path] = None
+    local_cpa_capability_probe_url: str = ""
 
     @classmethod
     def load(cls) -> "LocalConfig":
@@ -122,6 +125,24 @@ class LocalConfig:
                 os.environ.get("CLOUDX_LOCAL_CPA_PROXY_URL")
                 or local_cpa.get("proxyUrl")
                 or ""
+            ).strip(),
+            local_cpa_binary=(
+                pathlib.Path(str(
+                    os.environ.get("CLOUDX_LOCAL_CPA_BINARY")
+                    or local_cpa.get("binary")
+                )).expanduser()
+                if (os.environ.get("CLOUDX_LOCAL_CPA_BINARY") or local_cpa.get("binary"))
+                else None
+            ),
+            local_cpa_capability_manifest=pathlib.Path(str(
+                os.environ.get("CLOUDX_LOCAL_CPA_CAPABILITY_MANIFEST")
+                or local_cpa.get("capabilityManifest")
+                or home / ".local/bin/cli-proxy-api.capabilities.json"
+            )).expanduser(),
+            local_cpa_capability_probe_url=str(
+                os.environ.get("CLOUDX_LOCAL_CPA_CAPABILITY_PROBE_URL")
+                or local_cpa.get("capabilityProbeUrl")
+                or "http://127.0.0.1:8317/healthz"
             ).strip(),
         )
 

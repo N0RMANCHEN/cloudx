@@ -180,6 +180,17 @@ class ContractTests(unittest.TestCase):
         for forbidden in ("access_token", "refresh_token", "id_token", "api_key", "email"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_local_cpa_capability_contract_binds_one_exact_runtime(self) -> None:
+        document = json.loads(
+            (CONTRACTS / "examples/local-cpa-capabilities.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(document["schema"], "cloudx.local-cpa-capabilities.v1")
+        self.assertEqual(len(document["binarySha256"]), 64)
+        self.assertEqual(document["capabilities"], ["codex-agent-identity-v1"])
+        serialized = json.dumps(document).casefold()
+        for forbidden in ("token", "private_key", "runtime_id", "task_id", "email"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_cpa_sweep_contracts_are_identity_free_and_non_authorizing(self) -> None:
         trigger = json.loads((CONTRACTS / "examples/cpa-sweep-trigger.json").read_text(encoding="utf-8"))
         observation = json.loads(

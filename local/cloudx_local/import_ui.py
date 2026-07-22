@@ -14,7 +14,7 @@ _INPUT_SNIPPET = re.compile(r"(?i)\s+near\s+`[^`]*`")
 _JWT = re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\b")
 _API_TOKEN = re.compile(r"\bsk-[A-Za-z0-9_-]{8,}\b")
 _SENSITIVE_VALUE = re.compile(
-    r"(?i)([\"']?(?:access_token|refresh_token|id_token|api[_-]?key)[\"']?\s*[:=]\s*)"
+    r"(?i)([\"']?(?:access_token|refresh_token|id_token|agent_private_key|api[_-]?key)[\"']?\s*[:=]\s*)"
     r"[\"']?[^\"'\s,}]+[\"']?"
 )
 
