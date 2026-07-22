@@ -38,7 +38,9 @@ The cloud target in `policy-manifest.json` composes that reviewed implementation
 onto exact upstream `v7.2.71` without weakening policy5. The original patch is
 path-limited to five compatible files, while
 `patches/v7.2.71-agent-identity-port.patch` adapts the current uTLS executor and
-middleware locations. Cloud policy6 exposes the same capability, retains the
+middleware locations. `patches/v7.2.71-agent-identity-originator.patch` adds the
+official Codex `originator: codex_cli_rs` registration header required by the
+current account endpoint. Cloud policy7 exposes the same capability, retains the
 two-request and failure/sweep contracts, and is accepted only after a
 deterministic Linux/amd64 build. Its activation publishes the digest-bound cloud
 capability sidecar only after the live restarted candidate advertises the

@@ -287,7 +287,7 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertEqual(local["baselineSha256"], "cf9641b3e50ae486aec1698dec88f735589680f9ae98558c29cde184daac3a96")
         self.assertEqual(cloud["baselineSha256"], "1d0abbc6316b1869f74896109c0efb5e19c8197b8226f48a74212ed0a6f5a39d")
         self.assertEqual(local["candidateSha256"], "bb6fe9cfcc26d521ce0dcf9f503d2dffa742bce62bd359cab8f91052116c0db3")
-        self.assertEqual(cloud["candidateSha256"], "d0584d3fddb56e9481d705a74725a77e1841b8525900e40401cb684d54feaf30")
+        self.assertEqual(cloud["candidateSha256"], "0a3b146dc607bf58aa648d0b80f4df3d81737103799593cbae501e843f7e8d80")
         self.assertEqual(cloud["capabilityManifest"], "/etc/cloudx/cloud-cpa-capabilities.json")
         self.assertEqual(cloud["capabilities"], ["codex-agent-identity-v1"])
 

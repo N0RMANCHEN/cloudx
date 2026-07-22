@@ -34,7 +34,7 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         self.assertEqual(manifest["policy"]["sweepTriggerSchema"], "cloudx.cpa-sweep-trigger.v1")
         self.assertFalse(manifest["policy"]["weeklyQuotaArchived"])
         self.assertEqual(local["candidateSha256"], "bb6fe9cfcc26d521ce0dcf9f503d2dffa742bce62bd359cab8f91052116c0db3")
-        self.assertEqual(cloud["candidateSha256"], "d0584d3fddb56e9481d705a74725a77e1841b8525900e40401cb684d54feaf30")
+        self.assertEqual(cloud["candidateSha256"], "0a3b146dc607bf58aa648d0b80f4df3d81737103799593cbae501e843f7e8d80")
         self.assertEqual(cloud["capabilities"], ["codex-agent-identity-v1"])
 
     def test_patch_digests_are_bound_by_manifest(self) -> None:
@@ -42,7 +42,7 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         for target in ("local", "cloud"):
             config = MODULE.target_config(target, manifest)
             patches = MODULE.verified_patches(config)
-            self.assertEqual(len(patches), 2 if target == "local" else 4)
+            self.assertEqual(len(patches), 2 if target == "local" else 5)
             self.assertEqual(MODULE.sha256_file(patches[0]), config["patchSha256"])
             for patch, expected in zip(patches[1:], config["supplementalPatches"]):
                 self.assertEqual(MODULE.sha256_file(patch), expected["sha256"])
@@ -64,6 +64,10 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         self.assertIn("doCodexRequestWithAgentIdentityRecovery", port)
         self.assertIn("cloudxAgentIdentityCapabilityMiddleware", port)
         self.assertIn("NewUtlsHTTPClient", port)
+        originator = MODULE.verified_patches(cloud)[4].read_text(encoding="utf-8")
+        self.assertIn('codexAgentIdentityOriginator     = "codex_cli_rs"', originator)
+        self.assertIn('request.Header.Set("originator", codexAgentIdentityOriginator)', originator)
+        self.assertIn('request.Header.Get("originator")', originator)
 
     def test_plan_never_claims_install_activation_or_restart(self) -> None:
         config = MODULE.target_config("local", MODULE.load_manifest())

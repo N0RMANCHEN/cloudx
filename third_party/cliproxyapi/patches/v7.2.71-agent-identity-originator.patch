@@ -1,0 +1,32 @@
+diff --git a/internal/runtime/executor/codex_agent_identity.go b/internal/runtime/executor/codex_agent_identity.go
+--- a/internal/runtime/executor/codex_agent_identity.go
++++ b/internal/runtime/executor/codex_agent_identity.go
+@@ -25,6 +25,7 @@
+ 
+ const (
+ 	codexAgentIdentityAuthMode       = "agentIdentity"
++	codexAgentIdentityOriginator     = "codex_cli_rs"
+ 	codexAgentIdentityRequestLimit   = 1024 * 1024
+ 	codexAgentIdentityRequestTimeout = 30 * time.Second
+ )
+@@ -206,6 +207,7 @@
+ 	}
+ 	request.Header.Set("Content-Type", "application/json")
+ 	request.Header.Set("Accept", "application/json")
++	request.Header.Set("originator", codexAgentIdentityOriginator)
+ 	client, err := codexAgentIdentityHTTPClient(auth)
+ 	if err != nil {
+ 		return "", err
+diff --git a/internal/runtime/executor/codex_agent_identity_test.go b/internal/runtime/executor/codex_agent_identity_test.go
+--- a/internal/runtime/executor/codex_agent_identity_test.go
++++ b/internal/runtime/executor/codex_agent_identity_test.go
+@@ -43,6 +43,9 @@
+ 	var registrations atomic.Int32
+ 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+ 		registrations.Add(1)
++		if got := request.Header.Get("originator"); got != codexAgentIdentityOriginator {
++			t.Fatalf("originator = %q, want %q", got, codexAgentIdentityOriginator)
++		}
+ 		var payload map[string]string
+ 		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+ 			t.Fatal(err)

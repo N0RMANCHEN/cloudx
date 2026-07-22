@@ -74,15 +74,19 @@
         {
           "path": "patches/v7.2.71-agent-identity-port.patch",
           "sha256": "32c70651ed9ee507fdf2bf8ac1246c6dc0b3c316b2ba32abeda8c0947ea2e2ec"
+        },
+        {
+          "path": "patches/v7.2.71-agent-identity-originator.patch",
+          "sha256": "dddb64dd1215e60d2e2b8d37b5f35699d80f4f23dec7db4e2ba00059e3e2bcde"
         }
       ],
       "goVersion": "1.26.0",
       "goos": "linux",
       "goarch": "amd64",
-      "version": "7.2.71-cloudx-policy.6",
-      "commitLabel": "5b7f2361+cloudx-cpa-policy6-agent-identity",
-      "buildDate": "2026-07-22T08:10:00Z",
-      "candidateSha256": "d0584d3fddb56e9481d705a74725a77e1841b8525900e40401cb684d54feaf30",
+      "version": "7.2.71-cloudx-policy.7",
+      "commitLabel": "5b7f2361+cloudx-cpa-policy7-agent-identity-originator",
+      "buildDate": "2026-07-22T10:15:00Z",
+      "candidateSha256": "0a3b146dc607bf58aa648d0b80f4df3d81737103799593cbae501e843f7e8d80",
       "candidateSize": 45359266,
       "capabilities": [
         "codex-agent-identity-v1"

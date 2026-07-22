@@ -39,6 +39,11 @@ class CloudAgentIdentityPromotionTests(unittest.TestCase):
     def test_plan_is_non_authorizing_and_exact(self) -> None:
         document = promotion.plan(REQUEST_SHA, 1, 10)
         self.assertEqual(document["status"], "confirmation-required")
+        self.assertEqual(document["requiredCpaVersion"], "7.2.71-cloudx-policy.7")
+        self.assertEqual(
+            document["requiredCpaSha256"],
+            "0a3b146dc607bf58aa648d0b80f4df3d81737103799593cbae501e843f7e8d80",
+        )
         self.assertEqual(document["activeAfter"], 11)
         self.assertEqual(document["cohortCanaryRequests"], 10)
         self.assertTrue(document["baselineTemporarilyHeldForCohortCanary"])
