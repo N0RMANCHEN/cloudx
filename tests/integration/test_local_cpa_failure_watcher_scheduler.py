@@ -43,7 +43,7 @@ class LocalCpaFailureWatcherSchedulerTests(unittest.TestCase):
             with mock.patch.object(MODULE.sys, "platform", "darwin"), mock.patch.object(
                 MODULE, "activation_job", return_value=(activation_job, activation_document)
             ), mock.patch.object(
-                MODULE.activation, "current_cloudx_version", return_value="0.1.27"
+                MODULE.activation, "current_cloudx_version", return_value="0.1.28"
             ), mock.patch.object(
                 MODULE, "watcher_module", return_value=watcher
             ), mock.patch.object(

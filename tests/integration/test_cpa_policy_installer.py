@@ -99,7 +99,7 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertTrue(document["localActivationRequiresPreparedRecoveryTool"])
         self.assertTrue(document["localActivationRequiresZeroEstablishedConnections"])
         self.assertTrue(document["eventDrivenArchiveWatcherActivationSeparate"])
-        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.27")
+        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.28")
         self.assertEqual(document["requiredCapabilities"], ["codex-agent-identity-v1"])
         self.assertFalse(document["weeklyQuotaArchived"])
         self.assertFalse(document["periodicAccountProbe"])
@@ -392,6 +392,8 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertIn(MODULE.COMMUNICATION_CANARY_TEXT, arguments[-1])
         self.assertEqual(options["environment"]["CODEX_HOME"], str(value["communicationCodexHome"]))
         self.assertNotIn("OPENAI_BASE_URL", options["environment"])
+        self.assertNotIn("HTTP_PROXY", options["environment"])
+        self.assertEqual(options["environment"]["NO_PROXY"], "127.0.0.1,localhost,::1")
 
     def test_local_communication_canary_rejects_missing_expected_reply(self) -> None:
         value = MODULE.expanded_target("local", MODULE.load_contract(MODULE.DEFAULT_CONTRACT))

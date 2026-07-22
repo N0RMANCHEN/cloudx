@@ -492,8 +492,10 @@ def probe_local_communication(value: Dict[str, Any]) -> str:
         "CODEXX_ACTIVE_ACCOUNT",
         "CODEXX_ACTIVE_HOME",
         "CODEXX_ACTIVE_PINNED",
+        "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy",
     ):
         environment.pop(name, None)
+    environment.update({"NO_PROXY": "127.0.0.1,localhost,::1", "no_proxy": "127.0.0.1,localhost,::1"})
     with tempfile.TemporaryDirectory(prefix="cloudx-cpa-communication-canary-") as temporary:
         completed = run_command(
             [
@@ -583,8 +585,6 @@ def capability_manifest_bytes(target: str, value: Dict[str, Any]) -> bytes:
         "runtimeVersion": value["version"],
         "capabilities": list(value["capabilities"]),
     }, sort_keys=True) + "\n").encode("utf-8")
-
-
 def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
     if os.geteuid() != 0 or sys.platform != "linux":
         raise CpaPolicyInstallRejected("cloud CPA activation requires root on Linux")

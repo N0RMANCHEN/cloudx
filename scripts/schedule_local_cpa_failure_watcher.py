@@ -20,13 +20,13 @@ import schedule_local_cpa_policy_activation as activation
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WATCHER = ROOT / "scripts/install_cpa_failure_watcher.py"
 CONTRACT = ROOT / "third_party/cliproxyapi/deployment-contract.json"
-CONFIRMATION = "ACTIVATE LOCAL CPA FAILURE WATCHER 0.1.27"
+CONFIRMATION = "ACTIVATE LOCAL CPA FAILURE WATCHER 0.1.28"
 PLAN_SCHEMA = "cloudx.local-cpa-failure-watcher-schedule-plan.v1"
 SCHEDULE_SCHEMA = "cloudx.local-cpa-failure-watcher-schedule.v1"
 JOB_SCHEMA = "cloudx.local-cpa-failure-watcher-job.v1"
 RECEIPT_SCHEMA = "cloudx.local-cpa-failure-watcher-receipt.v1"
 ACTIVATION_RECEIPT_SCHEMA = "cloudx.local-cpa-policy-activation-receipt.v2"
-REQUIRED_VERSION = "0.1.27"
+REQUIRED_VERSION = "0.1.28"
 REQUIRED_POLICY_VERSION = "7.0.2-codexx-fast-service-tier-cloudx-policy.9-agent-identity"
 REQUIRED_POLICY_SHA256 = "174a46d58a95f56104d0bb3722c4fb5e7dffc125f2f525505d96f556291aa761"
 JOB_ID_RE = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8}$")
