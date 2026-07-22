@@ -27,26 +27,44 @@
     "weeklyQuotaArchived": false
   },
   "targets": {
-    "local": {
-      "upstreamRepository": "https://github.com/router-for-me/CLIProxyAPI.git",
-      "upstreamTag": "v7.0.1",
-      "upstreamCommit": "15ac7fb9324095330e60f522147b8a8e81f16ab5",
+      "local": {
+        "upstreamRepository": "https://github.com/router-for-me/CLIProxyAPI.git",
+        "upstreamTag": "v7.0.2",
+        "upstreamCommit": "1fca942b9c2c5bbdf78334eb4744a098983a05e9",
       "patch": "patches/v7.0.1-cloudx-policy.patch",
       "patchSha256": "d0b6f68273bbe7c8aa8db477ec7c22efb26f902b0987370b53fd535682acae22",
-      "supplementalPatches": [
-        {
-          "path": "patches/cloudx-pool-sweep-trigger.patch",
-          "sha256": "2101b12519607ab022fd0780069d3f75207a1d2046114450420df4906dc0ded8"
-        }
-      ],
+        "supplementalPatches": [
+          {
+            "path": "patches/cloudx-pool-sweep-trigger.patch",
+            "sha256": "2101b12519607ab022fd0780069d3f75207a1d2046114450420df4906dc0ded8"
+          },
+          {
+            "path": "patches/v7.0.2-agent-identity.patch",
+            "sha256": "f4b60990a2f80871de0322aae1ebb9ce2252330678d7d25e9046147a162139b8",
+            "includePaths": [
+              "internal/api/cloudx_agent_identity_capability.go",
+              "internal/api/server_test.go",
+              "internal/runtime/executor/codex_agent_identity.go",
+              "internal/runtime/executor/codex_agent_identity_test.go",
+              "internal/runtime/executor/codex_executor.go"
+            ]
+          },
+          {
+            "path": "patches/v7.0.2-local-agent-identity-port.patch",
+            "sha256": "c93c83265524b2122250e57ef0077a145df3e1dcd2ea6623725a434b39da362c"
+          }
+        ],
       "goVersion": "1.26.0",
       "goos": "darwin",
       "goarch": "arm64",
-      "version": "7.0.1-codexx-fast-service-tier-cloudx-policy.5",
-      "commitLabel": "15ac7fb+cloudx-cpa-policy5",
-      "buildDate": "2026-07-19T09:15:00Z",
-      "candidateSha256": "bb6fe9cfcc26d521ce0dcf9f503d2dffa742bce62bd359cab8f91052116c0db3",
-      "candidateSize": 41484978,
+        "version": "7.0.2-codexx-fast-service-tier-cloudx-policy.9-agent-identity",
+        "commitLabel": "1fca942+cloudx-cpa-policy9-agent-identity",
+        "buildDate": "2026-07-22T14:30:00Z",
+        "candidateSha256": "174a46d58a95f56104d0bb3722c4fb5e7dffc125f2f525505d96f556291aa761",
+        "candidateSize": 41518146,
+        "capabilities": [
+          "codex-agent-identity-v1"
+        ],
       "preservesLocalFastServiceTier": true
     },
     "cloud": {

@@ -24,15 +24,24 @@ top-level filename, and the SHA-256 of the still-active auth file before moving
 that file into a private same-filesystem archive. The move is reversible. CPA
 itself never deletes or moves an auth file.
 
-`agent-identity-manifest.json` separately pins the replacement workstation's
-official `v7.0.2` source, one reviewed Agent Identity plus fast-tier patch, the
-Go toolchain, deterministic build identity, and candidate bytes. The patched
+`agent-identity-manifest.json` records the first replacement-workstation
+Agent Identity-only candidate. The current local target in `policy-manifest.json`
+supersedes that split path by composing the same reviewed implementation with
+the concurrency, failure-receipt, and aggregate-sweep policy on exact official
+`v7.0.2`. It retains the Go toolchain, deterministic build identity, and pinned
+candidate bytes. The patched
 runtime registers a fresh task, emits per-request `AgentAssertion` signatures,
 re-registers once for an invalid task, and exposes only the capability name on
 the existing loopback `/healthz` response. It never trusts an imported task ID.
 Cloudx binds that live response to a sidecar manifest and the exact on-disk
 binary digest, so a later upstream replacement is re-evaluated automatically
 instead of inheriting a stale capability assertion.
+
+Local activation uses the same evidence ordering as cloud activation: the
+candidate must advertise `codex-agent-identity-v1`, expose business policy `2`,
+and pass real official-Codex traffic before the mode-`0600`
+`cloudx.local-cpa-capabilities.v1` sidecar is published. Rollback restores both
+the prior launcher and prior sidecar. Build and staging remain process-neutral.
 
 The cloud target in `policy-manifest.json` composes that reviewed implementation
 onto exact upstream `v7.2.71` without weakening policy5. The original patch is

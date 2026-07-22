@@ -40,7 +40,7 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
         self.assertTrue(document["automaticRecoveryUsesManualTool"])
         self.assertTrue(document["failureStageReceipt"])
         self.assertFalse(document["automaticAction"])
-        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.21")
+        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.27")
         self.assertTrue(document["confirmation"].startswith("ACTIVATE LOCAL CPA POLICY"))
 
     def test_current_cloudx_version_requires_a_real_selector(self) -> None:
@@ -90,7 +90,7 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
             with mock.patch.object(MODULE.sys, "platform", "darwin"), mock.patch.object(
                 MODULE, "installer_module", return_value=fake
             ), mock.patch.object(
-                MODULE, "current_cloudx_version", return_value="0.1.21"
+                MODULE, "current_cloudx_version", return_value="0.1.27"
             ), mock.patch.object(MODULE.pathlib.Path, "home", return_value=home), mock.patch.object(
                 MODULE.subprocess, "Popen", return_value=process
             ):
@@ -145,7 +145,7 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
                 "executeAfterEpoch": 0,
                 "quiescenceDeadlineEpoch": 1,
                 "confirmation": "ACTIVATE LOCAL CPA POLICY test abcdef123456",
-                "requiredActiveCloudxVersion": "0.1.21",
+                "requiredActiveCloudxVersion": "0.1.27",
                 "candidateVersion": "test-policy.1",
                 "candidateSha256": "a" * 64,
                 "installerSha256": MODULE.sha256(files["installer"].read_bytes()),
@@ -155,7 +155,7 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
                 "launcherSnapshotSha256": MODULE.sha256(files["launcher"].read_bytes()),
                 "recoveryConfirmation": "RESTORE LOCAL CPA BASELINE test-job abcdef123456",
             })
-            with mock.patch.object(MODULE, "current_cloudx_version", return_value="0.1.21"), mock.patch.object(
+            with mock.patch.object(MODULE, "current_cloudx_version", return_value="0.1.27"), mock.patch.object(
                 MODULE, "wait_for_quiescence", return_value=False
             ), mock.patch.object(MODULE.subprocess, "run") as run:
                 self.assertEqual(MODULE.worker(job), 1)
@@ -184,7 +184,7 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
                     "jobId": "test-job",
                     "executeAfterEpoch": 0,
                     "confirmation": "ACTIVATE LOCAL CPA POLICY test abcdef123456",
-                    "requiredActiveCloudxVersion": "0.1.21",
+                    "requiredActiveCloudxVersion": "0.1.27",
                     "candidateVersion": "test-policy.1",
                     "candidateSha256": "a" * 64,
                     "installerSha256": MODULE.sha256(files["installer"].read_bytes()),
@@ -201,7 +201,7 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
                 stdout=json.dumps({"status": "active", "communicationCanary": "passed"}),
                 stderr="",
             )
-            with mock.patch.object(MODULE, "current_cloudx_version", return_value="0.1.21"), mock.patch.object(
+            with mock.patch.object(MODULE, "current_cloudx_version", return_value="0.1.27"), mock.patch.object(
                 MODULE.subprocess,
                 "run",
                 return_value=completed,
@@ -230,7 +230,7 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
                 "jobId": "test-job",
                 "executeAfterEpoch": 0,
                 "confirmation": "ACTIVATE LOCAL CPA POLICY test abcdef123456",
-                "requiredActiveCloudxVersion": "0.1.21",
+                "requiredActiveCloudxVersion": "0.1.27",
                 "candidateVersion": "test-policy.1",
                 "candidateSha256": "a" * 64,
                 "installerSha256": MODULE.sha256(files["installer"].read_bytes()),
@@ -244,7 +244,7 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
                 args=[], returncode=1, stdout="", stderr="local CPA activation requires zero established connections"
             )
             recovered = {"status": "accepted", "communicationCanary": "passed", "serviceRestarted": False, "serviceAvailable": True}
-            with mock.patch.object(MODULE, "current_cloudx_version", return_value="0.1.21"), mock.patch.object(
+            with mock.patch.object(MODULE, "current_cloudx_version", return_value="0.1.27"), mock.patch.object(
                 MODULE.subprocess, "run", return_value=completed
             ), mock.patch.object(MODULE, "run_recovery", return_value=recovered):
                 self.assertEqual(MODULE.worker(job), 1)

@@ -19,7 +19,7 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         manifest = MODULE.load_manifest()
         local = MODULE.target_config("local", manifest)
         cloud = MODULE.target_config("cloud", manifest)
-        self.assertEqual(local["upstreamCommit"], "15ac7fb9324095330e60f522147b8a8e81f16ab5")
+        self.assertEqual(local["upstreamCommit"], "1fca942b9c2c5bbdf78334eb4744a098983a05e9")
         self.assertEqual(cloud["upstreamCommit"], "5b7f2361ee27d195f6514dde08656f6e4773a9a4")
         self.assertEqual(manifest["policy"]["maxConcurrentAPIRequests"], 2)
         self.assertEqual(manifest["policy"]["minimumFailureEvidence"], 1)
@@ -33,8 +33,9 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         )
         self.assertEqual(manifest["policy"]["sweepTriggerSchema"], "cloudx.cpa-sweep-trigger.v1")
         self.assertFalse(manifest["policy"]["weeklyQuotaArchived"])
-        self.assertEqual(local["candidateSha256"], "bb6fe9cfcc26d521ce0dcf9f503d2dffa742bce62bd359cab8f91052116c0db3")
+        self.assertEqual(local["candidateSha256"], "174a46d58a95f56104d0bb3722c4fb5e7dffc125f2f525505d96f556291aa761")
         self.assertEqual(cloud["candidateSha256"], "4dfa561451662ca5deae566f6fcfdc32bec7f42590439fa053000c4b84f915c0")
+        self.assertEqual(local["capabilities"], ["codex-agent-identity-v1"])
         self.assertEqual(cloud["capabilities"], ["codex-agent-identity-v1"])
 
     def test_patch_digests_are_bound_by_manifest(self) -> None:
@@ -42,7 +43,7 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         for target in ("local", "cloud"):
             config = MODULE.target_config(target, manifest)
             patches = MODULE.verified_patches(config)
-            self.assertEqual(len(patches), 2 if target == "local" else 6)
+            self.assertEqual(len(patches), 4 if target == "local" else 6)
             self.assertEqual(MODULE.sha256_file(patches[0]), config["patchSha256"])
             for patch, expected in zip(patches[1:], config["supplementalPatches"]):
                 self.assertEqual(MODULE.sha256_file(patch), expected["sha256"])
@@ -72,6 +73,26 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         self.assertIn("proxy = strings.TrimSpace(cfg.ProxyURL)", proxy)
         self.assertIn("TestCodexAgentIdentityRegistrationUsesGlobalProxy", proxy)
         self.assertIn("prepareCodexAgentIdentity(req.Context(), e.cfg, auth)", proxy)
+
+    def test_local_policy_composes_agent_identity_without_reapplying_fast_tier_translation(self) -> None:
+        local = MODULE.target_config("local", MODULE.load_manifest())
+        selected = local["supplementalPatches"][1]
+        self.assertEqual(
+            selected["includePaths"],
+            [
+                "internal/api/cloudx_agent_identity_capability.go",
+                "internal/api/server_test.go",
+                "internal/runtime/executor/codex_agent_identity.go",
+                "internal/runtime/executor/codex_agent_identity_test.go",
+                "internal/runtime/executor/codex_executor.go",
+            ],
+        )
+        self.assertNotIn(
+            "internal/translator/codex/openai/responses/codex_openai-responses_request.go",
+            selected["includePaths"],
+        )
+        port = MODULE.verified_patches(local)[3].read_text(encoding="utf-8")
+        self.assertIn("cloudxAgentIdentityCapabilityMiddleware", port)
 
     def test_plan_never_claims_install_activation_or_restart(self) -> None:
         config = MODULE.target_config("local", MODULE.load_manifest())

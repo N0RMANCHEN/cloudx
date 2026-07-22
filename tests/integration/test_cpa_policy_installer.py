@@ -99,7 +99,8 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertTrue(document["localActivationRequiresPreparedRecoveryTool"])
         self.assertTrue(document["localActivationRequiresZeroEstablishedConnections"])
         self.assertTrue(document["eventDrivenArchiveWatcherActivationSeparate"])
-        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.21")
+        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.27")
+        self.assertEqual(document["requiredCapabilities"], ["codex-agent-identity-v1"])
         self.assertFalse(document["weeklyQuotaArchived"])
         self.assertFalse(document["periodicAccountProbe"])
         self.assertTrue(document["incidentSweepTrigger"])
@@ -118,7 +119,7 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertIn(str(value["sweepDirectory"]), health_text)
         self.assertNotIn("systemctl", gateway_text + health_text)
 
-        capability = json.loads(MODULE.capability_manifest_bytes(value))
+        capability = json.loads(MODULE.capability_manifest_bytes("cloud", value))
         self.assertEqual(capability["schema"], "cloudx.cloud-cpa-capabilities.v1")
         self.assertEqual(capability["binary"], str(value["stagedBinary"]))
         self.assertEqual(capability["binarySha256"], value["candidateSha256"])
@@ -255,6 +256,64 @@ class CpaPolicyInstallerTests(unittest.TestCase):
             str(value["sweepDirectory"]),
         )
 
+    def test_local_active_candidate_publishes_hash_bound_capability_after_live_canaries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            baseline_raw = b"baseline"
+            launcher_raw = b"launcher"
+            value = {
+                "version": "7.0.2-cloudx-policy.9-agent-identity",
+                "candidateSha256": "a" * 64,
+                "baselineSha256": MODULE.sha256_bytes(baseline_raw),
+                "baselineBinary": root / "baseline",
+                "stagedBinary": root / "candidate",
+                "launcher": root / "launcher.plist",
+                "capabilityManifest": root / "capabilities.json",
+                "failureDirectory": root / "failures",
+                "sweepDirectory": root / "sweeps",
+                "backupRoot": root / "backups",
+                "config": root / "config.yaml",
+                "serviceLabel": "com.example.cpa",
+                "capabilities": ["codex-agent-identity-v1"],
+            }
+            baseline = MODULE.Snapshot(True, baseline_raw, 0o755, 501, 20)
+            launcher = MODULE.Snapshot(True, launcher_raw, 0o644, 501, 20)
+            absent = MODULE.Snapshot(False, b"", 0, 0, 0)
+
+            def snapshot(path: pathlib.Path, **unused: object) -> object:
+                if path == value["baselineBinary"]:
+                    return baseline
+                if path == value["launcher"]:
+                    return launcher
+                return absent
+
+            launchctl = MODULE.subprocess.CompletedProcess([], 0, "program = candidate\n", "")
+            writes = []
+            with mock.patch.object(MODULE.sys, "platform", "darwin"), mock.patch.object(
+                MODULE.os, "geteuid", return_value=501
+            ), mock.patch.object(MODULE.os, "getegid", return_value=20), mock.patch.object(
+                MODULE, "require_active_cloudx"
+            ), mock.patch.object(MODULE, "verify_candidate"), mock.patch.object(
+                MODULE, "safe_snapshot", side_effect=snapshot
+            ), mock.patch.object(MODULE, "local_plist", return_value=launcher_raw), mock.patch.object(
+                MODULE, "run_command", return_value=launchctl
+            ), mock.patch.object(MODULE, "wait_launchd", return_value=123), mock.patch.object(
+                MODULE, "probe_policy", return_value=(401, "2")
+            ), mock.patch.object(MODULE, "probe_health") as health, mock.patch.object(
+                MODULE, "probe_local_communication", return_value="passed"
+            ), mock.patch.object(
+                MODULE, "atomic_write", side_effect=lambda path, *args, **kwargs: writes.append(path)
+            ):
+                result = MODULE.activate_local(value, root / "recover.py", root / "job", "confirm")
+
+        self.assertEqual(result["status"], "already-active")
+        self.assertEqual(result["capabilities"], ["codex-agent-identity-v1"])
+        self.assertEqual(writes, [value["capabilityManifest"]])
+        health.assert_called_once_with(value["config"], "codex-agent-identity-v1")
+
+        capability = json.loads(MODULE.capability_manifest_bytes("local", value))
+        self.assertEqual(capability["schema"], "cloudx.local-cpa-capabilities.v1")
+
     def test_local_stage_is_side_by_side_and_idempotent_without_service_action(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
@@ -286,8 +345,10 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         cloud = contract["targets"]["cloud"]
         self.assertEqual(local["baselineSha256"], "cf9641b3e50ae486aec1698dec88f735589680f9ae98558c29cde184daac3a96")
         self.assertEqual(cloud["baselineSha256"], "1d0abbc6316b1869f74896109c0efb5e19c8197b8226f48a74212ed0a6f5a39d")
-        self.assertEqual(local["candidateSha256"], "bb6fe9cfcc26d521ce0dcf9f503d2dffa742bce62bd359cab8f91052116c0db3")
+        self.assertEqual(local["candidateSha256"], "174a46d58a95f56104d0bb3722c4fb5e7dffc125f2f525505d96f556291aa761")
         self.assertEqual(cloud["candidateSha256"], "4dfa561451662ca5deae566f6fcfdc32bec7f42590439fa053000c4b84f915c0")
+        self.assertEqual(local["capabilityManifest"], ".local/bin/cli-proxy-api.capabilities.json")
+        self.assertEqual(local["capabilities"], ["codex-agent-identity-v1"])
         self.assertEqual(cloud["capabilityManifest"], "/etc/cloudx/cloud-cpa-capabilities.json")
         self.assertEqual(cloud["capabilities"], ["codex-agent-identity-v1"])
 

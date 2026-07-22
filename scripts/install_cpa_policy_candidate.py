@@ -35,7 +35,7 @@ COMMUNICATION_CANARY_TIMEOUT_SECONDS = 180.0
 CPA_CANARY_READY_TIMEOUT_SECONDS = 20.0
 CPA_CANARY_RETRY_INTERVAL_SECONDS = 0.25
 CAPABILITY_HEADER = "X-Cloudx-CPA-Capabilities"
-CAPABILITY_SCHEMA = "cloudx.cloud-cpa-capabilities.v1"
+CAPABILITY_SCHEMAS = {"local": "cloudx.local-cpa-capabilities.v1", "cloud": "cloudx.cloud-cpa-capabilities.v1"}
 
 
 class CpaPolicyInstallRejected(RuntimeError):
@@ -216,6 +216,7 @@ def expanded_target(target: str, contract: Dict[str, Any]) -> Dict[str, Any]:
             "sweepDirectory",
             "config",
             "launcher",
+            "capabilityManifest",
         ):
             value[key] = home / str(value[key])
         codex_binary = pathlib.Path(str(value.get("codexBinary") or ""))
@@ -243,11 +244,11 @@ def expanded_target(target: str, contract: Dict[str, Any]) -> Dict[str, Any]:
             if not path.is_absolute():
                 raise CpaPolicyInstallRejected("cloud CPA deployment path is not absolute")
             value[key] = path
-        capabilities = value.get("capabilities")
-        if not isinstance(capabilities, list) or not capabilities or any(
-            not isinstance(item, str) or not VERSION_RE.fullmatch(item) for item in capabilities
-        ):
-            raise CpaPolicyInstallRejected("cloud CPA capabilities are invalid")
+    capabilities = value.get("capabilities")
+    if not isinstance(capabilities, list) or not capabilities or any(
+        not isinstance(item, str) or not VERSION_RE.fullmatch(item) for item in capabilities
+    ):
+        raise CpaPolicyInstallRejected("CPA capabilities are invalid")
     value["stagedBinary"] = value["stageRoot"] / value["version"] / "cli-proxy-api"
     return value
 
@@ -574,9 +575,9 @@ def cloud_drop_ins(value: Dict[str, Any]) -> Tuple[bytes, bytes]:
     return gateway, health
 
 
-def capability_manifest_bytes(value: Dict[str, Any]) -> bytes:
+def capability_manifest_bytes(target: str, value: Dict[str, Any]) -> bytes:
     return (json.dumps({
-        "schema": CAPABILITY_SCHEMA,
+        "schema": CAPABILITY_SCHEMAS[target],
         "binary": str(value["stagedBinary"]),
         "binarySha256": value["candidateSha256"],
         "runtimeVersion": value["version"],
@@ -596,7 +597,7 @@ def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
     health_before = safe_snapshot(value["healthDropIn"], maximum=MAX_DROP_IN_BYTES, required=False)
     capability_before = safe_snapshot(value["capabilityManifest"], maximum=MAX_DROP_IN_BYTES, required=False)
     gateway_after, health_after = cloud_drop_ins(value)
-    capability_after = capability_manifest_bytes(value)
+    capability_after = capability_manifest_bytes("cloud", value)
     if (
         gateway_before.existed
         and gateway_before.data == gateway_after
@@ -739,6 +740,8 @@ def activate_local(value: Dict[str, Any], recovery_tool: pathlib.Path, recovery_
         raise CpaPolicyInstallRejected("local CPA baseline binary changed")
     launcher_before = safe_snapshot(value["launcher"], maximum=MAX_LAUNCHER_BYTES, required=True)
     launcher_after = local_plist(launcher_before.data, value)
+    capability_before = safe_snapshot(value["capabilityManifest"], maximum=MAX_DROP_IN_BYTES, required=False)
+    capability_after = capability_manifest_bytes("local", value)
     uid = os.geteuid()
     gid = os.getegid()
     domain = "gui/%d" % uid
@@ -749,15 +752,24 @@ def activate_local(value: Dict[str, Any], recovery_tool: pathlib.Path, recovery_
     if launcher_before.data == launcher_after:
         pid = wait_launchd(domain, value["serviceLabel"], value["stagedBinary"])
         status, policy = probe_policy(value["config"])
+        probe_health(value["config"], value["capabilities"][0])
         communication = probe_local_communication(value)
-        return {"schema": RESULT_SCHEMA, "status": "already-active", "target": "local", "pid": pid, "httpStatus": status, "policy": policy, "communicationCanary": communication}
+        if not capability_before.existed or capability_before.data != capability_after:
+            atomic_write(value["capabilityManifest"], capability_after, mode=0o600, uid=uid, gid=gid)
+        return {"schema": RESULT_SCHEMA, "status": "already-active", "target": "local", "pid": pid, "httpStatus": status, "policy": policy, "capabilities": list(value["capabilities"]), "communicationCanary": communication}
     run_local_recovery(recovery_tool, recovery_job, recovery_confirm, quiescence=True)
     created_directories = [
         path for path in (value["failureDirectory"], value["sweepDirectory"]) if not path.exists()
     ]
     ensure_directory(value["failureDirectory"], mode=0o700, uid=uid, gid=gid)
     ensure_directory(value["sweepDirectory"], mode=0o700, uid=uid, gid=gid)
-    backup = backup_snapshot(value["backupRoot"], "local", {"launcher": launcher_before}, uid=uid, gid=gid)
+    backup = backup_snapshot(
+        value["backupRoot"],
+        "local",
+        {"launcher": launcher_before, "capability-manifest": capability_before},
+        uid=uid,
+        gid=gid,
+    )
     service = "%s/%s" % (domain, value["serviceLabel"])
     try:
         atomic_write(
@@ -772,19 +784,22 @@ def activate_local(value: Dict[str, Any], recovery_tool: pathlib.Path, recovery_
         run_command(["launchctl", "bootstrap", domain, str(value["launcher"])])
         pid = wait_launchd(domain, value["serviceLabel"], value["stagedBinary"])
         status, policy = probe_policy(value["config"])
+        probe_health(value["config"], value["capabilities"][0])
         if sha256_bytes(safe_snapshot(value["baselineBinary"], maximum=MAX_CANDIDATE_BYTES, required=True).data) != value["baselineSha256"]:
             raise CpaPolicyInstallRejected("local CPA baseline changed during activation")
         communication = probe_local_communication(value)
+        atomic_write(value["capabilityManifest"], capability_after, mode=0o600, uid=uid, gid=gid)
     except Exception as exc:
         try:
             run_local_recovery(recovery_tool, recovery_job, recovery_confirm, quiescence=False)
+            restore_snapshot(value["capabilityManifest"], capability_before)
             remove_created_empty_directories(created_directories)
         except Exception as recovery_exc:
             raise CpaPolicyInstallRejected(
                 "local CPA activation failed; baseline restoration verification failed"
             ) from recovery_exc
         raise CpaPolicyInstallRejected("local CPA activation failed and was rolled back") from exc
-    return {"schema": RESULT_SCHEMA, "status": "active", "target": "local", "version": value["version"], "pid": pid, "httpStatus": status, "policy": policy, "communicationCanary": communication, "backupName": backup.name, "externalServiceManaged": False, "operatorApprovedRestart": True}
+    return {"schema": RESULT_SCHEMA, "status": "active", "target": "local", "version": value["version"], "pid": pid, "httpStatus": status, "policy": policy, "capabilities": list(value["capabilities"]), "communicationCanary": communication, "backupName": backup.name, "externalServiceManaged": False, "operatorApprovedRestart": True}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
