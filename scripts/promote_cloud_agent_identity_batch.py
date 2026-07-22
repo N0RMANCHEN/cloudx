@@ -26,8 +26,8 @@ import import_active_cloud_cpa_credential as base
 
 
 ACTIVE_CLOUDX_VERSION = "0.1.25"
-REQUIRED_CPA_VERSION = "7.2.71-cloudx-policy.7"
-REQUIRED_CPA_SHA256 = "0a3b146dc607bf58aa648d0b80f4df3d81737103799593cbae501e843f7e8d80"
+REQUIRED_CPA_VERSION = "7.2.71-cloudx-policy.8"
+REQUIRED_CPA_SHA256 = "4dfa561451662ca5deae566f6fcfdc32bec7f42590439fa053000c4b84f915c0"
 REQUIRED_CAPABILITY = "codex-agent-identity-v1"
 PLAN_SCHEMA = "cloudx.active-agent-identity-promotion-plan.v1"
 RESULT_SCHEMA = "cloudx.active-agent-identity-promotion.v1"

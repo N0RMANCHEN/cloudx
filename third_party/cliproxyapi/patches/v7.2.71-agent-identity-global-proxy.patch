@@ -1,0 +1,254 @@
+diff --git a/internal/runtime/executor/codex_agent_identity.go b/internal/runtime/executor/codex_agent_identity.go
+--- a/internal/runtime/executor/codex_agent_identity.go
++++ b/internal/runtime/executor/codex_agent_identity.go
+@@ -18,6 +18,7 @@ import (
+ 	"sync"
+ 	"time"
+ 
++	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
+ 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
+ 	"golang.org/x/crypto/curve25519"
+ 	"golang.org/x/crypto/nacl/box"
+@@ -174,10 +175,17 @@ func codexAgentIdentityDecryptTaskID(key codexAgentIdentityKey, encoded string)
+ 	return taskID, nil
+ }
+ 
+-func codexAgentIdentityHTTPClient(auth *cliproxyauth.Auth) (*http.Client, error) {
++func codexAgentIdentityHTTPClient(cfg *config.Config, auth *cliproxyauth.Auth) (*http.Client, error) {
+ 	transport := http.DefaultTransport.(*http.Transport).Clone()
+-	if auth != nil && strings.TrimSpace(auth.ProxyURL) != "" {
+-		proxyURL, err := url.Parse(strings.TrimSpace(auth.ProxyURL))
++	proxy := ""
++	if auth != nil {
++		proxy = strings.TrimSpace(auth.ProxyURL)
++	}
++	if proxy == "" && cfg != nil {
++		proxy = strings.TrimSpace(cfg.ProxyURL)
++	}
++	if proxy != "" {
++		proxyURL, err := url.Parse(proxy)
+ 		if err != nil {
+ 			return nil, errors.New("codex agent identity: proxy URL is invalid")
+ 		}
+@@ -188,6 +196,7 @@ func codexAgentIdentityHTTPClient(auth *cliproxyauth.Auth) (*http.Client, error)
+ 
+ func codexAgentIdentityRegisterTask(
+ 	ctx context.Context,
++	cfg *config.Config,
+ 	auth *cliproxyauth.Auth,
+ 	key codexAgentIdentityKey,
+ ) (string, error) {
+@@ -208,7 +217,7 @@ func codexAgentIdentityRegisterTask(
+ 	request.Header.Set("Content-Type", "application/json")
+ 	request.Header.Set("Accept", "application/json")
+ 	request.Header.Set("originator", codexAgentIdentityOriginator)
+-	client, err := codexAgentIdentityHTTPClient(auth)
++	client, err := codexAgentIdentityHTTPClient(cfg, auth)
+ 	if err != nil {
+ 		return "", err
+ 	}
+@@ -239,7 +248,12 @@ func codexAgentIdentityRegisterTask(
+ 	return codexAgentIdentityDecryptTaskID(key, encrypted)
+ }
+ 
+-func codexAgentIdentityRegisterAndCache(ctx context.Context, auth *cliproxyauth.Auth, force bool) error {
++func codexAgentIdentityRegisterAndCache(
++	ctx context.Context,
++	cfg *config.Config,
++	auth *cliproxyauth.Auth,
++	force bool,
++) error {
+ 	key, err := codexAgentIdentityKeyFromAuth(auth)
+ 	if err != nil {
+ 		return err
+@@ -256,7 +270,7 @@ func codexAgentIdentityRegisterAndCache(ctx context.Context, auth *cliproxyauth.
+ 	if !force && key.taskID != "" {
+ 		return nil
+ 	}
+-	taskID, err := codexAgentIdentityRegisterTask(ctx, auth, key)
++	taskID, err := codexAgentIdentityRegisterTask(ctx, cfg, auth, key)
+ 	if err != nil {
+ 		return err
+ 	}
+@@ -264,11 +278,11 @@ func codexAgentIdentityRegisterAndCache(ctx context.Context, auth *cliproxyauth.
+ 	return nil
+ }
+ 
+-func prepareCodexAgentIdentity(ctx context.Context, auth *cliproxyauth.Auth) error {
++func prepareCodexAgentIdentity(ctx context.Context, cfg *config.Config, auth *cliproxyauth.Auth) error {
+ 	if !isCodexAgentIdentity(auth) {
+ 		return nil
+ 	}
+-	return codexAgentIdentityRegisterAndCache(ctx, auth, false)
++	return codexAgentIdentityRegisterAndCache(ctx, cfg, auth, false)
+ }
+ 
+ func applyCodexAgentIdentityHeaders(request *http.Request, auth *cliproxyauth.Auth) {
+@@ -308,6 +322,7 @@ func doCodexRequestWithAgentIdentityRecovery(
+ 	ctx context.Context,
+ 	client *http.Client,
+ 	request *http.Request,
++	cfg *config.Config,
+ 	auth *cliproxyauth.Auth,
+ ) (*http.Response, error) {
+ 	response, err := client.Do(request)
+@@ -323,7 +338,7 @@ func doCodexRequestWithAgentIdentityRecovery(
+ 		response.Body = io.NopCloser(bytes.NewReader(body))
+ 		return response, nil
+ 	}
+-	if err := codexAgentIdentityRegisterAndCache(ctx, auth, true); err != nil {
++	if err := codexAgentIdentityRegisterAndCache(ctx, cfg, auth, true); err != nil {
+ 		return nil, err
+ 	}
+ 	retryBody, err := request.GetBody()
+diff --git a/internal/runtime/executor/codex_agent_identity_test.go b/internal/runtime/executor/codex_agent_identity_test.go
+--- a/internal/runtime/executor/codex_agent_identity_test.go
++++ b/internal/runtime/executor/codex_agent_identity_test.go
+@@ -16,6 +16,7 @@ import (
+ 	"sync/atomic"
+ 	"testing"
+ 
++	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
+ 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
+ )
+ 
+@@ -65,10 +66,10 @@ func TestCodexAgentIdentityRegistersAndBuildsAssertion(t *testing.T) {
+ 	codexAgentIdentityAuthAPIBaseURL = server.URL
+ 	defer func() { codexAgentIdentityAuthAPIBaseURL = previousBaseURL }()
+ 
+-	if err := prepareCodexAgentIdentity(context.Background(), auth); err != nil {
++	if err := prepareCodexAgentIdentity(context.Background(), nil, auth); err != nil {
+ 		t.Fatal(err)
+ 	}
+-	if err := prepareCodexAgentIdentity(context.Background(), auth); err != nil {
++	if err := prepareCodexAgentIdentity(context.Background(), nil, auth); err != nil {
+ 		t.Fatal(err)
+ 	}
+ 	if registrations.Load() != 1 {
+@@ -103,6 +104,34 @@ func TestCodexAgentIdentityRegistersAndBuildsAssertion(t *testing.T) {
+ 	}
+ }
+ 
++func TestCodexAgentIdentityRegistrationUsesGlobalProxy(t *testing.T) {
++	codexAgentIdentityTaskCache = sync.Map{}
++	auth, _ := testCodexAgentIdentityAuth(t, "runtime-global-proxy")
++	var registrations atomic.Int32
++	proxy := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
++		registrations.Add(1)
++		if request.URL.Host != "auth.invalid" {
++			t.Fatalf("registration host = %q, want auth.invalid", request.URL.Host)
++		}
++		if got := request.Header.Get("originator"); got != codexAgentIdentityOriginator {
++			t.Fatalf("originator = %q, want %q", got, codexAgentIdentityOriginator)
++		}
++		_ = json.NewEncoder(writer).Encode(map[string]string{"task_id": "task-proxy"})
++	}))
++	defer proxy.Close()
++	previousBaseURL := codexAgentIdentityAuthAPIBaseURL
++	codexAgentIdentityAuthAPIBaseURL = "http://auth.invalid/api/accounts"
++	defer func() { codexAgentIdentityAuthAPIBaseURL = previousBaseURL }()
++
++	cfg := &config.Config{SDKConfig: config.SDKConfig{ProxyURL: proxy.URL}}
++	if err := prepareCodexAgentIdentity(context.Background(), cfg, auth); err != nil {
++		t.Fatal(err)
++	}
++	if registrations.Load() != 1 {
++		t.Fatalf("registrations = %d, want 1", registrations.Load())
++	}
++}
++
+ func TestCodexAgentIdentityIgnoresImportedTaskID(t *testing.T) {
+ 	codexAgentIdentityTaskCache = sync.Map{}
+ 	auth, _ := testCodexAgentIdentityAuth(t, "runtime-fresh")
+@@ -128,7 +157,7 @@ func TestCodexAgentIdentityRecoversInvalidTaskOnce(t *testing.T) {
+ 	previousBaseURL := codexAgentIdentityAuthAPIBaseURL
+ 	codexAgentIdentityAuthAPIBaseURL = registrationServer.URL
+ 	defer func() { codexAgentIdentityAuthAPIBaseURL = previousBaseURL }()
+-	if err := prepareCodexAgentIdentity(context.Background(), auth); err != nil {
++	if err := prepareCodexAgentIdentity(context.Background(), nil, auth); err != nil {
+ 		t.Fatal(err)
+ 	}
+ 	var calls atomic.Int32
+@@ -155,6 +184,7 @@ func TestCodexAgentIdentityRecoversInvalidTaskOnce(t *testing.T) {
+ 		context.Background(),
+ 		upstream.Client(),
+ 		request,
++		nil,
+ 		auth,
+ 	)
+ 	if err != nil {
+diff --git a/internal/runtime/executor/codex_executor.go b/internal/runtime/executor/codex_executor.go
+--- a/internal/runtime/executor/codex_executor.go
++++ b/internal/runtime/executor/codex_executor.go
+@@ -724,7 +724,7 @@ func (e *CodexExecutor) PrepareRequest(req *http.Request, auth *cliproxyauth.Aut
+ 		return nil
+ 	}
+ 	apiKey, _ := codexCreds(auth)
+-	if err := prepareCodexAgentIdentity(req.Context(), auth); err != nil {
++	if err := prepareCodexAgentIdentity(req.Context(), e.cfg, auth); err != nil {
+ 		return err
+ 	}
+ 	if isCodexAgentIdentity(auth) {
+@@ -753,7 +753,7 @@ func (e *CodexExecutor) HttpRequest(ctx context.Context, auth *cliproxyauth.Auth
+ 		return nil, err
+ 	}
+ 	httpClient := helps.NewUtlsHTTPClient(ctx, e.cfg, auth, 0)
+-	return doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, auth)
++	return doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, e.cfg, auth)
+ }
+ 
+ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (resp cliproxyexecutor.Response, err error) {
+@@ -810,7 +810,7 @@ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req
+ 	reporter.SetTranslatedReasoningEffort(body, to.String())
+ 
+ 	url := strings.TrimSuffix(baseURL, "/") + "/responses"
+-	if err = prepareCodexAgentIdentity(ctx, auth); err != nil {
++	if err = prepareCodexAgentIdentity(ctx, e.cfg, auth); err != nil {
+ 		return resp, err
+ 	}
+ 	var identityState codexIdentityConfuseState
+@@ -840,7 +840,7 @@ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req
+ 	})
+ 	httpClient := helps.NewUtlsHTTPClient(ctx, e.cfg, auth, 0)
+ 	httpClient = reporter.TrackHTTPClient(httpClient)
+-	httpResp, err := doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, auth)
++	httpResp, err := doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, e.cfg, auth)
+ 	if err != nil {
+ 		helps.RecordAPIResponseError(ctx, e.cfg, err)
+ 		return resp, err
+@@ -983,7 +983,7 @@ func (e *CodexExecutor) executeCompact(ctx context.Context, auth *cliproxyauth.A
+ 	reporter.SetTranslatedReasoningEffort(body, to.String())
+ 
+ 	url := strings.TrimSuffix(baseURL, "/") + "/responses/compact"
+-	if err = prepareCodexAgentIdentity(ctx, auth); err != nil {
++	if err = prepareCodexAgentIdentity(ctx, e.cfg, auth); err != nil {
+ 		return resp, err
+ 	}
+ 	var identityState codexIdentityConfuseState
+@@ -1013,7 +1013,7 @@ func (e *CodexExecutor) executeCompact(ctx context.Context, auth *cliproxyauth.A
+ 	})
+ 	httpClient := helps.NewUtlsHTTPClient(ctx, e.cfg, auth, 0)
+ 	httpClient = reporter.TrackHTTPClient(httpClient)
+-	httpResp, err := doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, auth)
++	httpResp, err := doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, e.cfg, auth)
+ 	if err != nil {
+ 		helps.RecordAPIResponseError(ctx, e.cfg, err)
+ 		return resp, err
+@@ -1101,7 +1101,7 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
+ 	reporter.SetTranslatedReasoningEffort(body, to.String())
+ 
+ 	url := strings.TrimSuffix(baseURL, "/") + "/responses"
+-	if err = prepareCodexAgentIdentity(ctx, auth); err != nil {
++	if err = prepareCodexAgentIdentity(ctx, e.cfg, auth); err != nil {
+ 		return nil, err
+ 	}
+ 	var identityState codexIdentityConfuseState
+@@ -1132,7 +1132,7 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
+ 
+ 	httpClient := helps.NewUtlsHTTPClient(ctx, e.cfg, auth, 0)
+ 	httpClient = reporter.TrackHTTPClient(httpClient)
+-	httpResp, err := doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, auth)
++	httpResp, err := doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, e.cfg, auth)
+ 	if err != nil {
+ 		helps.RecordAPIResponseError(ctx, e.cfg, err)
+ 		return nil, err

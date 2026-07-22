@@ -34,7 +34,7 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         self.assertEqual(manifest["policy"]["sweepTriggerSchema"], "cloudx.cpa-sweep-trigger.v1")
         self.assertFalse(manifest["policy"]["weeklyQuotaArchived"])
         self.assertEqual(local["candidateSha256"], "bb6fe9cfcc26d521ce0dcf9f503d2dffa742bce62bd359cab8f91052116c0db3")
-        self.assertEqual(cloud["candidateSha256"], "0a3b146dc607bf58aa648d0b80f4df3d81737103799593cbae501e843f7e8d80")
+        self.assertEqual(cloud["candidateSha256"], "4dfa561451662ca5deae566f6fcfdc32bec7f42590439fa053000c4b84f915c0")
         self.assertEqual(cloud["capabilities"], ["codex-agent-identity-v1"])
 
     def test_patch_digests_are_bound_by_manifest(self) -> None:
@@ -42,7 +42,7 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         for target in ("local", "cloud"):
             config = MODULE.target_config(target, manifest)
             patches = MODULE.verified_patches(config)
-            self.assertEqual(len(patches), 2 if target == "local" else 5)
+            self.assertEqual(len(patches), 2 if target == "local" else 6)
             self.assertEqual(MODULE.sha256_file(patches[0]), config["patchSha256"])
             for patch, expected in zip(patches[1:], config["supplementalPatches"]):
                 self.assertEqual(MODULE.sha256_file(patch), expected["sha256"])
@@ -68,6 +68,10 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         self.assertIn('codexAgentIdentityOriginator     = "codex_cli_rs"', originator)
         self.assertIn('request.Header.Set("originator", codexAgentIdentityOriginator)', originator)
         self.assertIn('request.Header.Get("originator")', originator)
+        proxy = MODULE.verified_patches(cloud)[5].read_text(encoding="utf-8")
+        self.assertIn("proxy = strings.TrimSpace(cfg.ProxyURL)", proxy)
+        self.assertIn("TestCodexAgentIdentityRegistrationUsesGlobalProxy", proxy)
+        self.assertIn("prepareCodexAgentIdentity(req.Context(), e.cfg, auth)", proxy)
 
     def test_plan_never_claims_install_activation_or_restart(self) -> None:
         config = MODULE.target_config("local", MODULE.load_manifest())

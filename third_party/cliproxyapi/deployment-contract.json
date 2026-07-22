@@ -23,8 +23,8 @@
       "communicationCodexHome": ".codex-accounts/api/.codex"
     },
     "cloud": {
-      "version": "7.2.71-cloudx-policy.7",
-      "candidateSha256": "0a3b146dc607bf58aa648d0b80f4df3d81737103799593cbae501e843f7e8d80",
+      "version": "7.2.71-cloudx-policy.8",
+      "candidateSha256": "4dfa561451662ca5deae566f6fcfdc32bec7f42590439fa053000c4b84f915c0",
       "candidateSize": 45359266,
       "requiredActiveCloudxVersion": "0.1.25",
       "baselineBinary": "/usr/local/bin/cli-proxy-api",
