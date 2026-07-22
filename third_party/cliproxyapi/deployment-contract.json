@@ -5,7 +5,7 @@
       "version": "7.0.2-codexx-fast-service-tier-cloudx-policy.9-agent-identity",
       "candidateSha256": "174a46d58a95f56104d0bb3722c4fb5e7dffc125f2f525505d96f556291aa761",
       "candidateSize": 41518146,
-      "requiredActiveCloudxVersion": "0.1.28",
+      "requiredActiveCloudxVersion": "0.1.29",
       "baselineBinary": ".local/bin/cli-proxy-api",
       "baselineSha256": "cf9641b3e50ae486aec1698dec88f735589680f9ae98558c29cde184daac3a96",
       "stageRoot": ".local/lib/cliproxy-cloudx/releases",

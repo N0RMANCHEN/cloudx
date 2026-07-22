@@ -47,7 +47,7 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             source = pathlib.Path(temporary) / "agent.json"
             source.write_text("{}", encoding="utf-8")
-            value = {"requiredActiveCloudxVersion": "0.1.28"}
+            value = {"requiredActiveCloudxVersion": "0.1.29"}
             completed = MODULE.subprocess.CompletedProcess(
                 args=[],
                 returncode=0,
@@ -143,7 +143,7 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertTrue(document["localActivationRequiresPreparedRecoveryTool"])
         self.assertTrue(document["localActivationRequiresZeroEstablishedConnections"])
         self.assertTrue(document["eventDrivenArchiveWatcherActivationSeparate"])
-        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.28")
+        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.29")
         self.assertEqual(document["requiredCapabilities"], ["codex-agent-identity-v1"])
         self.assertFalse(document["weeklyQuotaArchived"])
         self.assertFalse(document["periodicAccountProbe"])

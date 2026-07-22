@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from . import agent_identity
 from .local_cpa_import import _account_id, _auth_tokens, _expand_object
 
 
@@ -109,6 +110,8 @@ def contexts(auth_dir: pathlib.Path) -> List[ProbeContext]:
         except (UnicodeDecodeError, json.JSONDecodeError):
             continue
         if not isinstance(document, dict):
+            continue
+        if agent_identity.is_agent_identity(document):
             continue
         try:
             payloads = _expand_object(document, path.name)

@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .config import LocalConfig
 from .files import atomic_json, ensure_private_directory
-from . import local_cpa_probe, local_cpa_sweep
+from . import agent_identity, local_cpa_probe, local_cpa_sweep
 from .local_cpa_import import _auth_dir, _auth_tokens, _decode_jwt_payload, _iso_from_epoch
 
 
@@ -142,6 +142,12 @@ def _record(path: pathlib.Path, *, now: datetime) -> Optional[AuthRecord]:
     provider = str(document.get("type") or document.get("provider") or "").strip().casefold()
     if provider and provider not in {"codex", "chatgpt", "openai"}:
         return None
+    if agent_identity.is_agent_identity(document):
+        return AuthRecord(
+            path=path,
+            digest=digest,
+            static_reason="" if agent_identity.is_valid(document) else "invalid-agent-identity",
+        )
     access_token, refresh_token, id_token = _auth_tokens(document)
     if not any((access_token, refresh_token, id_token)):
         return AuthRecord(path=path, digest=digest, static_reason="missing-refresh-and-access-token")

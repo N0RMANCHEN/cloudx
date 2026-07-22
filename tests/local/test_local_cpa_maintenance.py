@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import pathlib
@@ -73,6 +74,19 @@ class LocalCpaMaintenanceTests(unittest.TestCase):
             "expired": expires_at.isoformat(),
         }
 
+    @staticmethod
+    def _agent_identity(*, valid: bool = True) -> dict[str, object]:
+        private_key = base64.b64encode(
+            bytes.fromhex("302e020100300506032b657004220420") + bytes([7]) * 32
+        ).decode("ascii")
+        return {
+            "type": "codex",
+            "auth_kind": "oauth",
+            "auth_mode": "agentIdentity",
+            "agent_runtime_id": "runtime-sanitized",
+            "agent_private_key": private_key if valid else "PRIVATE-KEY-SENTINEL",
+        }
+
     def _receipt(
         self,
         auth: pathlib.Path,
@@ -128,6 +142,29 @@ class LocalCpaMaintenanceTests(unittest.TestCase):
         self.assertNotIn("private-label", json.dumps(document))
         self.assertNotIn("private-label", json.dumps(manifest))
 
+    def test_valid_agent_identity_is_retained_without_bearer_tokens(self) -> None:
+        identity = self._write_auth("agent.json", self._agent_identity())
+
+        document = local_cpa_maintenance.refresh_document(self.config, apply=True)
+
+        self.assertTrue(identity.is_file())
+        self.assertEqual(document["activeAuthFiles"], 1)
+        self.assertEqual(document["eligibleForArchive"], 0)
+        self.assertEqual(document["archived"], 0)
+        self.assertFalse(self.archive_dir.exists())
+
+    def test_invalid_agent_identity_is_archived_without_private_key_output(self) -> None:
+        identity = self._write_auth("agent.json", self._agent_identity(valid=False))
+
+        document = local_cpa_maintenance.refresh_document(self.config, apply=True)
+
+        self.assertFalse(identity.exists())
+        self.assertEqual(document["archived"], 1)
+        manifest = json.loads((self.archive_dir / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["entries"][0]["reason"], "invalid-agent-identity")
+        self.assertNotIn("PRIVATE-KEY-SENTINEL", json.dumps(document))
+        self.assertNotIn("PRIVATE-KEY-SENTINEL", json.dumps(manifest))
+
     def test_confirmed_non_quota_runtime_failure_archives_exact_auth_digest(self) -> None:
         auth = self._write_auth("runtime.json", self._auth())
         receipt = self._receipt(auth)
@@ -139,6 +176,18 @@ class LocalCpaMaintenanceTests(unittest.TestCase):
         self.assertFalse(receipt.exists())
         manifest = json.loads((self.archive_dir / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["entries"][0]["reason"], "runtime-authentication_unauthorized")
+
+    def test_digest_bound_runtime_failure_can_archive_agent_identity(self) -> None:
+        identity = self._write_auth("agent.json", self._agent_identity())
+        receipt = self._receipt(identity, reason="account_deactivated")
+
+        document = local_cpa_maintenance.refresh_document(self.config, apply=True)
+
+        self.assertEqual(document["archived"], 1)
+        self.assertFalse(identity.exists())
+        self.assertFalse(receipt.exists())
+        manifest = json.loads((self.archive_dir / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["entries"][0]["reason"], "runtime-account_deactivated")
 
     def test_weekly_quota_and_stale_digest_never_archive(self) -> None:
         weekly = self._write_auth("weekly.json", self._auth())

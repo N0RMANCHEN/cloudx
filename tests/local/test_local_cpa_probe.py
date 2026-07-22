@@ -27,6 +27,36 @@ def token(index: int) -> str:
 
 
 class LocalCpaProbeTests(unittest.TestCase):
+    def test_agent_identity_is_not_sent_to_bearer_usage_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            auth_dir = pathlib.Path(value)
+            private_key = base64.b64encode(
+                bytes.fromhex("302e020100300506032b657004220420") + bytes([9]) * 32
+            ).decode("ascii")
+            (auth_dir / "agent.json").write_text(json.dumps({
+                "type": "codex",
+                "auth_mode": "agentIdentity",
+                "agent_runtime_id": "runtime-sanitized",
+                "agent_private_key": private_key,
+            }), encoding="utf-8")
+
+            with mock.patch.object(local_cpa_probe, "transport_status") as transport:
+                summary, candidates = local_cpa_probe.probe_all(
+                    auth_dir,
+                    "",
+                    32,
+                    opener=mock.Mock(),
+                )
+
+            self.assertEqual(summary, {
+                "gate": "no_accounts",
+                "total": 0,
+                "concurrency": 0,
+                "failed": 0,
+            })
+            self.assertEqual(candidates, [])
+            transport.assert_not_called()
+
     def test_incident_sweep_uses_up_to_thirty_two_unique_credentials(self) -> None:
         with tempfile.TemporaryDirectory() as value:
             auth_dir = pathlib.Path(value)
