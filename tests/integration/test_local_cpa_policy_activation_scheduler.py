@@ -42,6 +42,11 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
         self.assertFalse(document["automaticAction"])
         self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.28")
         self.assertTrue(document["confirmation"].startswith("ACTIVATE LOCAL CPA POLICY"))
+        self.assertFalse(document["coldBootstrapAgentIdentity"])
+
+    def test_plan_declares_explicit_cold_bootstrap(self) -> None:
+        document = MODULE.plan(180, bootstrap_agent_identity=pathlib.Path("/private/agent.json"))
+        self.assertTrue(document["coldBootstrapAgentIdentity"])
 
     def test_current_cloudx_version_requires_a_real_selector(self) -> None:
         self.assertEqual(MODULE.current_cloudx_version(pathlib.Path("/nonexistent-cloudx-home")), "")
@@ -98,6 +103,7 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
             job = pathlib.Path(result["receipt"]).parent
             document = json.loads((job / "job.json").read_text(encoding="utf-8"))
             self.assertTrue((job / "recover_local_cpa_policy.py").is_file())
+            self.assertTrue((job / "local_cpa_activation_support.py").is_file())
             self.assertEqual((job / "launcher.before").read_bytes(), launcher_raw)
             self.assertTrue((job / "RECOVERY.txt").is_file())
             self.assertEqual(document["baselineSha256"], MODULE.sha256(baseline_raw))
@@ -105,6 +111,50 @@ class LocalCpaPolicyActivationSchedulerTests(unittest.TestCase):
             self.assertEqual(result["recoveryCommand"][-1], document["recoveryConfirmation"])
             self.assertGreater(document["quiescenceDeadlineEpoch"], document["executeAfterEpoch"])
             self.assertEqual(result["maximumQuiescenceWaitSeconds"], 7 * 24 * 60 * 60)
+
+    def test_schedule_binds_bootstrap_source_digest_without_copying_the_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = pathlib.Path(temporary)
+            launcher = home / "Library/LaunchAgents/com.codexx.cliproxyapi.plist"
+            baseline = home / ".local/bin/cli-proxy-api"
+            source = home / "agent.json"
+            launcher.parent.mkdir(parents=True)
+            baseline.parent.mkdir(parents=True)
+            launcher.write_bytes(b"launcher")
+            baseline.write_bytes(b"baseline")
+            source.write_bytes(b'{"agent_identity":true}')
+            value = {
+                "version": "test-policy.1", "candidateSha256": "a" * 64,
+                "baselineSha256": MODULE.sha256(b"baseline"), "stagedBinary": home / "candidate",
+                "launcher": launcher, "baselineBinary": baseline, "serviceLabel": "com.codexx.cliproxyapi",
+                "config": home / "config.yaml", "codexBinary": home / "codex",
+                "communicationCodexHome": home / "codex-home",
+            }
+            fake = mock.Mock()
+            fake.load_contract.return_value = {}
+            fake.expanded_target.return_value = value
+            fake.confirmations.return_value = ("stage", "ACTIVATE LOCAL CPA POLICY test abcdef123456")
+            fake.safe_snapshot.side_effect = [
+                types.SimpleNamespace(data=b"launcher", mode=0o644, uid=os.geteuid(), gid=os.getegid()),
+                types.SimpleNamespace(data=b"baseline", mode=0o700, uid=os.geteuid(), gid=os.getegid()),
+            ]
+            fake.sha256_bytes.side_effect = MODULE.sha256
+            fake.MAX_LAUNCHER_BYTES = 256 * 1024
+            fake.MAX_CANDIDATE_BYTES = 100 * 1024 * 1024
+            with mock.patch.object(MODULE.sys, "platform", "darwin"), mock.patch.object(
+                MODULE, "installer_module", return_value=fake
+            ), mock.patch.object(MODULE, "current_cloudx_version", return_value="0.1.28"), mock.patch.object(
+                MODULE.pathlib.Path, "home", return_value=home
+            ), mock.patch.object(MODULE.subprocess, "Popen", return_value=types.SimpleNamespace(pid=123)):
+                result = MODULE.schedule(
+                    180, "ACTIVATE LOCAL CPA POLICY test abcdef123456",
+                    bootstrap_agent_identity=source,
+                )
+            job = pathlib.Path(result["receipt"]).parent
+            document = json.loads((job / "job.json").read_text(encoding="utf-8"))
+            self.assertEqual(document["bootstrapAgentIdentity"], str(source))
+            self.assertEqual(document["bootstrapAgentIdentitySha256"], MODULE.sha256(source.read_bytes()))
+            self.assertFalse((job / source.name).exists())
 
     def test_quiescence_monitor_waits_without_mutating_until_five_sample_gate_passes(self) -> None:
         job = pathlib.Path("/private/job")

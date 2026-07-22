@@ -22,6 +22,50 @@ SPEC.loader.exec_module(MODULE)
 
 
 class CpaPolicyInstallerTests(unittest.TestCase):
+    def test_communication_canary_accepts_only_explicit_auth_unavailable_for_cold_bootstrap(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            codex = root / "codex"
+            codex.write_text("#!/bin/sh\n", encoding="utf-8")
+            codex.chmod(0o700)
+            codex_home = root / "codex-home"
+            codex_home.mkdir()
+            value = {"codexBinary": codex, "communicationCodexHome": codex_home}
+            completed = MODULE.subprocess.CompletedProcess(
+                args=[], returncode=1, stdout="", stderr="503 auth_unavailable: no auth available"
+            )
+            with mock.patch.object(MODULE.activation_support.subprocess, "run", return_value=completed):
+                self.assertEqual(
+                    MODULE.activation_support.probe_local_communication(value, allow_auth_unavailable=True),
+                    "auth-unavailable",
+                )
+            with mock.patch.object(MODULE.activation_support.subprocess, "run", return_value=completed):
+                with self.assertRaisesRegex(MODULE.activation_support.SupportRejected, "communication canary failed"):
+                    MODULE.activation_support.probe_local_communication(value)
+
+    def test_bootstrap_import_requires_verified_release_matched_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            source = pathlib.Path(temporary) / "agent.json"
+            source.write_text("{}", encoding="utf-8")
+            value = {"requiredActiveCloudxVersion": "0.1.28"}
+            completed = MODULE.subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout=json.dumps({
+                    "schema": "cloudx.local-cpa-import.v1",
+                    "status": "accepted",
+                    "counts": {"verified": 1},
+                }),
+                stderr="",
+            )
+            with mock.patch.object(MODULE.activation_support.pathlib.Path, "home", return_value=pathlib.Path(temporary)), mock.patch.object(
+                pathlib.Path, "is_file", return_value=True
+            ), mock.patch.object(MODULE.activation_support.subprocess, "run", return_value=completed) as command:
+                result = MODULE.activation_support.import_bootstrap_agent_identity(value, source.read_bytes())
+            self.assertEqual(result["counts"]["verified"], 1)
+            self.assertIn("codexx", command.call_args.args[0])
+            self.assertIn("import", command.call_args.args[0])
+
     def test_health_canary_retries_until_the_listener_is_ready(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             config = pathlib.Path(temporary) / "config.yaml"
@@ -381,19 +425,19 @@ class CpaPolicyInstallerTests(unittest.TestCase):
             "is_dir",
             return_value=True,
         ), mock.patch.object(pathlib.Path, "is_symlink", return_value=False), mock.patch.object(
-            MODULE.os,
+            MODULE.activation_support.os,
             "access",
             return_value=True,
-        ), mock.patch.object(MODULE, "run_command", return_value=completed) as command:
+        ), mock.patch.object(MODULE.activation_support.subprocess, "run", return_value=completed) as command:
             self.assertEqual(MODULE.probe_local_communication(value), "passed")
         arguments = command.call_args.args[0]
         options = command.call_args.kwargs
         self.assertEqual(arguments[0], str(value["codexBinary"]))
         self.assertIn(MODULE.COMMUNICATION_CANARY_TEXT, arguments[-1])
-        self.assertEqual(options["environment"]["CODEX_HOME"], str(value["communicationCodexHome"]))
-        self.assertNotIn("OPENAI_BASE_URL", options["environment"])
-        self.assertNotIn("HTTP_PROXY", options["environment"])
-        self.assertEqual(options["environment"]["NO_PROXY"], "127.0.0.1,localhost,::1")
+        self.assertEqual(options["env"]["CODEX_HOME"], str(value["communicationCodexHome"]))
+        self.assertNotIn("OPENAI_BASE_URL", options["env"])
+        self.assertNotIn("HTTP_PROXY", options["env"])
+        self.assertEqual(options["env"]["NO_PROXY"], "127.0.0.1,localhost,::1")
 
     def test_local_communication_canary_rejects_missing_expected_reply(self) -> None:
         value = MODULE.expanded_target("local", MODULE.load_contract(MODULE.DEFAULT_CONTRACT))
@@ -403,10 +447,10 @@ class CpaPolicyInstallerTests(unittest.TestCase):
             "is_dir",
             return_value=True,
         ), mock.patch.object(pathlib.Path, "is_symlink", return_value=False), mock.patch.object(
-            MODULE.os,
+            MODULE.activation_support.os,
             "access",
             return_value=True,
-        ), mock.patch.object(MODULE, "run_command", return_value=completed):
+        ), mock.patch.object(MODULE.activation_support.subprocess, "run", return_value=completed):
             with self.assertRaises(MODULE.CpaPolicyInstallRejected):
                 MODULE.probe_local_communication(value)
 

@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional, Sequence
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / "scripts/install_cpa_policy_candidate.py"
+ACTIVATION_SUPPORT = ROOT / "scripts/local_cpa_activation_support.py"
 RECOVERY_TOOL = ROOT / "scripts/recover_local_cpa_policy.py"
 CONTRACT = ROOT / "third_party/cliproxyapi/deployment-contract.json"
 REQUIRED_ACTIVE_CLOUDX_VERSION = "0.1.28"
@@ -36,6 +37,7 @@ MINIMUM_QUIESCENCE_WAIT_SECONDS = 60 * 60
 MAXIMUM_QUIESCENCE_WAIT_SECONDS = 7 * 24 * 60 * 60
 QUIESCENCE_POLL_SECONDS = 60
 MAX_FILE_BYTES = 2 * 1024 * 1024
+MAX_BOOTSTRAP_SOURCE_BYTES = 16 * 1024 * 1024
 
 
 class ScheduleRejected(RuntimeError):
@@ -145,6 +147,7 @@ def current_cloudx_version(home: pathlib.Path) -> str:
 def plan(
     delay_seconds: int,
     quiescence_wait_seconds: int = DEFAULT_QUIESCENCE_WAIT_SECONDS,
+    bootstrap_agent_identity: Optional[pathlib.Path] = None,
 ) -> Dict[str, Any]:
     module = installer_module()
     value = module.expanded_target("local", module.load_contract(CONTRACT))
@@ -167,6 +170,7 @@ def plan(
         "realCodexCanaryBeforeActivation": True,
         "realCodexCanaryAfterActivation": True,
         "realCodexCanaryAfterRollback": True,
+        "coldBootstrapAgentIdentity": bootstrap_agent_identity is not None,
         "automaticRollback": True,
         "requiresZeroEstablishedConnections": True,
         "manualRecoveryPreparedBeforeRestart": True,
@@ -180,10 +184,11 @@ def schedule(
     delay_seconds: int,
     confirmation: str,
     quiescence_wait_seconds: int = DEFAULT_QUIESCENCE_WAIT_SECONDS,
+    bootstrap_agent_identity: Optional[pathlib.Path] = None,
 ) -> Dict[str, Any]:
     if sys.platform != "darwin" or os.geteuid() == 0:
         raise ScheduleRejected("local CPA activation scheduling requires the macOS login user")
-    document = plan(delay_seconds, quiescence_wait_seconds)
+    document = plan(delay_seconds, quiescence_wait_seconds, bootstrap_agent_identity)
     if confirmation != document["confirmation"]:
         raise ScheduleRejected("local CPA activation confirmation does not match")
     home = pathlib.Path.home().resolve()
@@ -192,6 +197,16 @@ def schedule(
     module = installer_module()
     value = module.expanded_target("local", module.load_contract(CONTRACT))
     module.verify_candidate(value["stagedBinary"], value)
+    bootstrap_path: Optional[pathlib.Path] = None
+    bootstrap_sha256 = ""
+    if bootstrap_agent_identity is not None:
+        bootstrap_path = bootstrap_agent_identity.expanduser().absolute()
+        if bootstrap_path.is_symlink():
+            raise ScheduleRejected("local CPA bootstrap source is unsafe")
+        bootstrap_raw = safe_read(bootstrap_path, MAX_BOOTSTRAP_SOURCE_BYTES)
+        if not bootstrap_raw:
+            raise ScheduleRejected("local CPA bootstrap source is empty")
+        bootstrap_sha256 = sha256(bootstrap_raw)
 
     state_root = home / ".local/state/cloudx/cpa-policy-activation-jobs"
     private_directory(state_root)
@@ -199,6 +214,7 @@ def schedule(
     job = state_root / job_id
     private_directory(job)
     installer_raw = safe_read(INSTALLER)
+    support_raw = safe_read(ACTIVATION_SUPPORT)
     recovery_raw = safe_read(RECOVERY_TOOL)
     contract_raw = safe_read(CONTRACT)
     worker_raw = safe_read(pathlib.Path(__file__).resolve())
@@ -213,10 +229,12 @@ def schedule(
     if module.sha256_bytes(baseline_snapshot.data) != value["baselineSha256"]:
         raise ScheduleRejected("local CPA baseline binary changed")
     installer_copy = job / "install_cpa_policy_candidate.py"
+    support_copy = job / "local_cpa_activation_support.py"
     recovery_copy = job / "recover_local_cpa_policy.py"
     contract_copy = job / "deployment-contract.json"
     worker_copy = job / "schedule_local_cpa_policy_activation.py"
     atomic_write(installer_copy, installer_raw)
+    atomic_write(support_copy, support_raw)
     atomic_write(recovery_copy, recovery_raw)
     atomic_write(contract_copy, contract_raw)
     atomic_write(worker_copy, worker_raw)
@@ -237,6 +255,7 @@ def schedule(
         "candidateVersion": document["candidateVersion"],
         "candidateSha256": document["candidateSha256"],
         "installerSha256": sha256(installer_raw),
+        "activationSupportSha256": sha256(support_raw),
         "recoveryToolSha256": sha256(recovery_raw),
         "contractSha256": sha256(contract_raw),
         "workerSha256": sha256(worker_raw),
@@ -254,6 +273,8 @@ def schedule(
         "recoveryConfirmation": recovery_confirmation,
         "quiescenceSamples": 5,
         "quiescenceIntervalSeconds": 1.0,
+        "bootstrapAgentIdentity": str(bootstrap_path) if bootstrap_path is not None else "",
+        "bootstrapAgentIdentitySha256": bootstrap_sha256,
     }
     atomic_json(job / "job.json", job_document)
     recovery_command = [
@@ -418,6 +439,8 @@ def worker(job: pathlib.Path) -> int:
             "worker": (job / "schedule_local_cpa_policy_activation.py", document.get("workerSha256")),
             "launcher": (job / "launcher.before", document.get("launcherSnapshotSha256")),
         }
+        if document.get("activationSupportSha256"):
+            copies["support"] = (job / "local_cpa_activation_support.py", document["activationSupportSha256"])
         for path, expected in copies.values():
             if sha256(safe_read(path)) != expected:
                 raise ScheduleRejected("activation job file digest changed")
@@ -458,8 +481,7 @@ def worker(job: pathlib.Path) -> int:
             return 1
         emit_worker_event(document["jobId"], "activation", "started")
         activation_invoked = True
-        completed = subprocess.run(
-            [
+        installer_arguments = [
                 sys.executable,
                 str(copies["installer"][0]),
                 "--target",
@@ -475,7 +497,14 @@ def worker(job: pathlib.Path) -> int:
                 str(job),
                 "--recovery-confirm",
                 str(document["recoveryConfirmation"]),
-            ],
+            ]
+        bootstrap_path = str(document.get("bootstrapAgentIdentity") or "")
+        if bootstrap_path:
+            if sha256(safe_read(pathlib.Path(bootstrap_path), MAX_BOOTSTRAP_SOURCE_BYTES)) != document.get("bootstrapAgentIdentitySha256"):
+                raise ScheduleRejected("local CPA bootstrap source changed before activation")
+            installer_arguments.extend(["--bootstrap-agent-identity", bootstrap_path])
+        completed = subprocess.run(
+            installer_arguments,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -560,6 +589,7 @@ def parser() -> argparse.ArgumentParser:
     )
     root.add_argument("--apply", action="store_true")
     root.add_argument("--confirm", default="")
+    root.add_argument("--bootstrap-agent-identity", type=pathlib.Path)
     root.add_argument("--worker", type=pathlib.Path, help=argparse.SUPPRESS)
     return root
 
@@ -573,9 +603,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if not MINIMUM_QUIESCENCE_WAIT_SECONDS <= args.quiescence_wait_seconds <= MAXIMUM_QUIESCENCE_WAIT_SECONDS:
         raise ScheduleRejected("local CPA natural-quiescence wait must be between one hour and seven days")
     if not args.apply:
-        print(json.dumps(plan(args.delay_seconds, args.quiescence_wait_seconds), sort_keys=True))
+        print(json.dumps(plan(args.delay_seconds, args.quiescence_wait_seconds, args.bootstrap_agent_identity), sort_keys=True))
         return 0
-    print(json.dumps(schedule(args.delay_seconds, args.confirm, args.quiescence_wait_seconds), sort_keys=True))
+    print(json.dumps(schedule(args.delay_seconds, args.confirm, args.quiescence_wait_seconds, args.bootstrap_agent_identity), sort_keys=True))
     return 0
 
 

@@ -20,6 +20,9 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Sequence, Tuple
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import local_cpa_activation_support as activation_support
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_CONTRACT = ROOT / "third_party/cliproxyapi/deployment-contract.json"
 PLAN_SCHEMA = "cloudx.cliproxy-policy-deployment-plan.v1"
@@ -30,17 +33,14 @@ MAX_LAUNCHER_BYTES = 256 * 1024
 MAX_DROP_IN_BYTES = 64 * 1024
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$")
-COMMUNICATION_CANARY_TEXT = "LOCAL_CPA_POLICY_COMMUNICATION_OK"
-COMMUNICATION_CANARY_TIMEOUT_SECONDS = 180.0
 CPA_CANARY_READY_TIMEOUT_SECONDS = 20.0
 CPA_CANARY_RETRY_INTERVAL_SECONDS = 0.25
 CAPABILITY_HEADER = "X-Cloudx-CPA-Capabilities"
 CAPABILITY_SCHEMAS = {"local": "cloudx.local-cpa-capabilities.v1", "cloud": "cloudx.cloud-cpa-capabilities.v1"}
-
+COMMUNICATION_CANARY_TEXT = activation_support.COMMUNICATION_CANARY_TEXT
 
 class CpaPolicyInstallRejected(RuntimeError):
     pass
-
 
 @dataclass(frozen=True)
 class Snapshot:
@@ -50,10 +50,8 @@ class Snapshot:
     uid: int
     gid: int
 
-
 def sha256_bytes(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
-
 
 def safe_snapshot(path: pathlib.Path, *, maximum: int, required: bool) -> Snapshot:
     flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
@@ -84,14 +82,12 @@ def safe_snapshot(path: pathlib.Path, *, maximum: int, required: bool) -> Snapsh
     finally:
         os.close(descriptor)
 
-
 def fsync_directory(path: pathlib.Path) -> None:
     descriptor = os.open(str(path), os.O_RDONLY)
     try:
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
-
 
 def atomic_write(path: pathlib.Path, raw: bytes, *, mode: int, uid: int, gid: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -113,7 +109,6 @@ def atomic_write(path: pathlib.Path, raw: bytes, *, mode: int, uid: int, gid: in
             os.close(descriptor)
         temporary_path.unlink(missing_ok=True)
 
-
 def restore_snapshot(path: pathlib.Path, value: Snapshot) -> None:
     if value.existed:
         atomic_write(path, value.data, mode=value.mode, uid=value.uid, gid=value.gid)
@@ -122,7 +117,6 @@ def restore_snapshot(path: pathlib.Path, value: Snapshot) -> None:
         if path.parent.is_dir():
             fsync_directory(path.parent)
 
-
 def ensure_directory(path: pathlib.Path, *, mode: int, uid: int, gid: int) -> None:
     path.mkdir(parents=True, exist_ok=True)
     info = path.lstat()
@@ -130,7 +124,6 @@ def ensure_directory(path: pathlib.Path, *, mode: int, uid: int, gid: int) -> No
         raise CpaPolicyInstallRejected("CPA policy directory is unsafe")
     os.chown(path, uid, gid)
     path.chmod(mode)
-
 
 def remove_created_empty_directories(paths: Sequence[pathlib.Path]) -> None:
     for path in paths:
@@ -149,7 +142,6 @@ def remove_created_empty_directories(paths: Sequence[pathlib.Path]) -> None:
             raise CpaPolicyInstallRejected("CPA policy rollback directory could not be removed") from exc
         if path.parent.is_dir():
             fsync_directory(path.parent)
-
 
 def run_command(
     argv: Sequence[str],
@@ -177,7 +169,6 @@ def run_command(
         raise CpaPolicyInstallRejected("CPA policy service command was rejected")
     return completed
 
-
 def load_contract(path: pathlib.Path) -> Dict[str, Any]:
     value = safe_snapshot(path, maximum=MAX_CONFIG_BYTES, required=True)
     try:
@@ -190,7 +181,6 @@ def load_contract(path: pathlib.Path) -> Dict[str, Any]:
     if not isinstance(targets, dict) or set(targets) != {"local", "cloud"}:
         raise CpaPolicyInstallRejected("CPA deployment targets are invalid")
     return document
-
 
 def expanded_target(target: str, contract: Dict[str, Any]) -> Dict[str, Any]:
     raw = contract["targets"].get(target)
@@ -252,7 +242,6 @@ def expanded_target(target: str, contract: Dict[str, Any]) -> Dict[str, Any]:
     value["stagedBinary"] = value["stageRoot"] / value["version"] / "cli-proxy-api"
     return value
 
-
 def confirmations(target: str, value: Dict[str, Any]) -> Tuple[str, str]:
     label = target.upper()
     suffix = str(value["candidateSha256"])[:12]
@@ -260,7 +249,6 @@ def confirmations(target: str, value: Dict[str, Any]) -> Tuple[str, str]:
         "STAGE %s CPA POLICY %s %s" % (label, value["version"], suffix),
         "ACTIVATE %s CPA POLICY %s %s" % (label, value["version"], suffix),
     )
-
 
 def plan_document(target: str, value: Dict[str, Any]) -> Dict[str, Any]:
     stage_confirmation, activate_confirmation = confirmations(target, value)
@@ -292,7 +280,6 @@ def plan_document(target: str, value: Dict[str, Any]) -> Dict[str, Any]:
         "automaticAction": False,
     }
 
-
 def require_active_cloudx(target: str, value: Dict[str, Any]) -> None:
     artifact = (
         pathlib.Path.home() / ".local/lib/cloudx/current/cloudx-local.pyz"
@@ -312,7 +299,6 @@ def require_active_cloudx(target: str, value: Dict[str, Any]) -> None:
     ):
         raise CpaPolicyInstallRejected("required signed Cloudx receipt consumer is not active")
 
-
 def verify_candidate(path: pathlib.Path, value: Dict[str, Any]) -> Snapshot:
     candidate = safe_snapshot(path, maximum=MAX_CANDIDATE_BYTES, required=True)
     if len(candidate.data) != int(value["candidateSize"]):
@@ -325,7 +311,6 @@ def verify_candidate(path: pathlib.Path, value: Dict[str, Any]) -> Snapshot:
     if completed.returncode != 0 or not output or not output[0].startswith(expected):
         raise CpaPolicyInstallRejected("CPA candidate runtime identity does not match")
     return candidate
-
 
 def stage_candidate(target: str, candidate_path: pathlib.Path, value: Dict[str, Any]) -> Dict[str, Any]:
     if target == "cloud" and os.geteuid() != 0:
@@ -373,7 +358,6 @@ def stage_candidate(target: str, candidate_path: pathlib.Path, value: Dict[str, 
         "externalServiceRestarted": False,
     }
 
-
 def top_level_config(path: pathlib.Path) -> Tuple[str, int]:
     raw = safe_snapshot(path, maximum=MAX_CONFIG_BYTES, required=True).data
     try:
@@ -398,7 +382,6 @@ def top_level_config(path: pathlib.Path) -> Tuple[str, int]:
     if host in {"0.0.0.0", "::"}:
         host = "127.0.0.1" if host == "0.0.0.0" else "::1"
     return host, port
-
 
 def probe_health(config: pathlib.Path, required_capability: str = "") -> None:
     host, port = top_level_config(config)
@@ -435,7 +418,6 @@ def probe_health(config: pathlib.Path, required_capability: str = "") -> None:
         raise CpaPolicyInstallRejected("CPA health canary failed")
     raise CpaPolicyInstallRejected("CPA health canary could not connect") from last_error
 
-
 def probe_policy(config: pathlib.Path) -> Tuple[int, str]:
     probe_health(config)
     host, port = top_level_config(config)
@@ -471,49 +453,14 @@ def probe_policy(config: pathlib.Path) -> Tuple[int, str]:
         time.sleep(CPA_CANARY_RETRY_INTERVAL_SECONDS)
     raise CpaPolicyInstallRejected("CPA policy canary could not connect") from last_error
 
+def support_call(name: str, *args: Any, **kwargs: Any) -> Any:
+    try:
+        return getattr(activation_support, name)(*args, **kwargs)
+    except activation_support.SupportRejected as exc:
+        raise CpaPolicyInstallRejected(str(exc)) from exc
 
-def probe_local_communication(value: Dict[str, Any]) -> str:
-    codex_binary = value["codexBinary"]
-    codex_home = value["communicationCodexHome"]
-    if not codex_binary.is_file() or not os.access(codex_binary, os.X_OK):
-        raise CpaPolicyInstallRejected("official Codex communication canary binary is unavailable")
-    if codex_home.is_symlink() or not codex_home.is_dir():
-        raise CpaPolicyInstallRejected("local CPA communication account is unavailable")
-    environment = dict(os.environ)
-    environment["HOME"] = str(pathlib.Path.home().resolve())
-    environment["CODEX_HOME"] = str(codex_home)
-    for name in (
-        "OPENAI_API_KEY",
-        "OPENAI_BASE_URL",
-        "OPENAI_API_BASE",
-        "CLOUDX_MODE",
-        "CLOUDX_MODE_LEASE_ID",
-        "CLOUDX_MODE_BROKER_PORT",
-        "CODEXX_ACTIVE_ACCOUNT",
-        "CODEXX_ACTIVE_HOME",
-        "CODEXX_ACTIVE_PINNED",
-        "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy",
-    ):
-        environment.pop(name, None)
-    environment.update({"NO_PROXY": "127.0.0.1,localhost,::1", "no_proxy": "127.0.0.1,localhost,::1"})
-    with tempfile.TemporaryDirectory(prefix="cloudx-cpa-communication-canary-") as temporary:
-        completed = run_command(
-            [
-                str(codex_binary),
-                "exec",
-                "--skip-git-repo-check",
-                "Reply with exactly %s" % COMMUNICATION_CANARY_TEXT,
-            ],
-            check=False,
-            timeout=COMMUNICATION_CANARY_TIMEOUT_SECONDS,
-            environment=environment,
-            cwd=pathlib.Path(temporary),
-        )
-    output = completed.stdout + "\n" + completed.stderr
-    if completed.returncode != 0 or COMMUNICATION_CANARY_TEXT not in output:
-        raise CpaPolicyInstallRejected("local CPA real Codex communication canary failed")
-    return "passed"
-
+def probe_local_communication(value: Dict[str, Any], *, allow_auth_unavailable: bool = False) -> str:
+    return support_call("probe_local_communication", value, allow_auth_unavailable=allow_auth_unavailable)
 
 def backup_snapshot(root: pathlib.Path, name: str, snapshots: Dict[str, Snapshot], *, uid: int, gid: int) -> pathlib.Path:
     ensure_directory(root, mode=0o700, uid=uid, gid=gid)
@@ -539,7 +486,6 @@ def backup_snapshot(root: pathlib.Path, name: str, snapshots: Dict[str, Snapshot
     )
     return backup
 
-
 def wait_systemd_active(unit: str) -> int:
     deadline = time.monotonic() + 20.0
     while time.monotonic() < deadline:
@@ -554,7 +500,6 @@ def wait_systemd_active(unit: str) -> int:
                 return pid
         time.sleep(0.25)
     raise CpaPolicyInstallRejected("CPA systemd service did not become active")
-
 
 def cloud_drop_ins(value: Dict[str, Any]) -> Tuple[bytes, bytes]:
     gateway = (
@@ -575,7 +520,6 @@ def cloud_drop_ins(value: Dict[str, Any]) -> Tuple[bytes, bytes]:
         % (value["failureDirectory"], value["sweepDirectory"])
     ).encode("utf-8")
     return gateway, health
-
 
 def capability_manifest_bytes(target: str, value: Dict[str, Any]) -> bytes:
     return (json.dumps({
@@ -670,7 +614,6 @@ def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
         "operatorApprovedRestart": True,
     }
 
-
 def local_plist(raw: bytes, value: Dict[str, Any]) -> bytes:
     try:
         document = plistlib.loads(raw)
@@ -712,7 +655,6 @@ def wait_launchd_unloaded(domain: str, label: str) -> None:
         time.sleep(0.25)
     raise CpaPolicyInstallRejected("local CPA launchd service did not fully unload")
 
-
 def run_local_recovery(tool: pathlib.Path, job: pathlib.Path, confirmation: str, *, quiescence: bool) -> Dict[str, Any]:
     if tool.is_symlink() or not tool.is_file() or job.is_symlink() or not job.is_dir():
         raise CpaPolicyInstallRejected("local CPA recovery bundle is unavailable")
@@ -729,8 +671,7 @@ def run_local_recovery(tool: pathlib.Path, job: pathlib.Path, confirmation: str,
         raise CpaPolicyInstallRejected(message)
     return document
 
-
-def activate_local(value: Dict[str, Any], recovery_tool: pathlib.Path, recovery_job: pathlib.Path, recovery_confirm: str) -> Dict[str, Any]:
+def activate_local(value: Dict[str, Any], recovery_tool: pathlib.Path, recovery_job: pathlib.Path, recovery_confirm: str, bootstrap: Optional[pathlib.Path] = None) -> Dict[str, Any]:
     if sys.platform != "darwin" or os.geteuid() == 0:
         raise CpaPolicyInstallRejected("local CPA activation requires the macOS login user")
     require_active_cloudx("local", value)
@@ -748,7 +689,7 @@ def activate_local(value: Dict[str, Any], recovery_tool: pathlib.Path, recovery_
     launch_before = run_command(["launchctl", "print", "%s/%s" % (domain, value["serviceLabel"])])
     if launcher_before.data != launcher_after and not any(line.strip() == "program = %s" % value["baselineBinary"] for line in launch_before.stdout.splitlines()):
         raise CpaPolicyInstallRejected("local CPA service does not select the pinned baseline")
-    probe_local_communication(value)
+    baseline_communication = probe_local_communication(value, allow_auth_unavailable=bootstrap is not None)
     if launcher_before.data == launcher_after:
         pid = wait_launchd(domain, value["serviceLabel"], value["stagedBinary"])
         status, policy = probe_policy(value["config"])
@@ -771,6 +712,7 @@ def activate_local(value: Dict[str, Any], recovery_tool: pathlib.Path, recovery_
         gid=gid,
     )
     service = "%s/%s" % (domain, value["serviceLabel"])
+    auth_before: Optional[Dict[pathlib.Path, activation_support.Snapshot]] = None
     try:
         atomic_write(
             value["launcher"],
@@ -787,20 +729,26 @@ def activate_local(value: Dict[str, Any], recovery_tool: pathlib.Path, recovery_
         probe_health(value["config"], value["capabilities"][0])
         if sha256_bytes(safe_snapshot(value["baselineBinary"], maximum=MAX_CANDIDATE_BYTES, required=True).data) != value["baselineSha256"]:
             raise CpaPolicyInstallRejected("local CPA baseline changed during activation")
+        if bootstrap is not None:
+            bootstrap_raw = support_call("bootstrap_source", bootstrap)
+            auth_before = support_call("auth_json_snapshots", value["authDirectory"])
+            atomic_write(value["capabilityManifest"], capability_after, mode=0o600, uid=uid, gid=gid)
+            support_call("import_bootstrap_agent_identity", value, bootstrap_raw)
         communication = probe_local_communication(value)
         atomic_write(value["capabilityManifest"], capability_after, mode=0o600, uid=uid, gid=gid)
     except Exception as exc:
         try:
-            run_local_recovery(recovery_tool, recovery_job, recovery_confirm, quiescence=False)
+            if auth_before is not None:
+                support_call("restore_auth_json", value["authDirectory"], auth_before)
             restore_snapshot(value["capabilityManifest"], capability_before)
+            run_local_recovery(recovery_tool, recovery_job, recovery_confirm, quiescence=False)
             remove_created_empty_directories(created_directories)
         except Exception as recovery_exc:
             raise CpaPolicyInstallRejected(
                 "local CPA activation failed; baseline restoration verification failed"
             ) from recovery_exc
         raise CpaPolicyInstallRejected("local CPA activation failed and was rolled back") from exc
-    return {"schema": RESULT_SCHEMA, "status": "active", "target": "local", "version": value["version"], "pid": pid, "httpStatus": status, "policy": policy, "capabilities": list(value["capabilities"]), "communicationCanary": communication, "backupName": backup.name, "externalServiceManaged": False, "operatorApprovedRestart": True}
-
+    return {"schema": RESULT_SCHEMA, "status": "active", "target": "local", "version": value["version"], "pid": pid, "httpStatus": status, "policy": policy, "capabilities": list(value["capabilities"]), "communicationCanary": communication, "baselineCommunicationCanary": baseline_communication, "bootstrapAgentIdentity": bootstrap is not None, "backupName": backup.name, "externalServiceManaged": False, "operatorApprovedRestart": True}
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -814,6 +762,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--recovery-tool", type=pathlib.Path)
     parser.add_argument("--recovery-job", type=pathlib.Path)
     parser.add_argument("--recovery-confirm", default="")
+    parser.add_argument("--bootstrap-agent-identity", type=pathlib.Path)
     args = parser.parse_args(argv)
 
     contract = load_contract(args.contract.expanduser().resolve())
@@ -832,14 +781,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if args.target == "local":
             if args.recovery_tool is None or args.recovery_job is None or not args.recovery_confirm:
                 raise CpaPolicyInstallRejected("local CPA activation requires a prepared recovery bundle")
-            document = activate_local(value, args.recovery_tool.expanduser().resolve(), args.recovery_job.expanduser().resolve(), args.recovery_confirm)
+            document = activate_local(value, args.recovery_tool.expanduser().resolve(), args.recovery_job.expanduser().resolve(), args.recovery_confirm, args.bootstrap_agent_identity.expanduser().resolve() if args.bootstrap_agent_identity is not None else None)
         else:
-            if args.recovery_tool is not None or args.recovery_job is not None or args.recovery_confirm:
+            if args.recovery_tool is not None or args.recovery_job is not None or args.recovery_confirm or args.bootstrap_agent_identity is not None:
                 raise CpaPolicyInstallRejected("cloud CPA activation rejects local recovery arguments")
             document = activate_cloud(value)
     print(json.dumps(document, sort_keys=True))
     return 0
-
 
 if __name__ == "__main__":
     try:
