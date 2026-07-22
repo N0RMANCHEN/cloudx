@@ -91,7 +91,7 @@ print -r -- "hooks:${(j:,:)precmd_functions}"
             ],
         )
 
-    def test_diagnosis_commands_are_forwarded_without_mode_eval(self) -> None:
+    def test_diagnosis_and_upgrade_commands_are_forwarded_without_mode_eval(self) -> None:
         zsh = pathlib.Path("/bin/zsh")
         if not zsh.is_file():
             self.skipTest("zsh is not available")
@@ -117,7 +117,7 @@ print -r -- "hooks:${(j:,:)precmd_functions}"
                 [
                     str(zsh),
                     "-dfc",
-                    'source "$HOOK"; codexx api diagnose --json; codexx cloud diagnose; codexx diagnose api --json',
+                    'source "$HOOK"; codexx api diagnose --json; codexx cloud diagnose; codexx diagnose api --json; codexx upgrade --check; codexx cloud upgrade --json',
                 ],
                 env=environment,
                 stdout=subprocess.PIPE,
@@ -129,7 +129,13 @@ print -r -- "hooks:${(j:,:)precmd_functions}"
             self.assertEqual(completed.returncode, 0, msg=completed.stderr or completed.stdout)
             self.assertEqual(
                 calls.read_text(encoding="utf-8").splitlines(),
-                ["api diagnose --json", "cloud diagnose", "diagnose api --json"],
+                [
+                    "api diagnose --json",
+                    "cloud diagnose",
+                    "diagnose api --json",
+                    "upgrade --check",
+                    "cloud upgrade --json",
+                ],
             )
 
     def test_hook_removes_only_legacy_account_bin_from_path(self) -> None:

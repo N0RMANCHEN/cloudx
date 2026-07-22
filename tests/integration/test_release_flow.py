@@ -248,6 +248,75 @@ class ReleaseFlowTests(unittest.TestCase):
         self.assertFalse((self.config.home / ".local/lib/cloudx/current").exists())
         remote.activate_release.assert_called_once_with(CURRENT_VERSION)
 
+    def test_cloud_only_stage_verifies_stable_binding_without_staging_local(self) -> None:
+        remote = mock.Mock()
+        remote.stage_release.return_value = {
+            "schema": "cloudx.release-stage.v1",
+            "status": "staged",
+            "version": CURRENT_VERSION,
+        }
+        expected = hashlib.sha256(self.manifest.read_bytes()).hexdigest()
+        with mock.patch("cloudx_local.updater._trusted_signers", return_value=self.signers), mock.patch(
+            "cloudx_local.updater.RemoteClient", return_value=remote
+        ):
+            result = updater.stage_cloud(
+                self.config,
+                self.release_dir,
+                expected_manifest_sha256=expected,
+                expected_version=CURRENT_VERSION,
+            )
+        self.assertEqual(result["local"], "not-requested")
+        self.assertEqual(result["cloud"], "staged")
+        self.assertFalse((self.config.home / ".local/lib/cloudx/releases").exists())
+        remote.stage_release.assert_called_once()
+
+    def test_stable_manifest_mismatch_rejects_before_endpoint_staging(self) -> None:
+        remote = mock.Mock()
+        with mock.patch("cloudx_local.updater._trusted_signers", return_value=self.signers), mock.patch(
+            "cloudx_local.updater.RemoteClient", return_value=remote
+        ):
+            with self.assertRaisesRegex(RuntimeError, "signed stable index"):
+                updater.stage_cloud(
+                    self.config,
+                    self.release_dir,
+                    expected_manifest_sha256="0" * 64,
+                )
+        remote.stage_release.assert_not_called()
+
+    def test_stable_version_mismatch_rejects_before_endpoint_staging(self) -> None:
+        remote = mock.Mock()
+        expected = hashlib.sha256(self.manifest.read_bytes()).hexdigest()
+        with mock.patch("cloudx_local.updater._trusted_signers", return_value=self.signers), mock.patch(
+            "cloudx_local.updater.RemoteClient", return_value=remote
+        ):
+            with self.assertRaisesRegex(RuntimeError, "version does not match"):
+                updater.stage_cloud(
+                    self.config,
+                    self.release_dir,
+                    expected_manifest_sha256=expected,
+                    expected_version="9.9.9",
+                )
+        remote.stage_release.assert_not_called()
+
+    def test_cloud_only_stage_rejects_an_inconsistent_remote_receipt(self) -> None:
+        remote = mock.Mock()
+        remote.stage_release.return_value = {
+            "schema": "cloudx.release-stage.v1",
+            "status": "staged",
+            "version": "9.9.9",
+        }
+        expected = hashlib.sha256(self.manifest.read_bytes()).hexdigest()
+        with mock.patch("cloudx_local.updater._trusted_signers", return_value=self.signers), mock.patch(
+            "cloudx_local.updater.RemoteClient", return_value=remote
+        ):
+            with self.assertRaisesRegex(RuntimeError, "inconsistent status"):
+                updater.stage_cloud(
+                    self.config,
+                    self.release_dir,
+                    expected_manifest_sha256=expected,
+                    expected_version=CURRENT_VERSION,
+                )
+
     def test_activation_requires_exactly_one_endpoint(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "exactly one"):
             updater.apply(self.config, CURRENT_VERSION, CURRENT_VERSION, False, False, None)

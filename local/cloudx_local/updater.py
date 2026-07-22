@@ -205,9 +205,47 @@ def _bundle_bytes(release_directory: pathlib.Path, version: str) -> bytes:
     return raw
 
 
-def stage(config: LocalConfig, source: pathlib.Path, local_only: bool) -> Dict[str, Any]:
+def _remote_stage_status(document: Dict[str, Any], version: str) -> str:
+    status = str(document.get("status") or "")
+    if (
+        document.get("schema") != "cloudx.release-stage.v1"
+        or document.get("version") != version
+        or status not in {"staged", "already-staged"}
+    ):
+        raise RuntimeError("remote release stage returned inconsistent status")
+    return status
+
+
+def _verify_manifest_binding(
+    manifest_path: pathlib.Path,
+    expected_sha256: Optional[str],
+    manifest_version: Optional[str] = None,
+    expected_version: Optional[str] = None,
+) -> None:
+    if expected_sha256 is not None and (
+        not re.fullmatch(r"[a-f0-9]{64}", expected_sha256)
+        or _digest(manifest_path) != expected_sha256
+    ):
+        raise RuntimeError("release manifest does not match the signed stable index")
+    if expected_version is not None and manifest_version != expected_version:
+        raise RuntimeError("release version does not match the signed stable index")
+
+
+def stage(
+    config: LocalConfig,
+    source: pathlib.Path,
+    local_only: bool,
+    expected_manifest_sha256: Optional[str] = None,
+    expected_version: Optional[str] = None,
+) -> Dict[str, Any]:
     with release_source(source) as root:
         manifest_path, signature_path, artifact, manifest = _release_files(root, "local")
+        _verify_manifest_binding(
+            manifest_path,
+            expected_manifest_sha256,
+            str(manifest["version"]),
+            expected_version,
+        )
         version = manifest["version"]
         local_root = _local_root(config)
         current = local_root / "current"
@@ -241,12 +279,37 @@ def stage(config: LocalConfig, source: pathlib.Path, local_only: bool) -> Dict[s
         if not local_only:
             release_directory = manifest_path.parent
             remote = RemoteClient(config).stage_release(_bundle_bytes(release_directory, version))
-            remote_status = str(remote.get("status") or "staged")
+            remote_status = _remote_stage_status(remote, str(version))
         return {
             "schema": "cloudx.release-stage.v1",
             "version": version,
             "local": local_status,
             "cloud": remote_status,
+            "activated": False,
+        }
+
+
+def stage_cloud(
+    config: LocalConfig,
+    source: pathlib.Path,
+    expected_manifest_sha256: Optional[str] = None,
+    expected_version: Optional[str] = None,
+) -> Dict[str, Any]:
+    with release_source(source) as root:
+        manifest_path, unused_signature, unused_artifact, manifest = _release_files(root, "cloud")
+        _verify_manifest_binding(
+            manifest_path,
+            expected_manifest_sha256,
+            str(manifest["version"]),
+            expected_version,
+        )
+        version = str(manifest["version"])
+        remote = RemoteClient(config).stage_release(_bundle_bytes(manifest_path.parent, version))
+        return {
+            "schema": "cloudx.release-stage.v1",
+            "version": version,
+            "local": "not-requested",
+            "cloud": _remote_stage_status(remote, version),
             "activated": False,
         }
 
@@ -493,7 +556,7 @@ def _git_show(cache: pathlib.Path, name: str) -> bytes:
     return shown.stdout
 
 
-def check(config: LocalConfig, index_dir: Optional[pathlib.Path], quiet: bool) -> Dict[str, Any]:
+def stable_index(config: LocalConfig, index_dir: Optional[pathlib.Path] = None) -> Dict[str, Any]:
     if index_dir:
         index_bytes = (index_dir / "index.json").read_bytes()
         signature_bytes = (index_dir / "index.json.sig").read_bytes()
@@ -509,7 +572,10 @@ def check(config: LocalConfig, index_dir: Optional[pathlib.Path], quiet: bool) -
         index_path.write_bytes(index_bytes)
         signature_path.write_bytes(signature_bytes)
         _verify_signature(index_path, signature_path)
-        document = json.loads(index_bytes.decode("utf-8"))
+        try:
+            document = json.loads(index_bytes.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise RuntimeError("stable release index is invalid") from exc
     if not isinstance(document, dict) or document.get("schema") != "cloudx.release-index.v1":
         raise RuntimeError("stable release index schema is unsupported")
     available = str(document.get("version") or "")
@@ -517,13 +583,21 @@ def check(config: LocalConfig, index_dir: Optional[pathlib.Path], quiet: bool) -
         raise RuntimeError("stable release index attempts a downgrade")
     if document.get("artifactRef") != "refs/heads/release-artifacts/v%s" % available:
         raise RuntimeError("stable release index artifact reference is invalid")
-    if not re.match(r"^[a-f0-9]{64}$", str(document.get("manifestSha256") or "")):
+    if not re.fullmatch(r"[a-f0-9]{64}", str(document.get("manifestSha256") or "")):
         raise RuntimeError("stable release index manifest hash is invalid")
+    return document
+
+
+def check(config: LocalConfig, index_dir: Optional[pathlib.Path], quiet: bool) -> Dict[str, Any]:
+    document = stable_index(config, index_dir)
+    available = str(document["version"])
     result = {
         "schema": "cloudx.update-check.v1",
         "current": VERSION,
         "available": available,
         "updateAvailable": available != VERSION,
+        "artifactRef": str(document["artifactRef"]),
+        "manifestSha256": str(document["manifestSha256"]),
         "checkedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "activated": False,
     }

@@ -10,8 +10,9 @@ Cloudx 0.x supports these durable behaviors:
 4. Import local CPA credentials through the explicit migration adapter with `codexx import`.
 5. Import cloud gateway credentials over SSH with `codexx cloud import`.
 6. Stage an exact signed endpoint artifact without activation, or install it with the local shell source, through the separately confirmed `./install` workflow.
-7. Diagnose retained local or cloud API failure evidence without replacing `codex`, changing the gateway response, or exposing a credential or account identity.
-8. Reversibly archive unusable CPA credentials after an infrastructure-gated, account-scoped permanent-auth classification, while retaining exact-confirmation restore paths and never treating allowance exhaustion as credential failure.
+7. Explicitly upgrade exactly one selected endpoint from the signed stable index with `codexx upgrade` or `codexx cloud upgrade`.
+8. Diagnose retained local or cloud API failure evidence without replacing `codex`, changing the gateway response, or exposing a credential or account identity.
+9. Reversibly archive unusable CPA credentials after an infrastructure-gated, account-scoped permanent-auth classification, while retaining exact-confirmation restore paths and never treating allowance exhaustion as credential failure.
 
 `cloud codex` and `cloud import` remain supported compatibility commands during the migration window.
 
@@ -39,6 +40,7 @@ Release workflow key synchronization also defaults to a non-authorizing offline 
 - Cloud mode binds its tunnel lease to the selecting shell PID. `codexx exit`, another mode selection, or shell death releases that lease.
 - The default local Codex profile and named profiles have independent authentication files.
 - A local Cloudx upgrade preserves an existing complete native `~/.codex` auth/config pair byte-for-byte. Automatic seeding is limited to a fully absent pair backed by a valid regular named-account auth/config source; a partial, symlinked, non-regular, or invalid-source state fails before backup, fetch, staging, selector movement, shell installation, or profile mutation and requires explicit repair or seeding.
+- Direct upgrade commands bind a verified signed stable index to the exact immutable artifact ref and manifest digest, reject downgrades, stage beside the active release, and activate only the named endpoint. `--check` and background update checks cannot activate. Local upgrade installs the release-matched shell source; cloud upgrade changes only the remote helper selector. Neither path replaces official Codex nor owns, reconfigures, or restarts an external CPA.
 - A single local broker owns the cloud SSH tunnel. Sessions acquire leases; they never monitor, kill, or rebuild the shared SSH process themselves.
 - The broker uses a Cloudx-owned port distinct from the legacy bridge and never treats a transient HTTP probe failure as authority to kill an SSH tunnel.
 - The broker may passively classify response bytes already crossing the cloud relay, but it stores only the secret-free diagnosis fields and never changes forwarded bytes. Local CPA diagnosis reads only bounded response sections from external gateway logs. A generic no-usable-account response cannot overwrite a recent definitive upstream cause, and insufficient evidence is never guessed to be quota exhaustion or deactivation.

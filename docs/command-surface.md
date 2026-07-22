@@ -190,6 +190,11 @@ The ordinary local installer stages the signed local artifact, creates a private
 ## Signed GitHub Updates
 
 ```bash
+codexx cloud upgrade --check
+codexx cloud upgrade
+codexx upgrade --check
+codexx upgrade
+
 cloudx-update check
 cloudx-update stage <version>
 cloudx-update apply <version> --confirm <version> --cloud-only
@@ -198,7 +203,20 @@ cloudx-update rollback --confirm <previous-version> --local-only
 cloudx-update rollback --confirm <previous-version> --cloud-only
 ```
 
-One signed GitHub release contains independent local and cloud artifacts. Checking and staging never activate a release. Cloud and local activation remain separate explicit transactions. Both endpoints retain a staged N-1 release as `previous` for offline rollback.
+One signed GitHub release contains independent local and cloud artifacts. `codexx upgrade` verifies the signed stable index and its exact manifest binding, stages and activates only this computer, and installs the release-matched shell source. `codexx cloud upgrade` performs the same signed verification but stages and activates only the cloud helper through SSH. Neither command replaces official Codex, manages or restarts CLIProxyAPI, contacts the unselected endpoint, or performs a background activation. `--check` verifies only the signed stable index and is read-only apart from the bounded update-index cache; manifest, artifact, and self-check verification occurs when an upgrade is actually staged.
+
+When both endpoints need an update, run the cloud command first and the local command second. Each invocation is itself the explicit activation decision, and each endpoint retains its prior signed release as `previous` for offline rollback. The lower-level `cloudx-update` stage/apply workflow remains available for manual recovery and deliberately keeps checking, staging, and activation separate.
+
+Release `0.1.26` is the first version that understands these direct commands. A computer still running `0.1.25` or earlier needs one final repository installer upgrade:
+
+```bash
+git clone --depth 1 --branch v0.1.26 git@github.com:N0RMANCHEN/cloudx.git /tmp/cloudx-bootstrap-0.1.26
+cd /tmp/cloudx-bootstrap-0.1.26
+./install local --version 0.1.26
+# Review the printed plan, then repeat it with the exact --apply/--confirm arguments.
+```
+
+The checkout is only bootstrap tooling; the installed runtime still comes from the verified signed artifact and never runs from that checkout. Afterward, future local releases use `codexx upgrade`; no Git checkout or `git pull` is involved in normal production updates.
 
 ## Ownership Summary
 

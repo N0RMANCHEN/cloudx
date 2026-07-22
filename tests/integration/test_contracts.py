@@ -191,6 +191,26 @@ class ContractTests(unittest.TestCase):
         for forbidden in ("token", "private_key", "runtime_id", "task_id", "email"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_upgrade_contract_is_explicit_endpoint_only_and_secret_free(self) -> None:
+        schema = json.loads((CONTRACTS / "cloudx.upgrade.v1.schema.json").read_text(encoding="utf-8"))
+        document = json.loads((CONTRACTS / "examples/upgrade.json").read_text(encoding="utf-8"))
+        self.assertEqual(document["schema"], "cloudx.upgrade.v1")
+        self.assertEqual(document["status"], "upgraded")
+        self.assertEqual(document["endpoint"], "local")
+        self.assertEqual(document["artifactRef"], "refs/heads/release-artifacts/v0.1.26")
+        self.assertEqual(len(document["manifestSha256"]), 64)
+        self.assertTrue(document["signedIndexVerified"])
+        self.assertEqual(document["verificationScope"], "complete-release-chain")
+        self.assertTrue(document["explicitInvocation"])
+        self.assertFalse(document["backgroundActivation"])
+        self.assertFalse(document["serviceRestarted"])
+        self.assertFalse(document["externalCpaManaged"])
+        self.assertFalse(document["officialCodexReplaced"])
+        self.assertFalse(schema.get("additionalProperties", True))
+        serialized = json.dumps(document).casefold()
+        for forbidden in ("api_key", "token", "credential", "private_key", "email"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_cpa_sweep_contracts_are_identity_free_and_non_authorizing(self) -> None:
         trigger = json.loads((CONTRACTS / "examples/cpa-sweep-trigger.json").read_text(encoding="utf-8"))
         observation = json.loads(

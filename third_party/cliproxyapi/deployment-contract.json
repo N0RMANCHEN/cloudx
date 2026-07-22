@@ -26,7 +26,7 @@
       "version": "7.2.71-cloudx-policy.8",
       "candidateSha256": "4dfa561451662ca5deae566f6fcfdc32bec7f42590439fa053000c4b84f915c0",
       "candidateSize": 45359266,
-      "requiredActiveCloudxVersion": "0.1.25",
+      "requiredActiveCloudxVersion": "0.1.26",
       "baselineBinary": "/usr/local/bin/cli-proxy-api",
       "baselineSha256": "1d0abbc6316b1869f74896109c0efb5e19c8197b8226f48a74212ed0a6f5a39d",
       "stageRoot": "/opt/cliproxy-cloudx/releases",

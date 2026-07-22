@@ -55,6 +55,8 @@ class ModeTests(unittest.TestCase):
         rendered = output.getvalue()
         self.assertIn("codexx cloud", rendered)
         self.assertIn("codexx import <source>", rendered)
+        self.assertIn("codexx upgrade [--check]", rendered)
+        self.assertIn("codexx cloud upgrade [--check]", rendered)
         self.assertIn("codexx diagnose [api|cpa|cloud] [--json]", rendered)
         self.assertIn("official executable", rendered)
 
@@ -96,6 +98,18 @@ class ModeTests(unittest.TestCase):
     def test_cloud_import_routes_to_remote_importer(self, remote_import: mock.Mock) -> None:
         self.assertEqual(codexx_cli.main(["cloud", "import", "fixture.json", "--dry-run"]), 0)
         remote_import.assert_called_once_with(["import", "fixture.json", "--dry-run"])
+
+    @mock.patch("cloudx_local.codexx_cli.cloud_cli.main", return_value=0)
+    def test_cloud_upgrade_routes_without_selecting_cloud_mode(self, cloud_command: mock.Mock) -> None:
+        self.assertEqual(codexx_cli.main(["cloud", "upgrade", "--check"]), 0)
+        cloud_command.assert_called_once_with(["upgrade", "--check"])
+
+    @mock.patch("cloudx_local.codexx_cli.upgrade.run", return_value=0)
+    @mock.patch("cloudx_local.codexx_cli.LocalConfig.load")
+    def test_local_upgrade_routes_to_local_endpoint(self, load: mock.Mock, run: mock.Mock) -> None:
+        load.return_value = self.config
+        self.assertEqual(codexx_cli.main(["upgrade", "--json"]), 0)
+        run.assert_called_once_with(self.config, "local", ["--json"])
 
     @mock.patch("cloudx_local.codexx_cli.api_diagnosis.run", return_value=0)
     @mock.patch("cloudx_local.codexx_cli.LocalConfig.load")

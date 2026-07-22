@@ -44,6 +44,13 @@ codexx api diagnose
 codexx cloud diagnose
 codexx diagnose --json
 
+# Upgrade exactly one Cloudx endpoint from the signed stable release.
+# When both endpoints need an update, upgrade cloud first.
+codexx cloud upgrade --check
+codexx cloud upgrade
+codexx upgrade --check
+codexx upgrade
+
 # Return to the native profile.
 codexx exit
 
@@ -54,7 +61,7 @@ codexx exit
 ./install local --version <signed-version> --stage-only
 ```
 
-`codexx` deliberately stays small: account selection/lifecycle, explicit local/cloud import, and read-only API failure diagnosis. Pool management, task governance, agents, remote clients, and the former control plane are outside this product.
+`codexx` deliberately stays small: account selection/lifecycle, explicit local/cloud import, explicit signed endpoint upgrades, and read-only API failure diagnosis. Pool management, task governance, agents, remote clients, and the former control plane are outside this product.
 
 Interactive local and cloud imports share one readable result summary with explicit status, destination, counts, verification scope, and safe failure reasons. Local and cloud `--json` expose their versioned import contracts for automation. The local adapter writes only to the configured external CPA auth directory; it does not manage or restart that service.
 
@@ -72,6 +79,6 @@ API diagnosis distinguishes explicit deactivation, exhausted allowance, transien
 
 Build both artifacts with `./build.sh`. Validate the repository with `./verify.sh`.
 
-No install command in this repository activates a release automatically. See `docs/operations.md` for side-by-side staging and recovery.
+No background check or staging command activates a release. `codexx upgrade`, `codexx cloud upgrade`, and an exactly confirmed installer invocation are explicit operator activation actions. See `docs/operations.md` for side-by-side staging and recovery.
 
 See `docs/command-surface.md` for the accepted `codexx`, local CPA, cloud gateway, legacy recovery, and signed-update interactions during migration.

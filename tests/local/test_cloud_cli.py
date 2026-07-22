@@ -40,6 +40,17 @@ class LocalImportSourceTests(unittest.TestCase):
             forced_target="cloud",
         )
 
+    @mock.patch("cloudx_local.cloud_cli.upgrade.run", return_value=0)
+    @mock.patch("cloudx_local.cloud_cli.LocalConfig.load")
+    def test_cloud_compatibility_entrypoint_supports_upgrade(
+        self,
+        load: mock.Mock,
+        run: mock.Mock,
+    ) -> None:
+        load.return_value = mock.sentinel.config
+        self.assertEqual(main(["upgrade", "--check", "--json"]), 0)
+        run.assert_called_once_with(mock.sentinel.config, "cloud", ["--check", "--json"])
+
     def test_local_file_bytes_are_the_ssh_payload(self) -> None:
         source = self.root / "credentials.json"
         raw = b'{"access_token":"fixture"}\n'

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudx.local/contracts/cloudx.upgrade.v1.schema.json",
+  "title": "Cloudx explicit signed endpoint upgrade result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "endpoint",
+    "currentBefore",
+    "available",
+    "currentAfter",
+    "artifactRef",
+    "manifestSha256",
+    "stageStatus",
+    "activationStatus",
+    "signedIndexVerified",
+    "verificationScope",
+    "explicitInvocation",
+    "backgroundActivation",
+    "serviceRestarted",
+    "externalCpaManaged",
+    "officialCodexReplaced",
+    "shellReloadRecommended"
+  ],
+  "properties": {
+    "schema": {"const": "cloudx.upgrade.v1"},
+    "status": {"enum": ["up-to-date", "update-available", "upgraded"]},
+    "endpoint": {"enum": ["local", "cloud"]},
+    "currentBefore": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "available": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "currentAfter": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "artifactRef": {
+      "type": "string",
+      "pattern": "^refs/heads/release-artifacts/v[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "manifestSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "stageStatus": {
+      "anyOf": [
+        {"type": "string", "minLength": 1, "maxLength": 64},
+        {"type": "null"}
+      ]
+    },
+    "activationStatus": {
+      "anyOf": [
+        {"type": "string", "minLength": 1, "maxLength": 64},
+        {"type": "null"}
+      ]
+    },
+    "signedIndexVerified": {"const": true},
+    "verificationScope": {"enum": ["signed-index-only", "complete-release-chain"]},
+    "explicitInvocation": {"const": true},
+    "backgroundActivation": {"const": false},
+    "serviceRestarted": {"const": false},
+    "externalCpaManaged": {"const": false},
+    "officialCodexReplaced": {"const": false},
+    "shellReloadRecommended": {"type": "boolean"}
+  }
+}

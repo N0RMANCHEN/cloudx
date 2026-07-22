@@ -29,6 +29,7 @@
     "shared/contracts/cloudx.http-importer-stop.v1.schema.json",
     "shared/contracts/cloudx.import.v1.schema.json",
     "shared/contracts/cloudx.local-cpa-import.v1.schema.json",
+    "shared/contracts/cloudx.upgrade.v1.schema.json",
     "shared/contracts/cloudx.legacy-health.v1.schema.json",
     "shared/contracts/cloudx.legacy-local-removal-plan.v1.schema.json",
     "shared/contracts/cloudx.legacy-local-removal.v1.schema.json",

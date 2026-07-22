@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, Optional, Sequence, Tuple
 
-from . import import_ui
+from . import import_ui, upgrade
 from .broker import BrokerClient
 from .config import LocalConfig
 from .profile import cloud_codex_environment
@@ -179,6 +179,10 @@ def parser() -> argparse.ArgumentParser:
     import_parser.add_argument("--dry-run", action="store_true")
     import_parser.add_argument("--force", action="store_true")
     import_parser.add_argument("--json", action="store_true", help="print the raw cloudx.import.v1 response")
+    upgrade_parser = sub.add_parser("upgrade")
+    upgrade_parser.add_argument("--check", action="store_true")
+    upgrade_parser.add_argument("--json", action="store_true")
+    upgrade_parser.add_argument("--index-dir", type=pathlib.Path, help=argparse.SUPPRESS)
     return root
 
 
@@ -204,6 +208,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
     if args.command == "import":
         return run_import(config, args.source, args.dry_run, args.force, args.json)
+    if args.command == "upgrade":
+        upgrade_args = []
+        if args.check:
+            upgrade_args.append("--check")
+        if args.json:
+            upgrade_args.append("--json")
+        if args.index_dir is not None:
+            upgrade_args.extend(["--index-dir", str(args.index_dir)])
+        return upgrade.run(config, "cloud", upgrade_args)
     return 2
 
 

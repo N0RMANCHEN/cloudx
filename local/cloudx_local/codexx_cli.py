@@ -5,7 +5,7 @@ import os
 import sys
 from typing import Optional, Sequence
 
-from . import accounts, api_diagnosis, cloud_cli, import_ui, local_cpa, local_cpa_maintenance, modes
+from . import accounts, api_diagnosis, cloud_cli, import_ui, local_cpa, local_cpa_maintenance, modes, upgrade
 from .config import LocalConfig
 
 
@@ -28,6 +28,10 @@ Credential import:
     --dry-run                       validate and preview without writing
     --json                          emit cloudx.local-cpa-import.v1
   codexx cloud import <source>      import through SSH to the cloud gateway
+
+Signed upgrade:
+  codexx upgrade [--check]          upgrade only this computer from signed stable
+  codexx cloud upgrade [--check]    upgrade only the cloud helper from signed stable
 
 API failure diagnosis (read-only):
   codexx diagnose [api|cpa|cloud] [--json]
@@ -73,6 +77,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return _mode(arguments[1:])
     if arguments[:2] == ["cloud", "import"]:
         return cloud_cli.main(["import", *arguments[2:]])
+    if arguments[:2] == ["cloud", "upgrade"]:
+        return cloud_cli.main(["upgrade", *arguments[2:]])
     if arguments[:2] == ["cloud", "diagnose"]:
         return api_diagnosis.run(LocalConfig.load(), arguments[2:], forced_target="cloud")
     if len(arguments) >= 2 and arguments[0] in ("api", "cpa") and arguments[1] == "diagnose":
@@ -83,6 +89,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return local_cpa_maintenance.restore_run(LocalConfig.load(), arguments[2:])
     if arguments[:1] == ["diagnose"]:
         return api_diagnosis.run(LocalConfig.load(), arguments[1:])
+    if arguments[:1] == ["upgrade"]:
+        return upgrade.run(LocalConfig.load(), "local", arguments[1:])
     if arguments[:1] == ["cloud"]:
         return _mode(["cloud", "--shell-pid", str(os.getppid())])
     if arguments[:1] == ["import"]:

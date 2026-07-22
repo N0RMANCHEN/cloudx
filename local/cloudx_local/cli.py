@@ -18,14 +18,20 @@ def _schedule_update_check() -> None:
         pass
 
 
+def _maybe_schedule_update_check(arguments: Sequence[str]) -> None:
+    if arguments[:1] == ["upgrade"] or arguments[:2] == ["cloud", "upgrade"]:
+        return
+    _schedule_update_check()
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     arguments = list(argv if argv is not None else sys.argv[1:])
     program = pathlib.Path(sys.argv[0]).name
     if program == "codexx":
-        _schedule_update_check()
+        _maybe_schedule_update_check(arguments)
         return codexx_cli.main(arguments)
     if program == "cloud":
-        _schedule_update_check()
+        _maybe_schedule_update_check(arguments)
         return cloud_cli.main(arguments)
     if program == "cloudx-update":
         return updater.main(arguments)
@@ -46,10 +52,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         raise RuntimeError("invoke this artifact as codexx, cloud, or cloudx-update")
     command = arguments.pop(0)
     if command == "codexx":
-        _schedule_update_check()
+        _maybe_schedule_update_check(arguments)
         return codexx_cli.main(arguments)
     if command == "cloud":
-        _schedule_update_check()
+        _maybe_schedule_update_check(arguments)
         return cloud_cli.main(arguments)
     if command in ("update", "cloudx-update"):
         return updater.main(arguments)
