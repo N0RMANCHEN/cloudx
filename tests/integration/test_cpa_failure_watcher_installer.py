@@ -26,7 +26,7 @@ class CpaFailureWatcherInstallerTests(unittest.TestCase):
             with self.subTest(target=target):
                 self.assertEqual(
                     document["requiredActiveCloudxVersion"],
-                    "0.1.21" if target == "local" else "0.1.24",
+                    "0.1.21" if target == "local" else "0.1.25",
                 )
                 self.assertEqual(document["requiredActivePolicyVersion"], value["version"])
                 self.assertEqual(document["trigger"], "permanent-receipt-or-pool-unavailable")

@@ -12,6 +12,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
+from . import agent_identity
+
 
 MAX_AUTH_FILE_BYTES = 1024 * 1024
 MAX_AUTH_FILES = 4096
@@ -350,6 +352,17 @@ def scan_auth_records(config: Dict[str, Any]) -> List[Dict[str, Any]]:
         auth_type = str(data.get("type") or data.get("provider") or "").strip().lower()
         if auth_type and auth_type != "codex":
             continue
+        agent_identity_mode = agent_identity.is_agent_identity(data)
+        valid_agent_identity = agent_identity.is_valid(data) if agent_identity_mode else False
+        if agent_identity_mode and not valid_agent_identity:
+            records.append({
+                "path": str(path),
+                "name": path.stem,
+                "type": auth_type or "codex",
+                "status": "invalid",
+                "reason": "invalid-agent-identity",
+            })
+            continue
         access_token, refresh_token, id_token = auth_tokens(data)
         if not (auth_type == "codex" or data.get("codexx_account") or access_token or refresh_token or id_token):
             continue
@@ -375,6 +388,7 @@ def scan_auth_records(config: Dict[str, Any]) -> List[Dict[str, Any]]:
             "has_access_token": bool(access_token),
             "has_refresh_token": bool(refresh_token),
             "has_id_token": bool(id_token),
+            "has_agent_identity": valid_agent_identity,
             "expires_at": expires_at,
             "status": "active",
             "reason": "",
@@ -417,6 +431,8 @@ def static_failure_reason(record: Dict[str, Any]) -> Tuple[str, bool]:
         return str(record.get("reason") or "invalid-auth-json"), True
     if bool(record.get("disabled")):
         return "disabled", False
+    if bool(record.get("has_agent_identity")):
+        return "unknown", False
     if not record.get("has_access_token") and not record.get("has_refresh_token"):
         return "missing-refresh-and-access-token", True
     expires_at = _parse_time(record.get("expires_at"))

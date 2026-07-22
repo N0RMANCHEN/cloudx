@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import pathlib
 import stat
@@ -39,6 +40,19 @@ def install_fixture(config: dict, name: str = "account.json") -> pathlib.Path:
 
 
 class CpaAuthTests(unittest.TestCase):
+    @staticmethod
+    def agent_identity(seed_byte: int = 1) -> dict:
+        prefix = bytes.fromhex("302e020100300506032b657004220420")
+        return {
+            "type": "codex",
+            "auth_kind": "oauth",
+            "auth_mode": "agentIdentity",
+            "disabled": False,
+            "websockets": False,
+            "agent_runtime_id": "runtime-sanitized",
+            "agent_private_key": base64.b64encode(prefix + bytes([seed_byte]) * 32).decode("ascii"),
+        }
+
     def test_sanitized_production_shape_builds_one_native_context(self) -> None:
         with tempfile.TemporaryDirectory() as value:
             config = configured(pathlib.Path(value))
@@ -186,6 +200,55 @@ class CpaAuthTests(unittest.TestCase):
             self.assertNotIn("RAW-SECRET", manifest)
             self.assertNotIn("RAW-SECRET", state)
             self.assertEqual(stat.S_IMODE((root / "state/cliproxy-refresh.json").stat().st_mode), 0o600)
+
+    def test_valid_agent_identity_is_not_misclassified_as_missing_tokens(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            config = configured(root)
+            auth_dir = pathlib.Path(config["cliproxy"]["auth_dir"])
+            source = auth_dir / "agent.json"
+            source.write_text(json.dumps(self.agent_identity()), encoding="utf-8")
+            source.chmod(0o600)
+
+            records = cpa_auth.scan_auth_records(config)
+            result = cpa_auth.refresh_auth_accounts(
+                config,
+                {"global_config_path": root / "state/codexx-monitor.toml"},
+                apply=True,
+            )
+
+            self.assertEqual(len(records), 1)
+            self.assertTrue(records[0]["has_agent_identity"])
+            self.assertFalse(records[0]["has_access_token"])
+            self.assertFalse(records[0]["has_refresh_token"])
+            self.assertTrue(source.is_file())
+            self.assertEqual(result["active"][0]["refresh_status"], "unknown")
+            self.assertEqual(result["actions"], [])
+            self.assertFalse((root / "archive/manifest.json").exists())
+
+    def test_invalid_agent_identity_is_quarantined_without_private_key_output(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            config = configured(root)
+            auth_dir = pathlib.Path(config["cliproxy"]["auth_dir"])
+            source = auth_dir / "agent.json"
+            document = self.agent_identity()
+            document["agent_private_key"] = "PRIVATE-KEY-SENTINEL"
+            source.write_text(json.dumps(document), encoding="utf-8")
+            source.chmod(0o600)
+
+            result = cpa_auth.refresh_auth_accounts(
+                config,
+                {"global_config_path": root / "state/codexx-monitor.toml"},
+                apply=True,
+            )
+
+            self.assertFalse(source.exists())
+            self.assertEqual(result["actions"][0]["reason"], "invalid-agent-identity")
+            manifest = (root / "archive/manifest.json").read_text(encoding="utf-8")
+            state = (root / "state/cliproxy-refresh.json").read_text(encoding="utf-8")
+            self.assertNotIn("PRIVATE-KEY-SENTINEL", manifest)
+            self.assertNotIn("PRIVATE-KEY-SENTINEL", state)
 
 
 if __name__ == "__main__":

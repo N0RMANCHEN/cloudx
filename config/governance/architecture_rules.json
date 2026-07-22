@@ -66,6 +66,7 @@
     "scripts/build_cpa_policy_candidate.py",
     "scripts/install_legacy_health_bridge_units.py",
     "scripts/install_cpa_policy_candidate.py",
+    "scripts/promote_cloud_agent_identity_batch.py",
     "scripts/install_phi_consumer_gateway_key.py",
     "scripts/prepare_release_trust_recovery.py",
     "scripts/quarantine_cloud_legacy_runtime.py",
