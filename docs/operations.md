@@ -13,7 +13,7 @@ Never use a build, test, or update command against the active legacy local port 
 
 Artifacts are written to `dist/`. Building has no install or activation side effects.
 
-Signed `0.1.27` is published from source `7c30165395fef6c53aeb95965e1a7cb2d51b005a`. Main CI `29929287616` and release workflow `29929474250` passed; artifact ref `3be8efbbf602e728b04b68145e17812ef4e815d9`, stable ref `1219dcb403ddea8add922efd3889fc74d3cad2de`, manifest SHA-256 `a46458ca3683a67dc764022f222d7883f9cfcfe77860ef98a2d1d3a317e8fbc1`, and offline bundle SHA-256 `53cb12d625696e9c2ef3b9c9265827261cbfc03d8a3a16bfbd4adf04fd18b609` are accepted. Direct cloud-first then local upgrades selected `0.1.27/0.1.26` on both endpoints without restarting CPA. This installs the recovery/sidecar transaction only; the combined local CPA candidate remains a separate stage and zero-connection restart boundary.
+Signed `0.1.28` is published from source `f6048a89869f1b1e74d11b922682dd3cb1144cd5`. Main CI `29932051088` and release workflow `29932381872` passed; artifact ref `df51932a695c2b0d2bbba228e2a86332cb3466c4`, stable ref `851b217e13e58c1f7844c6d440164108ff346fda`, manifest SHA-256 `5421dc2b0d4982c46d3a498ef655984a3134468ff49866ed61ac419df6ed937f`, and offline bundle SHA-256 `3e2c0055358e952f34d101c5ca4cb50ff7fc8913e73c90e859dcee06ffd517f3` are accepted. Direct cloud-first then local upgrades selected `0.1.28/0.1.27` on both endpoints without restarting CPA. This release fixes only the official-Codex loopback canary's inherited desktop-proxy routing; the external CPA retains its configured upstream proxy and remains behind the separate recovery, five-sample zero-connection, and restart boundary.
 
 ## Prepare Release Trust Recovery
 
