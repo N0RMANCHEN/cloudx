@@ -206,9 +206,23 @@ class LocalCpaImportTests(unittest.TestCase):
 
     def test_agent_identity_deduplication_and_key_validation_fail_closed(self) -> None:
         source = self._source("agents.json", {
+            "type": "sub2api-data",
+            "version": 1,
             "accounts": [
-                {"name": "one@example.com", "credentials": self._agent_auth("one@example.com", "one", 1)},
-                {"name": "two@example.com", "credentials": self._agent_auth("two@example.com", "two", 2)},
+                {
+                    "name": "one@example.com",
+                    "platform": "openai",
+                    "type": "oauth",
+                    "credentials": self._agent_auth("one@example.com", "one", 1),
+                    "extra": {"source": "sub2api"},
+                },
+                {
+                    "name": "two@example.com",
+                    "platform": "openai",
+                    "type": "oauth",
+                    "credentials": self._agent_auth("two@example.com", "two", 2),
+                    "extra": {"source": "sub2api"},
+                },
             ],
         })
         with mock.patch("cloudx_local.cpa_capabilities.attest"):

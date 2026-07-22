@@ -1,0 +1,128 @@
+diff --git a/internal/api/server.go b/internal/api/server.go
+--- a/internal/api/server.go
++++ b/internal/api/server.go
+@@ -292,6 +292,7 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
+ 	engine.Use(logging.GinLogrusLogger())
+ 	engine.Use(logging.GinLogrusRecovery())
+ 	engine.Use(cloudxRequestPolicyMiddleware())
++	engine.Use(cloudxAgentIdentityCapabilityMiddleware())
+ 	for _, mw := range optionState.extraMiddleware {
+ 		engine.Use(mw)
+ 	}
+diff --git a/internal/runtime/executor/codex_executor.go b/internal/runtime/executor/codex_executor.go
+--- a/internal/runtime/executor/codex_executor.go
++++ b/internal/runtime/executor/codex_executor.go
+@@ -725,7 +725,12 @@ func (e *CodexExecutor) PrepareRequest(req *http.Request, auth *cliproxyauth.Aut
+ 		return nil
+ 	}
+ 	apiKey, _ := codexCreds(auth)
+-	if strings.TrimSpace(apiKey) != "" {
++	if err := prepareCodexAgentIdentity(req.Context(), auth); err != nil {
++		return err
++	}
++	if isCodexAgentIdentity(auth) {
++		applyCodexAgentIdentityHeaders(req, auth)
++	} else if strings.TrimSpace(apiKey) != "" {
+ 		req.Header.Set("Authorization", "Bearer "+apiKey)
+ 	}
+ 	var attrs map[string]string
+@@ -752,7 +757,7 @@ func (e *CodexExecutor) HttpRequest(ctx context.Context, auth *cliproxyauth.Auth
+ 		return nil, err
+ 	}
+ 	httpClient := helps.NewUtlsHTTPClient(ctx, e.cfg, auth, 0)
+-	return httpClient.Do(httpReq)
++	return doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, auth)
+ }
+ 
+ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (resp cliproxyexecutor.Response, err error) {
+@@ -810,6 +815,9 @@ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req
+ 	reporter.SetTranslatedReasoningEffort(body, to.String())
+ 
+ 	url := strings.TrimSuffix(baseURL, "/") + "/responses"
++	if err = prepareCodexAgentIdentity(ctx, auth); err != nil {
++		return resp, err
++	}
+ 	var identityState codexIdentityConfuseState
+ 	httpReq, upstreamBody, identityState, err := e.cacheHelper(ctx, from, url, auth, req, originalPayloadSource, body)
+ 	if err != nil {
+@@ -838,7 +846,7 @@ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req
+ 	})
+ 	httpClient := helps.NewUtlsHTTPClient(ctx, e.cfg, auth, 0)
+ 	httpClient = reporter.TrackHTTPClient(httpClient)
+-	httpResp, err := httpClient.Do(httpReq)
++	httpResp, err := doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, auth)
+ 	if err != nil {
+ 		helps.RecordAPIResponseError(ctx, e.cfg, err)
+ 		return resp, err
+@@ -980,6 +988,9 @@ func (e *CodexExecutor) executeCompact(ctx context.Context, auth *cliproxyauth.A
+ 	reporter.SetTranslatedReasoningEffort(body, to.String())
+ 
+ 	url := strings.TrimSuffix(baseURL, "/") + "/responses/compact"
++	if err = prepareCodexAgentIdentity(ctx, auth); err != nil {
++		return resp, err
++	}
+ 	var identityState codexIdentityConfuseState
+ 	httpReq, upstreamBody, identityState, err := e.cacheHelper(ctx, from, url, auth, req, originalPayloadSource, body)
+ 	if err != nil {
+@@ -1008,7 +1019,7 @@ func (e *CodexExecutor) executeCompact(ctx context.Context, auth *cliproxyauth.A
+ 	})
+ 	httpClient := helps.NewUtlsHTTPClient(ctx, e.cfg, auth, 0)
+ 	httpClient = reporter.TrackHTTPClient(httpClient)
+-	httpResp, err := httpClient.Do(httpReq)
++	httpResp, err := doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, auth)
+ 	if err != nil {
+ 		helps.RecordAPIResponseError(ctx, e.cfg, err)
+ 		return resp, err
+@@ -1095,6 +1106,9 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
+ 	reporter.SetTranslatedReasoningEffort(body, to.String())
+ 
+ 	url := strings.TrimSuffix(baseURL, "/") + "/responses"
++	if err = prepareCodexAgentIdentity(ctx, auth); err != nil {
++		return nil, err
++	}
+ 	var identityState codexIdentityConfuseState
+ 	httpReq, upstreamBody, identityState, err := e.cacheHelper(ctx, from, url, auth, req, originalPayloadSource, body)
+ 	if err != nil {
+@@ -1124,7 +1138,7 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
+ 
+ 	httpClient := helps.NewUtlsHTTPClient(ctx, e.cfg, auth, 0)
+ 	httpClient = reporter.TrackHTTPClient(httpClient)
+-	httpResp, err := httpClient.Do(httpReq)
++	httpResp, err := doCodexRequestWithAgentIdentityRecovery(ctx, httpClient, httpReq, auth)
+ 	if err != nil {
+ 		helps.RecordAPIResponseError(ctx, e.cfg, err)
+ 		return nil, err
+@@ -1631,7 +1645,11 @@ func applyCodexDirectImageHeaders(r *http.Request, auth *cliproxyauth.Auth, token
+ 
+ func applyCodexHeadersFromSources(r *http.Request, auth *cliproxyauth.Auth, token string, stream bool, cfg *config.Config, ginHeaders http.Header) {
+ 	r.Header.Set("Content-Type", "application/json")
+-	r.Header.Set("Authorization", "Bearer "+token)
++	if isCodexAgentIdentity(auth) {
++		applyCodexAgentIdentityHeaders(r, auth)
++	} else {
++		r.Header.Set("Authorization", "Bearer "+token)
++	}
+ 
+ 	if ginHeaders != nil && ginHeaders.Get("X-Codex-Beta-Features") != "" {
+ 		r.Header.Set("X-Codex-Beta-Features", ginHeaders.Get("X-Codex-Beta-Features"))
+diff --git a/internal/translator/codex/openai/responses/codex_openai-responses_request_test.go b/internal/translator/codex/openai/responses/codex_openai-responses_request_test.go
+--- a/internal/translator/codex/openai/responses/codex_openai-responses_request_test.go
++++ b/internal/translator/codex/openai/responses/codex_openai-responses_request_test.go
+@@ -12,6 +12,17 @@ import (
+ 
+ var benchmarkConvertSystemRoleOutput []byte
+ 
++func TestConvertOpenAIResponsesRequestToCodexMapsFastServiceTier(t *testing.T) {
++	output := ConvertOpenAIResponsesRequestToCodex(
++		"gpt-5.2",
++		[]byte(`{"model":"gpt-5.2","input":"hello","service_tier":"fast"}`),
++		false,
++	)
++	if got := gjson.GetBytes(output, "service_tier").String(); got != "priority" {
++		t.Fatalf("service_tier = %q, want priority", got)
++	}
++}
++
+ // TestConvertSystemRoleToDeveloper_BasicConversion tests the basic system -> developer role conversion
+ func TestConvertSystemRoleToDeveloper_BasicConversion(t *testing.T) {
+ 	inputJSON := []byte(`{

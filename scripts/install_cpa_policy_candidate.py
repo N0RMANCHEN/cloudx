@@ -20,7 +20,6 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Sequence, Tuple
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_CONTRACT = ROOT / "third_party/cliproxyapi/deployment-contract.json"
 PLAN_SCHEMA = "cloudx.cliproxy-policy-deployment-plan.v1"
@@ -35,6 +34,8 @@ COMMUNICATION_CANARY_TEXT = "LOCAL_CPA_POLICY_COMMUNICATION_OK"
 COMMUNICATION_CANARY_TIMEOUT_SECONDS = 180.0
 CPA_CANARY_READY_TIMEOUT_SECONDS = 20.0
 CPA_CANARY_RETRY_INTERVAL_SECONDS = 0.25
+CAPABILITY_HEADER = "X-Cloudx-CPA-Capabilities"
+CAPABILITY_SCHEMA = "cloudx.cloud-cpa-capabilities.v1"
 
 
 class CpaPolicyInstallRejected(RuntimeError):
@@ -234,6 +235,7 @@ def expanded_target(target: str, contract: Dict[str, Any]) -> Dict[str, Any]:
             "failureDirectory",
             "sweepDirectory",
             "config",
+            "capabilityManifest",
             "gatewayDropIn",
             "healthDropIn",
         ):
@@ -241,6 +243,11 @@ def expanded_target(target: str, contract: Dict[str, Any]) -> Dict[str, Any]:
             if not path.is_absolute():
                 raise CpaPolicyInstallRejected("cloud CPA deployment path is not absolute")
             value[key] = path
+        capabilities = value.get("capabilities")
+        if not isinstance(capabilities, list) or not capabilities or any(
+            not isinstance(item, str) or not VERSION_RE.fullmatch(item) for item in capabilities
+        ):
+            raise CpaPolicyInstallRejected("cloud CPA capabilities are invalid")
     value["stagedBinary"] = value["stageRoot"] / value["version"] / "cli-proxy-api"
     return value
 
@@ -270,6 +277,7 @@ def plan_document(target: str, value: Dict[str, Any]) -> Dict[str, Any]:
         "periodicAccountProbe": False,
         "incidentSweepTrigger": True,
         "incidentProbeConcurrency": "adaptive-up-to-32",
+        "requiredCapabilities": list(value.get("capabilities", [])),
         "stageChangesService": False,
         "activationRestartsExternalCPA": True,
         "activationStopsCodexProcesses": False,
@@ -345,6 +353,7 @@ def stage_candidate(target: str, candidate_path: pathlib.Path, value: Dict[str, 
         "version": value["version"],
         "sha256": value["candidateSha256"],
         "size": value["candidateSize"],
+        "capabilities": list(value.get("capabilities", [])),
     }
     atomic_write(
         release_dir / "manifest.json",
@@ -390,7 +399,7 @@ def top_level_config(path: pathlib.Path) -> Tuple[str, int]:
     return host, port
 
 
-def probe_health(config: pathlib.Path) -> None:
+def probe_health(config: pathlib.Path, required_capability: str = "") -> None:
     host, port = top_level_config(config)
     deadline = time.monotonic() + CPA_CANARY_READY_TIMEOUT_SECONDS
     saw_response = False
@@ -402,8 +411,16 @@ def probe_health(config: pathlib.Path) -> None:
             connection.request("GET", "/healthz")
             health = connection.getresponse()
             health_body = health.read(4096)
+            live_capabilities = health.getheader(CAPABILITY_HEADER, "")
             saw_response = True
-            if health.status == 200 and b'"status":"ok"' in health_body.replace(b" ", b""):
+            if (
+                health.status == 200
+                and b'"status":"ok"' in health_body.replace(b" ", b"")
+                and (
+                    not required_capability
+                    or required_capability in {item.strip() for item in live_capabilities.split(",")}
+                )
+            ):
                 return
         except (OSError, http.client.HTTPException) as exc:
             last_error = exc
@@ -546,13 +563,8 @@ def cloud_drop_ins(value: Dict[str, Any]) -> Tuple[bytes, bytes]:
         "ExecStart=\n"
         "ExecStart=%s -config %s\n"
         % (
-            value["authDirectory"],
-            value["failureDirectory"],
-            value["sweepDirectory"],
-            value["failureDirectory"],
-            value["sweepDirectory"],
-            value["stagedBinary"],
-            value["config"],
+            value["authDirectory"], value["failureDirectory"], value["sweepDirectory"],
+            value["failureDirectory"], value["sweepDirectory"], value["stagedBinary"], value["config"],
         )
     ).encode("utf-8")
     health = (
@@ -560,6 +572,16 @@ def cloud_drop_ins(value: Dict[str, Any]) -> Tuple[bytes, bytes]:
         % (value["failureDirectory"], value["sweepDirectory"])
     ).encode("utf-8")
     return gateway, health
+
+
+def capability_manifest_bytes(value: Dict[str, Any]) -> bytes:
+    return (json.dumps({
+        "schema": CAPABILITY_SCHEMA,
+        "binary": str(value["stagedBinary"]),
+        "binarySha256": value["candidateSha256"],
+        "runtimeVersion": value["version"],
+        "capabilities": list(value["capabilities"]),
+    }, sort_keys=True) + "\n").encode("utf-8")
 
 
 def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
@@ -572,15 +594,20 @@ def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
         raise CpaPolicyInstallRejected("cloud CPA baseline binary changed")
     gateway_before = safe_snapshot(value["gatewayDropIn"], maximum=MAX_DROP_IN_BYTES, required=False)
     health_before = safe_snapshot(value["healthDropIn"], maximum=MAX_DROP_IN_BYTES, required=False)
+    capability_before = safe_snapshot(value["capabilityManifest"], maximum=MAX_DROP_IN_BYTES, required=False)
     gateway_after, health_after = cloud_drop_ins(value)
+    capability_after = capability_manifest_bytes(value)
     if (
         gateway_before.existed
         and gateway_before.data == gateway_after
         and health_before.existed
         and health_before.data == health_after
+        and capability_before.existed
+        and capability_before.data == capability_after
     ):
         pid = wait_systemd_active(value["service"])
         status, policy = probe_policy(value["config"])
+        probe_health(value["config"], value["capabilities"][0])
         return {"schema": RESULT_SCHEMA, "status": "already-active", "target": "cloud", "pid": pid, "httpStatus": status, "policy": policy}
     cliproxy = pwd.getpwnam("cliproxy")
     created_directories = [
@@ -591,7 +618,11 @@ def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
     backup = backup_snapshot(
         value["backupRoot"],
         "cloud",
-        {"gateway-drop-in": gateway_before, "health-drop-in": health_before},
+        {
+            "gateway-drop-in": gateway_before,
+            "health-drop-in": health_before,
+            "capability-manifest": capability_before,
+        },
         uid=0,
         gid=0,
     )
@@ -605,12 +636,15 @@ def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
         if str(value["stagedBinary"]) not in show:
             raise CpaPolicyInstallRejected("cloud CPA service did not select the staged candidate")
         status, policy = probe_policy(value["config"])
+        probe_health(value["config"], value["capabilities"][0])
         if sha256_bytes(safe_snapshot(value["baselineBinary"], maximum=MAX_CANDIDATE_BYTES, required=True).data) != value["baselineSha256"]:
             raise CpaPolicyInstallRejected("cloud CPA baseline changed during activation")
+        atomic_write(value["capabilityManifest"], capability_after, mode=0o644, uid=0, gid=0)
     except Exception as exc:
         try:
             restore_snapshot(value["gatewayDropIn"], gateway_before)
             restore_snapshot(value["healthDropIn"], health_before)
+            restore_snapshot(value["capabilityManifest"], capability_before)
             run_command(["systemctl", "daemon-reload"], check=False)
             run_command(["systemctl", "restart", value["service"]], check=False)
             wait_systemd_active(value["service"])
@@ -629,6 +663,7 @@ def activate_cloud(value: Dict[str, Any]) -> Dict[str, Any]:
         "pid": pid,
         "httpStatus": status,
         "policy": policy,
+        "capabilities": list(value["capabilities"]),
         "backupName": backup.name,
         "externalServiceManaged": False,
         "operatorApprovedRestart": True,

@@ -13,6 +13,7 @@
     "health.v1",
     "health-publisher-templates.v1",
     "http-importer-stop-gate.v1",
+    "agent-identity-import.v1",
     "import.v1",
     "legacy-gateway.v1",
     "legacy-health-bridge.v1",

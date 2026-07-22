@@ -59,16 +59,34 @@
         {
           "path": "patches/cloudx-pool-sweep-trigger.patch",
           "sha256": "2101b12519607ab022fd0780069d3f75207a1d2046114450420df4906dc0ded8"
+        },
+        {
+          "path": "patches/v7.0.2-agent-identity.patch",
+          "sha256": "f4b60990a2f80871de0322aae1ebb9ce2252330678d7d25e9046147a162139b8",
+          "includePaths": [
+            "internal/api/cloudx_agent_identity_capability.go",
+            "internal/api/server_test.go",
+            "internal/runtime/executor/codex_agent_identity.go",
+            "internal/runtime/executor/codex_agent_identity_test.go",
+            "internal/translator/codex/openai/responses/codex_openai-responses_request.go"
+          ]
+        },
+        {
+          "path": "patches/v7.2.71-agent-identity-port.patch",
+          "sha256": "32c70651ed9ee507fdf2bf8ac1246c6dc0b3c316b2ba32abeda8c0947ea2e2ec"
         }
       ],
       "goVersion": "1.26.0",
       "goos": "linux",
       "goarch": "amd64",
-      "version": "7.2.71-cloudx-policy.5",
-      "commitLabel": "5b7f2361+cloudx-cpa-policy5",
-      "buildDate": "2026-07-19T09:15:00Z",
-      "candidateSha256": "5f83b1821d2be7cf5b7615973e4e6130d477386e16eae3a50af46e99bf7af7f8",
-      "candidateSize": 45322402,
+      "version": "7.2.71-cloudx-policy.6",
+      "commitLabel": "5b7f2361+cloudx-cpa-policy6-agent-identity",
+      "buildDate": "2026-07-22T08:10:00Z",
+      "candidateSha256": "d0584d3fddb56e9481d705a74725a77e1841b8525900e40401cb684d54feaf30",
+      "candidateSize": 45359266,
+      "capabilities": [
+        "codex-agent-identity-v1"
+      ],
       "preservesLocalFastServiceTier": false
     }
   }

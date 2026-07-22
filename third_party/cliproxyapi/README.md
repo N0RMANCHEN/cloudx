@@ -34,6 +34,16 @@ Cloudx binds that live response to a sidecar manifest and the exact on-disk
 binary digest, so a later upstream replacement is re-evaluated automatically
 instead of inheriting a stale capability assertion.
 
+The cloud target in `policy-manifest.json` composes that reviewed implementation
+onto exact upstream `v7.2.71` without weakening policy5. The original patch is
+path-limited to five compatible files, while
+`patches/v7.2.71-agent-identity-port.patch` adapts the current uTLS executor and
+middleware locations. Cloud policy6 exposes the same capability, retains the
+two-request and failure/sweep contracts, and is accepted only after a
+deterministic Linux/amd64 build. Its activation publishes the digest-bound cloud
+capability sidecar only after the live restarted candidate advertises the
+header; rollback restores both systemd drop-ins and the prior sidecar.
+
 `policy-manifest.json` pins the upstream commit, patch digest, Go version,
 target platform, and build identity. `scripts/build_cpa_policy_candidate.py`
 applies a patch to a clean exact checkout, runs focused regression tests, and

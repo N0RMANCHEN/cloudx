@@ -8,6 +8,7 @@ import plistlib
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 
@@ -37,6 +38,29 @@ class CpaPolicyInstallerTests(unittest.TestCase):
                 MODULE.probe_health(config)
         self.assertEqual(constructor.call_count, 2)
         connection.request.assert_called_once_with("GET", "/healthz")
+
+    def test_health_canary_requires_the_declared_agent_identity_capability(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            config = pathlib.Path(temporary) / "config.yaml"
+            config.write_text("host: 127.0.0.1\nport: 8317\n", encoding="utf-8")
+            missing = mock.Mock(status=200)
+            missing.read.return_value = b'{"status":"ok"}'
+            missing.getheader.return_value = "another-capability-v1"
+            accepted = mock.Mock(status=200)
+            accepted.read.return_value = b'{"status":"ok"}'
+            accepted.getheader.return_value = "codex-agent-identity-v1"
+            connections = []
+            for response in (missing, accepted):
+                connection = mock.Mock()
+                connection.getresponse.return_value = response
+                connections.append(connection)
+            with mock.patch.object(
+                MODULE.http.client,
+                "HTTPConnection",
+                side_effect=connections,
+            ), mock.patch.object(MODULE.time, "sleep"):
+                MODULE.probe_health(config, "codex-agent-identity-v1")
+        self.assertEqual(sum(item.request.call_count for item in connections), 2)
 
     def test_policy_rollback_removes_only_empty_directories_created_by_activation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -94,6 +118,119 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertIn(str(value["sweepDirectory"]), health_text)
         self.assertNotIn("systemctl", gateway_text + health_text)
 
+        capability = json.loads(MODULE.capability_manifest_bytes(value))
+        self.assertEqual(capability["schema"], "cloudx.cloud-cpa-capabilities.v1")
+        self.assertEqual(capability["binary"], str(value["stagedBinary"]))
+        self.assertEqual(capability["binarySha256"], value["candidateSha256"])
+        self.assertEqual(capability["capabilities"], ["codex-agent-identity-v1"])
+
+    def test_cloud_activation_publishes_capability_only_after_live_canary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            baseline_raw = b"baseline"
+            value = {
+                "version": "7.2.71-cloudx-policy.6",
+                "candidateSha256": "a" * 64,
+                "baselineSha256": MODULE.sha256_bytes(baseline_raw),
+                "baselineBinary": root / "baseline",
+                "stagedBinary": root / "candidate",
+                "gatewayDropIn": root / "gateway.conf",
+                "healthDropIn": root / "health.conf",
+                "capabilityManifest": root / "capabilities.json",
+                "failureDirectory": root / "failures",
+                "sweepDirectory": root / "sweeps",
+                "backupRoot": root / "backups",
+                "authDirectory": root / "auth",
+                "config": root / "config.yaml",
+                "service": "cliproxy.service",
+                "capabilities": ["codex-agent-identity-v1"],
+            }
+            absent = MODULE.Snapshot(False, b"", 0, 0, 0)
+            baseline = MODULE.Snapshot(True, baseline_raw, 0o755, 0, 0)
+
+            def snapshot(path: pathlib.Path, **unused: object) -> object:
+                return baseline if path == value["baselineBinary"] else absent
+
+            def command(argv: list[str], **unused: object) -> object:
+                stdout = "ExecStart=%s\n" % value["stagedBinary"] if "ExecStart" in argv else ""
+                return MODULE.subprocess.CompletedProcess(argv, 0, stdout, "")
+
+            writes = []
+            with mock.patch.object(MODULE.os, "geteuid", return_value=0), mock.patch.object(
+                MODULE.sys, "platform", "linux"
+            ), mock.patch.object(MODULE, "require_active_cloudx"), mock.patch.object(
+                MODULE, "verify_candidate"
+            ), mock.patch.object(MODULE, "safe_snapshot", side_effect=snapshot), mock.patch.object(
+                MODULE.pwd, "getpwnam", return_value=SimpleNamespace(pw_uid=100, pw_gid=101)
+            ), mock.patch.object(MODULE, "ensure_directory"), mock.patch.object(
+                MODULE, "backup_snapshot", return_value=root / "backup"
+            ), mock.patch.object(MODULE, "atomic_write", side_effect=lambda path, *args, **kwargs: writes.append(path)), mock.patch.object(
+                MODULE, "run_command", side_effect=command
+            ), mock.patch.object(MODULE, "wait_systemd_active", return_value=123), mock.patch.object(
+                MODULE, "probe_policy", return_value=(401, "2")
+            ), mock.patch.object(MODULE, "probe_health") as health:
+                result = MODULE.activate_cloud(value)
+
+        self.assertEqual(result["status"], "active")
+        self.assertEqual(writes[-1], value["capabilityManifest"])
+        health.assert_called_once_with(value["config"], "codex-agent-identity-v1")
+
+    def test_cloud_activation_restores_capability_sidecar_when_publication_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            baseline_raw = b"baseline"
+            value = {
+                "version": "7.2.71-cloudx-policy.6",
+                "candidateSha256": "a" * 64,
+                "baselineSha256": MODULE.sha256_bytes(baseline_raw),
+                "baselineBinary": root / "baseline",
+                "stagedBinary": root / "candidate",
+                "gatewayDropIn": root / "gateway.conf",
+                "healthDropIn": root / "health.conf",
+                "capabilityManifest": root / "capabilities.json",
+                "failureDirectory": root / "failures",
+                "sweepDirectory": root / "sweeps",
+                "backupRoot": root / "backups",
+                "authDirectory": root / "auth",
+                "config": root / "config.yaml",
+                "service": "cliproxy.service",
+                "capabilities": ["codex-agent-identity-v1"],
+            }
+            absent = MODULE.Snapshot(False, b"", 0, 0, 0)
+            baseline = MODULE.Snapshot(True, baseline_raw, 0o755, 0, 0)
+
+            def snapshot(path: pathlib.Path, **unused: object) -> object:
+                return baseline if path == value["baselineBinary"] else absent
+
+            def write(path: pathlib.Path, *unused_args: object, **unused_kwargs: object) -> None:
+                if path == value["capabilityManifest"]:
+                    raise OSError("simulated sidecar failure")
+
+            def command(argv: list[str], **unused: object) -> object:
+                stdout = "ExecStart=%s\n" % value["stagedBinary"] if "ExecStart" in argv else ""
+                return MODULE.subprocess.CompletedProcess(argv, 0, stdout, "")
+
+            with mock.patch.object(MODULE.os, "geteuid", return_value=0), mock.patch.object(
+                MODULE.sys, "platform", "linux"
+            ), mock.patch.object(MODULE, "require_active_cloudx"), mock.patch.object(
+                MODULE, "verify_candidate"
+            ), mock.patch.object(MODULE, "safe_snapshot", side_effect=snapshot), mock.patch.object(
+                MODULE.pwd, "getpwnam", return_value=SimpleNamespace(pw_uid=100, pw_gid=101)
+            ), mock.patch.object(MODULE, "ensure_directory"), mock.patch.object(
+                MODULE, "backup_snapshot", return_value=root / "backup"
+            ), mock.patch.object(MODULE, "atomic_write", side_effect=write), mock.patch.object(
+                MODULE, "run_command", side_effect=command
+            ), mock.patch.object(MODULE, "wait_systemd_active", return_value=123), mock.patch.object(
+                MODULE, "probe_policy", return_value=(401, "2")
+            ), mock.patch.object(MODULE, "probe_health"), mock.patch.object(
+                MODULE, "remove_created_empty_directories"
+            ), mock.patch.object(MODULE, "restore_snapshot") as restore:
+                with self.assertRaisesRegex(MODULE.CpaPolicyInstallRejected, "rolled back"):
+                    MODULE.activate_cloud(value)
+
+        restored_paths = [call.args[0] for call in restore.call_args_list]
+        self.assertIn(value["capabilityManifest"], restored_paths)
+
     def test_local_plist_preserves_launcher_fields_and_adds_only_policy_environment(self) -> None:
         value = MODULE.expanded_target("local", MODULE.load_contract(MODULE.DEFAULT_CONTRACT))
         original = {
@@ -150,7 +287,9 @@ class CpaPolicyInstallerTests(unittest.TestCase):
         self.assertEqual(local["baselineSha256"], "cf9641b3e50ae486aec1698dec88f735589680f9ae98558c29cde184daac3a96")
         self.assertEqual(cloud["baselineSha256"], "1d0abbc6316b1869f74896109c0efb5e19c8197b8226f48a74212ed0a6f5a39d")
         self.assertEqual(local["candidateSha256"], "bb6fe9cfcc26d521ce0dcf9f503d2dffa742bce62bd359cab8f91052116c0db3")
-        self.assertEqual(cloud["candidateSha256"], "5f83b1821d2be7cf5b7615973e4e6130d477386e16eae3a50af46e99bf7af7f8")
+        self.assertEqual(cloud["candidateSha256"], "d0584d3fddb56e9481d705a74725a77e1841b8525900e40401cb684d54feaf30")
+        self.assertEqual(cloud["capabilityManifest"], "/etc/cloudx/cloud-cpa-capabilities.json")
+        self.assertEqual(cloud["capabilities"], ["codex-agent-identity-v1"])
 
     def test_activation_rejects_an_older_receipt_consumer(self) -> None:
         value = MODULE.expanded_target("local", MODULE.load_contract(MODULE.DEFAULT_CONTRACT))

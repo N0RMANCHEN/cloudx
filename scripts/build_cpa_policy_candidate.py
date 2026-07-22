@@ -66,6 +66,9 @@ def target_config(target: str, manifest: Dict[str, Any]) -> Dict[str, Any]:
     }
     if not isinstance(value, dict) or not required.issubset(value):
         raise CandidateBuildRejected("CPA policy target is incomplete")
+    capabilities = value.get("capabilities", [])
+    if not isinstance(capabilities, list) or any(not isinstance(item, str) for item in capabilities):
+        raise CandidateBuildRejected("CPA policy target capabilities are invalid")
     return value
 
 
@@ -115,8 +118,21 @@ def verified_patches(config: Dict[str, Any]) -> List[pathlib.Path]:
         raise CandidateBuildRejected("CPA supplemental patch list is invalid")
     base = MANIFEST_PATH.parent.resolve()
     for item in supplemental:
-        if not isinstance(item, dict) or set(item) != {"path", "sha256"}:
+        if (
+            not isinstance(item, dict)
+            or not {"path", "sha256"}.issubset(item)
+            or not set(item).issubset({"path", "sha256", "includePaths"})
+        ):
             raise CandidateBuildRejected("CPA supplemental patch entry is invalid")
+        includes = item.get("includePaths", [])
+        if not isinstance(includes, list) or any(
+            not isinstance(value, str)
+            or not value
+            or value.startswith("/")
+            or ".." in pathlib.PurePosixPath(value).parts
+            for value in includes
+        ):
+            raise CandidateBuildRejected("CPA supplemental patch include paths are invalid")
         patch = (base / str(item["path"])).resolve()
         try:
             patch.relative_to(base)
@@ -128,6 +144,12 @@ def verified_patches(config: Dict[str, Any]) -> List[pathlib.Path]:
             raise CandidateBuildRejected("CPA supplemental patch digest does not match")
         result.append(patch)
     return result
+
+
+def patch_include_paths(config: Dict[str, Any], index: int) -> List[str]:
+    if index == 0:
+        return []
+    return list(config["supplementalPatches"][index - 1].get("includePaths", []))
 
 
 def verify_source(source: pathlib.Path, config: Dict[str, Any]) -> None:
@@ -175,6 +197,7 @@ def plan_document(target: str, config: Dict[str, Any], output: pathlib.Path) -> 
         "goos": config["goos"],
         "goarch": config["goarch"],
         "version": config["version"],
+        "capabilities": list(config.get("capabilities", [])),
         "outputName": output.name,
         "installs": False,
         "activates": False,
@@ -182,7 +205,7 @@ def plan_document(target: str, config: Dict[str, Any], output: pathlib.Path) -> 
     }
 
 
-def test_commands(target: str) -> List[List[str]]:
+def test_commands(target: str, config: Dict[str, Any]) -> List[List[str]]:
     commands = [
         [
             "go",
@@ -206,6 +229,26 @@ def test_commands(target: str) -> List[List[str]]:
                 "-count=1",
             ]
         )
+    if "codex-agent-identity-v1" in config.get("capabilities", []):
+        commands.extend([
+            [
+                "go",
+                "test",
+                "./internal/runtime/executor",
+                "-run",
+                "CodexAgentIdentity",
+                "-count=1",
+            ],
+            ["go", "test", "./internal/api", "-run", "Healthz", "-count=1"],
+            [
+                "go",
+                "test",
+                "./internal/translator/codex/openai/responses",
+                "-run",
+                "FastServiceTier",
+                "-count=1",
+            ],
+        ])
     return commands
 
 
@@ -225,16 +268,26 @@ def build_candidate(
     with tempfile.TemporaryDirectory(prefix="cloudx-cpa-build-") as temporary:
         work = pathlib.Path(temporary) / "source"
         shutil.copytree(source, work, symlinks=True, ignore=shutil.ignore_patterns(".git"))
-        for patch in patches:
-            run(["git", "apply", "--check", str(patch)], cwd=work)
-            run(["git", "apply", str(patch)], cwd=work)
+        for index, patch in enumerate(patches):
+            include_arguments = [
+                argument
+                for path in patch_include_paths(config, index)
+                for argument in ("--include", path)
+            ]
+            run(["git", "apply", *include_arguments, "--check", str(patch)], cwd=work)
+            run(["git", "apply", *include_arguments, str(patch)], cwd=work)
 
         format_packages = ["./internal/api", "./sdk/api/handlers", "./sdk/cliproxy/auth"]
         if target == "local":
             format_packages.append("./internal/translator/codex/openai/responses")
+        if "codex-agent-identity-v1" in config.get("capabilities", []):
+            format_packages.extend([
+                "./internal/runtime/executor",
+                "./internal/translator/codex/openai/responses",
+            ])
         run([go_binary, "fmt", *format_packages], cwd=work)
 
-        for command in test_commands(target):
+        for command in test_commands(target, config):
             command[0] = go_binary
             run(command, cwd=work, env=os.environ.copy())
 
@@ -305,7 +358,7 @@ def build_candidate(
             "status": "built",
             "sha256": config["candidateSha256"],
             "size": config["candidateSize"],
-            "focusedTestCommands": len(test_commands(target)),
+            "focusedTestCommands": len(test_commands(target, config)),
         }
     )
     return document

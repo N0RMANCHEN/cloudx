@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import pathlib
 from dataclasses import dataclass
+from typing import Optional
 
 
 def _path(name: str, default: str) -> pathlib.Path:
@@ -23,10 +24,13 @@ class Config:
     client_credential_file: pathlib.Path
     deployment_id: str
     build_commit: str
+    cpa_binary: Optional[pathlib.Path] = None
+    cpa_capability_manifest: Optional[pathlib.Path] = None
 
     @classmethod
     def from_environment(cls) -> "Config":
         auth_dir = _path("CLOUDX_AUTH_DIR", "/var/lib/cloudx/shadow-auth")
+        configured_binary = os.environ.get("CLOUDX_CPA_BINARY")
         return cls(
             auth_dir=auth_dir,
             import_lock_path=_path("CLOUDX_IMPORT_LOCK", "/run/cloudx-shadow/import.lock"),
@@ -42,4 +46,9 @@ class Config:
             client_credential_file=_path("CLOUDX_CLIENT_CREDENTIAL_FILE", "/etc/cloudx/client-credential"),
             deployment_id=os.environ.get("CLOUDX_DEPLOYMENT_ID", "shadow"),
             build_commit=os.environ.get("CLOUDX_BUILD_COMMIT", "development"),
+            cpa_binary=pathlib.Path(configured_binary).expanduser() if configured_binary else None,
+            cpa_capability_manifest=_path(
+                "CLOUDX_CPA_CAPABILITY_MANIFEST",
+                "/etc/cloudx/cloud-cpa-capabilities.json",
+            ),
         )

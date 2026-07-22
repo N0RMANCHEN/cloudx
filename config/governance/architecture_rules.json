@@ -92,5 +92,7 @@
     "127.0.0.1:18317"
   ],
   "phi_mesh_topology_path": "config/governance/phi_mesh_topology.v1.json",
-  "frozen_files": {}
+  "frozen_files": {
+    "scripts/install_cpa_policy_candidate.py": 850
+  }
 }

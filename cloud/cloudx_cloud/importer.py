@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from . import agent_identity
+
 
 MAX_SOURCE_BYTES = 16 * 1024 * 1024
 TOKEN_ENDPOINT = "https://auth.openai.com/oauth/token"
@@ -110,6 +112,10 @@ def _tokens(data: Dict[str, Any]) -> Tuple[str, str, str]:
     )
 
 
+def _fingerprint_parts(data: Dict[str, Any]) -> Tuple[str, ...]:
+    return agent_identity.fingerprint_parts(data) or _tokens(data)
+
+
 def _jwt_payload(token: str) -> Dict[str, Any]:
     if token.count(".") < 2:
         return {}
@@ -131,6 +137,17 @@ def _iso_epoch(value: Any) -> str:
 def _flatten(entry: Dict[str, Any]) -> Dict[str, Any]:
     credentials = entry.get("credentials") if isinstance(entry.get("credentials"), dict) else None
     source = dict(credentials if credentials is not None else entry)
+    if agent_identity.is_agent_identity(source):
+        try:
+            return agent_identity.normalize(
+                source,
+                fallback_account_id=str(entry.get("account_id") or "").strip(),
+                fallback_email=str(entry.get("name") or "").strip(),
+            )
+        except agent_identity.AgentIdentityError as exc:
+            raise ImportRejected(
+                "credential_invalid", "an Agent Identity import record is invalid: %s" % exc
+            ) from exc
     access, refresh, identity = _tokens(source)
     if not any((access, refresh, identity)):
         raise ImportRejected("missing_token", "an import record has no supported token")
@@ -271,7 +288,7 @@ def normalize(raw: bytes, opener: Callable[..., Any] = urllib.request.urlopen) -
     records = _normalize_text(text, opener)
     unique: Dict[str, Dict[str, Any]] = {}
     for record in records:
-        fingerprint = hashlib.sha256("\0".join(_tokens(record)).encode("utf-8")).hexdigest()
+        fingerprint = hashlib.sha256("\0".join(_fingerprint_parts(record)).encode("utf-8")).hexdigest()
         unique.setdefault(fingerprint, record)
     return list(unique.values())
 
@@ -286,7 +303,7 @@ def locked(path: pathlib.Path) -> Iterable[None]:
 
 
 def _target(auth_dir: pathlib.Path, record: Dict[str, Any]) -> pathlib.Path:
-    fingerprint = hashlib.sha256("\0".join(_tokens(record)).encode("utf-8")).hexdigest()[:24]
+    fingerprint = hashlib.sha256("\0".join(_fingerprint_parts(record)).encode("utf-8")).hexdigest()[:24]
     return auth_dir / ("codex-%s.json" % fingerprint)
 
 
@@ -315,9 +332,29 @@ def _atomic_write(path: pathlib.Path, data: bytes) -> None:
         raise
 
 
-def import_records(raw: bytes, auth_dir: pathlib.Path, lock_path: pathlib.Path, dry_run: bool, force: bool) -> ImportResult:
+def import_records(
+    raw: bytes,
+    auth_dir: pathlib.Path,
+    lock_path: pathlib.Path,
+    dry_run: bool,
+    force: bool,
+    capability_checker: Optional[Callable[[str], str]] = None,
+) -> ImportResult:
     request_id, request_hash = request_identity(raw)
     records = normalize(raw)
+    if any(agent_identity.is_agent_identity(record) for record in records):
+        reason = (
+            capability_checker(agent_identity.EXTERNAL_CAPABILITY)
+            if capability_checker is not None
+            else "attestation_unavailable"
+        )
+        if reason:
+            safe_reason = reason if re.fullmatch(r"[a-z0-9_]{1,64}", reason) else "attestation_failed"
+            raise ImportRejected(
+                "external_capability_missing",
+                "Agent Identity credentials require hash-bound live cloud CPA capability %s (%s)"
+                % (agent_identity.EXTERNAL_CAPABILITY, safe_reason),
+            )
     auth_dir.mkdir(parents=True, exist_ok=True)
     try:
         auth_dir.chmod(0o700)

@@ -44,6 +44,8 @@ codexx cloud import <local-file-or-directory> --json
 
 In an interactive terminal, local and cloud imports use the same user-facing summary: `Status`, `Destination`, `Imported`, `Skipped`, `Verification`, and, on failure, one or more safe `Reason` fields. Local CPA success reports its completed post-write verification and labels the migration adapter. Cloud success states that import-time verification was not performed because `accepted` means the credential was stored transactionally, not that its live login or quota is healthy. Rejected and partial results return nonzero and write their summary to stderr.
 
+Source `0.1.24` recognizes tokenless Sub2API `agentIdentity` records on the cloud path as well as locally. It validates the bounded Ed25519 PKCS#8 key, preserves only signing metadata, removes the source task ID and synthetic bearer state, and fingerprints each runtime/key pair so a multi-account export remains distinct. Preview and apply fail with `external_capability_missing` before target mutation unless `/etc/cloudx/cloud-cpa-capabilities.json` (or `CLOUDX_CPA_CAPABILITY_MANIFEST`) binds the exact executable digest and the configured gateway `/healthz` advertises `codex-agent-identity-v1`.
+
 For pipeline compatibility, redirected cloud-import stdout remains the raw `cloudx.import.v1` JSON document and redirected local-import output remains the legacy adapter's count output. `--json` forces the raw cloud contract even when stdout is an interactive terminal.
 
 ## API Failure Diagnosis

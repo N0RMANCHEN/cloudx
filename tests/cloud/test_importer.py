@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import io
 import json
 import os
@@ -24,6 +25,22 @@ def record(suffix: str = "one") -> dict:
         "refresh_token": "refresh.%s.value" % suffix,
         "id_token": "id.%s.value" % suffix,
         "account_id": "account-%s" % suffix,
+    }
+
+
+def agent_record(suffix: str = "one", seed_byte: int = 1) -> dict:
+    prefix = bytes.fromhex("302e020100300506032b657004220420")
+    return {
+        "auth_mode": "agentIdentity",
+        "agent_runtime_id": "runtime-%s" % suffix,
+        "agent_private_key": base64.b64encode(prefix + bytes([seed_byte]) * 32).decode("ascii"),
+        "task_id": "task-from-another-gateway",
+        "id_token": "synthetic.%s.unsigned" % suffix,
+        "chatgpt_account_id": "account-%s" % suffix,
+        "chatgpt_user_id": "user-%s" % suffix,
+        "workspace_id": "workspace-%s" % suffix,
+        "email": "%s@example.test" % suffix,
+        "plan_type": "plus",
     }
 
 
@@ -64,6 +81,49 @@ class ImportNormalizationTests(unittest.TestCase):
         self.assertEqual(values[0]["type"], "codex")
         self.assertEqual(values[0]["account_id"], "account-oauth")
         self.assertEqual(values[0]["expired"], "2030-01-01T00:00:00Z")
+
+    def test_tokenless_agent_identity_sub2api_export_is_normalized_without_gateway_state(self) -> None:
+        source = {
+            "type": "sub2api-data",
+            "version": 1,
+            "accounts": [
+                {
+                    "name": "one@example.test",
+                    "platform": "openai",
+                    "type": "oauth",
+                    "credentials": agent_record("one", 1),
+                    "extra": {"source": "sub2api"},
+                },
+                {
+                    "name": "two@example.test",
+                    "platform": "openai",
+                    "type": "oauth",
+                    "credentials": agent_record("two", 2),
+                    "extra": {"source": "sub2api"},
+                },
+            ],
+        }
+
+        values = normalize(json.dumps(source).encode())
+
+        self.assertEqual(len(values), 2)
+        self.assertEqual(values[0]["auth_mode"], "agentIdentity")
+        self.assertEqual(values[0]["auth_kind"], "oauth")
+        self.assertEqual(values[0]["agent_runtime_id"], "runtime-one")
+        self.assertFalse(values[0]["websockets"])
+        for discarded in ("access_token", "refresh_token", "id_token", "task_id"):
+            self.assertNotIn(discarded, values[0])
+
+    def test_invalid_agent_identity_key_is_rejected_without_secret_output(self) -> None:
+        credential = agent_record()
+        secret = "private-but-invalid-key"
+        credential["agent_private_key"] = secret
+
+        with self.assertRaises(ImportRejected) as captured:
+            normalize(json.dumps({"accounts": [{"credentials": credential}]}).encode())
+
+        self.assertEqual(captured.exception.code, "credential_invalid")
+        self.assertNotIn(secret, str(captured.exception))
 
     def test_non_openai_oauth_export_remains_rejected(self) -> None:
         source = {
@@ -146,6 +206,55 @@ class ImportTransactionTests(unittest.TestCase):
         with self.assertRaises(ImportRejected) as captured:
             import_records(self.raw, self.auth, self.lock, dry_run=False, force=True)
         self.assertEqual(captured.exception.code, "unsafe_target")
+
+    def test_agent_identity_requires_live_capability_before_creating_target_state(self) -> None:
+        raw = json.dumps({"accounts": [{"credentials": agent_record()}]}).encode()
+
+        with self.assertRaises(ImportRejected) as captured:
+            import_records(raw, self.auth, self.lock, dry_run=True, force=False)
+
+        self.assertEqual(captured.exception.code, "external_capability_missing")
+        self.assertFalse(self.auth.exists())
+        self.assertNotIn(agent_record()["agent_private_key"], str(captured.exception))
+
+    def test_agent_identity_write_is_private_distinct_and_idempotent_after_attestation(self) -> None:
+        raw = json.dumps({
+            "accounts": [
+                {"credentials": agent_record("one", 1)},
+                {"credentials": agent_record("two", 2)},
+            ]
+        }).encode()
+        checked = []
+
+        first = import_records(
+            raw,
+            self.auth,
+            self.lock,
+            dry_run=False,
+            force=False,
+            capability_checker=lambda capability: checked.append(capability) or "",
+        )
+
+        self.assertEqual((first.written, first.skipped), (2, 0))
+        self.assertEqual(checked, ["codex-agent-identity-v1"])
+        targets = sorted(self.auth.glob("*.json"))
+        self.assertEqual(len(targets), 2)
+        for target in targets:
+            self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o600)
+            document = json.loads(target.read_text(encoding="utf-8"))
+            self.assertEqual(document["auth_mode"], "agentIdentity")
+            self.assertNotIn("task_id", document)
+            self.assertNotIn("id_token", document)
+
+        repeated = import_records(
+            raw,
+            self.auth,
+            self.lock,
+            dry_run=False,
+            force=False,
+            capability_checker=lambda unused_capability: "",
+        )
+        self.assertEqual((repeated.written, repeated.skipped), (0, 2))
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ import pathlib
 import sys
 from typing import Any, Dict, Optional, Sequence
 
-from . import capacity, compatibility_profile, consumer_credential, consumer_traffic, cpa_auth, cpa_health, http_importer_gate
+from . import capacity, compatibility_profile, consumer_credential, consumer_traffic, cpa_auth, cpa_capabilities, cpa_health, http_importer_gate
 from . import legacy_health_bridge
 from .account_state import AccountStateRejected, adapt_file
 from .compatibility_scripts import SCRIPTS as COMPATIBILITY_SCRIPTS
@@ -44,6 +44,7 @@ def handshake(config: Config) -> Dict[str, Any]:
             "health.v1",
             "health-publisher-templates.v1",
             "http-importer-stop-gate.v1",
+            "agent-identity-import.v1",
             "import.v1",
             "legacy-gateway.v1",
             "legacy-health-bridge.v1",
@@ -225,7 +226,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         raw = b""
         try:
             raw = read_limited(sys.stdin.buffer)
-            result = import_records(raw, config.auth_dir, config.import_lock_path, args.dry_run, args.force)
+            result = import_records(
+                raw,
+                config.auth_dir,
+                config.import_lock_path,
+                args.dry_run,
+                args.force,
+                capability_checker=lambda required: cpa_capabilities.check(config, required),
+            )
         except ImportRejected as exc:
             result = rejected(raw, exc, args.dry_run) if raw else ImportResult(
                 request_id="unavailable",

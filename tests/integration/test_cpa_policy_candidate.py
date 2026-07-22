@@ -34,19 +34,36 @@ class CpaPolicyCandidateTests(unittest.TestCase):
         self.assertEqual(manifest["policy"]["sweepTriggerSchema"], "cloudx.cpa-sweep-trigger.v1")
         self.assertFalse(manifest["policy"]["weeklyQuotaArchived"])
         self.assertEqual(local["candidateSha256"], "bb6fe9cfcc26d521ce0dcf9f503d2dffa742bce62bd359cab8f91052116c0db3")
-        self.assertEqual(cloud["candidateSha256"], "5f83b1821d2be7cf5b7615973e4e6130d477386e16eae3a50af46e99bf7af7f8")
+        self.assertEqual(cloud["candidateSha256"], "d0584d3fddb56e9481d705a74725a77e1841b8525900e40401cb684d54feaf30")
+        self.assertEqual(cloud["capabilities"], ["codex-agent-identity-v1"])
 
     def test_patch_digests_are_bound_by_manifest(self) -> None:
         manifest = MODULE.load_manifest()
         for target in ("local", "cloud"):
             config = MODULE.target_config(target, manifest)
             patches = MODULE.verified_patches(config)
-            self.assertEqual(len(patches), 2)
+            self.assertEqual(len(patches), 2 if target == "local" else 4)
             self.assertEqual(MODULE.sha256_file(patches[0]), config["patchSha256"])
-            self.assertEqual(
-                MODULE.sha256_file(patches[1]),
-                config["supplementalPatches"][0]["sha256"],
-            )
+            for patch, expected in zip(patches[1:], config["supplementalPatches"]):
+                self.assertEqual(MODULE.sha256_file(patch), expected["sha256"])
+
+    def test_cloud_agent_identity_patch_is_path_bounded_and_ported_to_current_executor(self) -> None:
+        cloud = MODULE.target_config("cloud", MODULE.load_manifest())
+        selected = cloud["supplementalPatches"][1]
+        self.assertEqual(
+            selected["includePaths"],
+            [
+                "internal/api/cloudx_agent_identity_capability.go",
+                "internal/api/server_test.go",
+                "internal/runtime/executor/codex_agent_identity.go",
+                "internal/runtime/executor/codex_agent_identity_test.go",
+                "internal/translator/codex/openai/responses/codex_openai-responses_request.go",
+            ],
+        )
+        port = MODULE.verified_patches(cloud)[3].read_text(encoding="utf-8")
+        self.assertIn("doCodexRequestWithAgentIdentityRecovery", port)
+        self.assertIn("cloudxAgentIdentityCapabilityMiddleware", port)
+        self.assertIn("NewUtlsHTTPClient", port)
 
     def test_plan_never_claims_install_activation_or_restart(self) -> None:
         config = MODULE.target_config("local", MODULE.load_manifest())

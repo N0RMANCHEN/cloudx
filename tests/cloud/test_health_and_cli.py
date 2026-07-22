@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import io
 import json
 import pathlib
 import stat
@@ -8,6 +10,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
+from types import SimpleNamespace
 from unittest import mock
 
 
@@ -56,6 +59,7 @@ class CloudHealthTests(unittest.TestCase):
         self.assertNotIn("secret-key", serialized)
         self.assertIn("capacity.v1", document["capabilities"])
         self.assertIn("client-config.v1", document["capabilities"])
+        self.assertIn("agent-identity-import.v1", document["capabilities"])
         self.assertIn("http-importer-stop-gate.v1", document["capabilities"])
         self.assertIn("legacy-health-bridge.v1", document["capabilities"])
         self.assertIn("phi-cloud-consumer-credential.v1", document["capabilities"])
@@ -142,6 +146,35 @@ class CloudHealthTests(unittest.TestCase):
         self.credential.chmod(0o644)
         with self.assertRaises(RuntimeError):
             client_config(self.config)
+
+    def test_agent_identity_cli_import_fails_closed_without_cloud_cpa_attestation(self) -> None:
+        prefix = bytes.fromhex("302e020100300506032b657004220420")
+        private_key = base64.b64encode(prefix + b"\x01" * 32).decode("ascii")
+        raw = json.dumps({
+            "accounts": [{
+                "credentials": {
+                    "auth_mode": "agentIdentity",
+                    "agent_runtime_id": "runtime-one",
+                    "agent_private_key": private_key,
+                }
+            }]
+        }).encode()
+        output = StringIO()
+        stdin = SimpleNamespace(buffer=io.BytesIO(raw))
+
+        with (
+            mock.patch("cloudx_cloud.cli.Config.from_environment", return_value=self.config),
+            mock.patch("cloudx_cloud.cli.sys.stdin", stdin),
+            redirect_stdout(output),
+        ):
+            status = main(["import", "--dry-run"])
+
+        document = json.loads(output.getvalue())
+        self.assertEqual(status, 2)
+        self.assertEqual(document["status"], "rejected")
+        self.assertEqual(document["errors"][0]["code"], "external_capability_missing")
+        self.assertNotIn(private_key, output.getvalue())
+        self.assertFalse(self.config.auth_dir.exists())
 
     @mock.patch("cloudx_cloud.health.probe_gateway", return_value=GatewayProbe("healthy", 200, "ok"))
     def test_health_is_secret_free_and_publish_is_readable(self, unused_probe: mock.Mock) -> None:
