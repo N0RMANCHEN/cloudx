@@ -243,7 +243,7 @@ def run_command(arguments: Sequence[str]) -> subprocess.CompletedProcess[str]:
 
 def require_active_cloudx(value: Dict[str, Any], home: pathlib.Path) -> None:
     artifact = home / ".local/lib/cloudx/current/cloudx-local.pyz"
-    completed = run_command([str(artifact), "self-check", "--json"])
+    completed = run_command([str(artifact), "self-check"])
     try:
         document = json.loads(completed.stdout)
     except json.JSONDecodeError as exc:

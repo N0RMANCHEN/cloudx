@@ -42,7 +42,21 @@ class CpaAgentIdentityInstallerTests(unittest.TestCase):
             document["candidateSha256"],
             "85e8a2a051088ce28cabd4a34847eb77a72a36bac90c3f234e7367e61f189f04",
         )
-        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.22")
+        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.23")
+
+    def test_active_cloudx_uses_the_public_self_check_command(self) -> None:
+        value = {"requiredActiveCloudxVersion": "0.1.23"}
+        completed = mock.Mock(
+            returncode=0,
+            stdout='{"status":"ok","version":"0.1.23"}',
+        )
+        home = pathlib.Path("/tmp/cloudx-user")
+        with mock.patch.object(MODULE, "run_command", return_value=completed) as run:
+            MODULE.require_active_cloudx(value, home)
+        run.assert_called_once_with([
+            "/tmp/cloudx-user/.local/lib/cloudx/current/cloudx-local.pyz",
+            "self-check",
+        ])
 
     def test_stage_is_side_by_side_idempotent_and_service_inert(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

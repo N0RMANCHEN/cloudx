@@ -3,7 +3,7 @@
   "version": "7.0.2-codexx-fast-service-tier-agent-identity.1",
   "candidateSha256": "85e8a2a051088ce28cabd4a34847eb77a72a36bac90c3f234e7367e61f189f04",
   "candidateSize": 41484338,
-  "requiredActiveCloudxVersion": "0.1.22",
+  "requiredActiveCloudxVersion": "0.1.23",
   "baselineBinary": ".local/bin/cli-proxy-api",
   "baselineSha256": "9f5b098585723bb99399a6cba13da616099b653f62f9f59c7183d961567705c3",
   "baselineMetadata": ".local/bin/cli-proxy-api.version.json",
