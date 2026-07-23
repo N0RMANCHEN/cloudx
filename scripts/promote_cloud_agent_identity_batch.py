@@ -25,7 +25,7 @@ from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 import import_active_cloud_cpa_credential as base
 
 
-ACTIVE_CLOUDX_VERSION = "0.1.26"
+ACTIVE_CLOUDX_VERSION = "0.1.32"
 REQUIRED_CPA_VERSION = "7.2.71-cloudx-policy.8"
 REQUIRED_CPA_SHA256 = "4dfa561451662ca5deae566f6fcfdc32bec7f42590439fa053000c4b84f915c0"
 REQUIRED_CAPABILITY = "codex-agent-identity-v1"
