@@ -486,7 +486,7 @@ Status: deferred by the current/N-1 protocol contract and not an M5 blocker. A f
 
 ## M6: Deferred Gateway And Network Work
 
-Status: deferred and unapproved.
+Status: deferred and unapproved. A 2026-07-23 private transcript exposure of the scoped Cloudx gateway credential now has a repository threat model and an accepted default-read-only overlap-rotation plan, but no maintenance authorization. The existing installer deliberately retains the old key; complete remediation additionally requires a separately reviewed exact-one revocation transaction and two distinct restart confirmations.
 
 Potential work includes loopback-only gateway binding, removal of direct Tailscale gateway exposure, restricted sudo policy, gateway key rotation, or CLIProxyAPI upgrades. Each item needs its own threat model, separate maintenance action, rollback rehearsal, and approval. None is required for Cloudx `0.1.x`.
 
