@@ -480,7 +480,7 @@ Legacy removal must not be combined with gateway bind, Tailscale, mihomo, SSH, o
 
 ## Post-M5 Compatibility Retirement
 
-Status: deferred by the current/N-1 protocol contract and not an M5 blocker. A fresh 2026-07-23 read-only audit confirms that `Cloudx current × Phi previous` still requires the runtime-accepted `legacy_bridge`; both production bridge and Phi consumer timers remain active and successful, and no separate retirement rollback approval exists. Re-evaluate only after Phi N-1 natively consumes `cloudx.health.v1` and a fresh four-pair ordering matrix contains no bridge path.
+Status: deferred by the current/N-1 protocol contract and not an M5 blocker. A fresh 2026-07-23 read-only audit confirms that the production Phi goal-watchdog component still retains current `b9f66844` with legacy-contract previous `17d3e42e`; therefore `Cloudx current × Phi previous` still requires the runtime-accepted `legacy_bridge`. Both production bridge and direct Phi health-consumer timers remain active and successful, and no separate retirement rollback approval exists. Re-evaluate only after the goal-watchdog N-1 natively consumes `cloudx.health.v1` and a fresh four-pair ordering matrix contains no bridge path.
 
 - [ ] Remove `legacy_bridge` in its own signed release only after current/N-1 protocol support no longer requires it and a separate rollback acceptance is approved.
 
