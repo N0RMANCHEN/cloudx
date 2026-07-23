@@ -13,7 +13,9 @@ Never use a build, test, or update command against the active legacy local port 
 
 Artifacts are written to `dist/`. Building has no install or activation side effects.
 
-Signed `0.1.31` is published from source `0985802204f1d4d42e335c07181fdb41e032bf48`. Main CI `29984818733` and release workflow `29984894143` passed; annotated tag object `67b9d787a849a755b681a96382048a19ae779c50`, artifact ref `414df8020f0cdd64d5c99aab00daff65d465b038`, stable ref `a091e9531a079672752b5388fbbc0f9c1a4ac556`, manifest SHA-256 `9ca83818f1798489ba9d97f1a7be08a63afd5ecc339ce90f79f3a77cda1eb9e6`, and offline bundle SHA-256 `bc4cd4e512653efc7add7c4b5dc68569d32f0233e0c7eee00fa8bf5cd7df6bbe` are accepted. Signed-index checks are read-only and report update available from both selected `0.1.30` endpoints. Install cloud first, then the current workstation; publication itself changed no endpoint or service.
+Signed `0.1.32` is published from source `c5dcde6e32eeeefee3a82971f6edd04a8609f7d8`. Main CI `29986241037` and release workflow `29986315450` passed; annotated tag object `21f0dc47f12072cba2dcdb0bf55e85b8ceb95a14`, artifact ref `fe8ddecce3984191e2f2fd6ae091770b4b96202e`, stable ref `b98167200e3ee5ef905775400ae4c46739ebd562`, manifest SHA-256 `9b0ad4ca41e056192b4a530cbd37909db4f8b35f149ca2647fadb24f4c144d28`, and offline bundle SHA-256 `a1cb3f0cbc2a6fd028ef275e7d80b7c5195d12c9d59a6327278d402a89d681a9` are accepted. Install cloud first, then the current workstation before extracting the promotion operator tool.
+
+Signed `0.1.31` remains retained from source `0985802204f1d4d42e335c07181fdb41e032bf48` with accepted manifest SHA-256 `9ca83818f1798489ba9d97f1a7be08a63afd5ecc339ce90f79f3a77cda1eb9e6`.
 
 Cloud-first `0.1.31` installation is complete. Cloud selects `0.1.31/0.1.30`, passes self-check/release-status/handshake, and preserves CPA PID `1871934`, mihomo PID `277808`, restart counts `0`, five gateway keys, and the unique private mode-`0600` Cloudx credential. Install the current workstation separately before retrying scoped-key rotation.
 
