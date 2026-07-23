@@ -1,0 +1,39 @@
+{
+  "activation": {
+    "automatic": false,
+    "serviceRestartRequired": false
+  },
+  "artifacts": [
+    {
+      "component": "local",
+      "name": "cloudx-local-0.1.33.pyz",
+      "sha256": "b2fb287b57e55bb7a98aa28242a473ea89ef1a6058acc9e97474454b2c1910cf",
+      "size": 69539
+    },
+    {
+      "component": "cloud",
+      "name": "cloudx-cloud-0.1.33.pyz",
+      "sha256": "b2be422b2ed395002e18ae8a6ad2f614b84fd6a193cbc3c2304ba08c31f0af45",
+      "size": 67503
+    }
+  ],
+  "contracts": {
+    "capacity": 1,
+    "handshake": 1,
+    "health": 1,
+    "httpImporterStopGate": 1,
+    "import": 1,
+    "legacyHealthBridge": 1,
+    "phiCloudConsumerCredential": 1,
+    "phiCloudConsumerTrafficPolicy": 1,
+    "phiMeshCompatibilityProfile": 1
+  },
+  "product": "cloudx",
+  "protocol": {
+    "max": 1,
+    "min": 1
+  },
+  "schema": "cloudx.release-manifest.v1",
+  "sourceCommit": "7e11bed583691bafebca8e0d99a601e82c81c433",
+  "version": "0.1.33"
+}
