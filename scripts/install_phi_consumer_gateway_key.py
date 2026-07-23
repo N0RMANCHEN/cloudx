@@ -22,6 +22,7 @@ from install_scoped_gateway_key import (
     inotify_watch_count,
     probe,
     snapshot,
+    scoped_key_lock,
     systemctl,
     top_level_value,
     verify_artifact,
@@ -175,6 +176,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     except KeyError as exc:
         raise RuntimeError("Phi consumer credential group is missing") from exc
     _validate_credential_directory(args.credential, consumer_group.gr_gid)
+    with scoped_key_lock():
+        return _apply(args, artifact, consumer_group.gr_gid)
+
+
+def _apply(
+    args: argparse.Namespace,
+    artifact: pathlib.Path,
+    consumer_group_gid: int,
+) -> int:
+    del artifact
 
     config_before = _safe_snapshot(
         args.config,
@@ -191,7 +202,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if credential_before.existed and (
         credential_before.mode != 0o640
         or credential_before.uid != 0
-        or credential_before.gid != consumer_group.gr_gid
+        or credential_before.gid != consumer_group_gid
     ):
         raise RuntimeError("existing Phi consumer credential ownership or mode is invalid")
     cloudx_client_before = _safe_snapshot(
@@ -226,7 +237,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             (key + "\n").encode("utf-8"),
             0o640,
             0,
-            consumer_group.gr_gid,
+            consumer_group_gid,
         )
         systemctl("restart", args.unit)
         new_pid = wait_active(args.unit)

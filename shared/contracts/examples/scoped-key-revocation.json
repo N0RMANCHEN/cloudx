@@ -1,0 +1,20 @@
+{
+  "schema": "cloudx.scoped-key-revocation.v1",
+  "status": "revoked",
+  "transactionId": "20260723T120000Z-1234abcd",
+  "releaseVersion": "0.1.30",
+  "unit": "cliproxy.service",
+  "oldPid": 100,
+  "newPid": 200,
+  "gatewayKeyCountBefore": 6,
+  "gatewayKeyCountAfter": 5,
+  "newCredentialHttpStatus": 200,
+  "oldCredentialHttpStatus": 401,
+  "inotifyWatches": 2,
+  "configSha256Before": "1111111111111111111111111111111111111111111111111111111111111111",
+  "configSha256After": "2222222222222222222222222222222222222222222222222222222222222222",
+  "currentCredentialUnchanged": true,
+  "previousCredentialRevoked": true,
+  "otherGatewayKeysUnchanged": true,
+  "backup": "/var/lib/cloudx/scoped-key-rotations/20260723T120000Z-1234abcd/config.before-revocation.yaml"
+}

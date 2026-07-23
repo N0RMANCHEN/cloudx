@@ -1,0 +1,18 @@
+{
+  "schema": "cloudx.scoped-key-revocation-plan.v1",
+  "status": "confirmation-required",
+  "confirmation": "RESTART cliproxy.service TO REVOKE PREVIOUS CLOUDX SCOPED KEY",
+  "releaseVersion": "0.1.30",
+  "releaseArtifact": "/opt/cloudx/releases/0.1.30/cloudx-cloud.pyz",
+  "transactionId": "20260723T120000Z-1234abcd",
+  "unit": "cliproxy.service",
+  "gatewayRestartRequired": true,
+  "automaticAction": false,
+  "authorization": {
+    "gatewayConfigWrite": false,
+    "gatewayRestart": false,
+    "previousCredentialRevocation": false,
+    "credentialWrite": false,
+    "otherKeyMutation": false
+  }
+}

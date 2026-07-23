@@ -148,6 +148,24 @@ class ContractTests(unittest.TestCase):
         for forbidden in ("api_key", "token", "email", "account_name", "deviceid", "taskid"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_scoped_key_revocation_contract_is_non_authorizing_and_secret_free(self) -> None:
+        plan = json.loads(
+            (CONTRACTS / "examples/scoped-key-revocation-plan.json").read_text(encoding="utf-8")
+        )
+        receipt = json.loads(
+            (CONTRACTS / "examples/scoped-key-revocation.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(plan["schema"], "cloudx.scoped-key-revocation-plan.v1")
+        self.assertFalse(plan["automaticAction"])
+        self.assertFalse(any(plan["authorization"].values()))
+        self.assertEqual(receipt["newCredentialHttpStatus"], 200)
+        self.assertEqual(receipt["oldCredentialHttpStatus"], 401)
+        self.assertTrue(receipt["previousCredentialRevoked"])
+        self.assertTrue(receipt["otherGatewayKeysUnchanged"])
+        serialized = json.dumps({"plan": plan, "receipt": receipt}).casefold()
+        for forbidden in ("api_key", "bearer ", "cloudx-old", "cloudx-new", "secret-value"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_api_diagnosis_is_secret_free_and_distinguishes_user_causes(self) -> None:
         schema = json.loads((CONTRACTS / "cloudx.api-diagnosis.v1.schema.json").read_text(encoding="utf-8"))
         document = json.loads((CONTRACTS / "examples/api-diagnosis.json").read_text(encoding="utf-8"))

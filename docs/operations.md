@@ -384,6 +384,16 @@ python3 scripts/install_scoped_gateway_key.py \
 
 The read-only plan derives the cloud artifact path from the exact staged version. The `--apply` path first requires that artifact's self-check to report the same version, then requires the exact printed confirmation. It preserves the existing YAML text, writes a mode-0600 backup, installs the restricted credential and version-matched shadow environment atomically, restarts only the declared gateway unit, verifies a real model-list request and both config/auth inotify watches, and restores all files plus the old service configuration if any check fails.
 
+Source `0.1.30` additionally records a root-only pre-mutation rotation manifest. It contains credential SHA-256 bindings but no raw key and reports the transaction ID required by the distinct revocation plan:
+
+```bash
+python3 scripts/revoke_scoped_gateway_key.py \
+  --release-version 0.1.30 \
+  --transaction-id <accepted-rotation-id>
+```
+
+The default `cloudx.scoped-key-revocation-plan.v1` result reads no production file and grants no authorization. Apply requires the exact `RESTART cliproxy.service TO REVOKE PREVIOUS CLOUDX SCOPED KEY` confirmation, root, the exact signed artifact, root-private accepted rotation manifest, unchanged current credential and post-rotation config, and one unique old digest match. It removes only that old entry, restarts only `cliproxy.service`, requires the current key HTTP `200`, old key HTTP `401`, at least two restored watches, byte-identical current credential and unrelated key order, then records a secret-free receipt. Any failure restores the complete prior config, restarts the gateway, requires both keys HTTP `200`, restores the pre-revocation manifest, and removes partial revocation artifacts.
+
 Prepare the distinct Phi consumer key transaction separately:
 
 ```bash

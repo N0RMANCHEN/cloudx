@@ -15,7 +15,7 @@ The credential authorizes the Cloudx client path to call the gateway inference s
 - The gateway API-key list contains five entries in aggregate; no key value was printed.
 - `cliproxy.service` remains active as PID `1871934`, restart count `0`.
 - Cloudx remains signed `0.1.29/0.1.28` with current artifact SHA-256 `272ce07da46da5f3d6c9e52dd108a2517bec4eadab3f0547324f6631413e8aa5`.
-- The default 0.1.29 scoped-key invocation returned only `cloudx.scoped-key-plan.v1`, `status=confirmation-required`, and the exact restart confirmation. It read no production key and changed nothing.
+- The initial 0.1.29 scoped-key invocation returned only `cloudx.scoped-key-plan.v1`, `status=confirmation-required`, and the exact restart confirmation. It read no production key and changed nothing. Source `0.1.30` now adds the pre-mutation digest manifest and exact-one revocation transaction required below.
 
 ## Existing Rotation Capability
 
@@ -37,7 +37,7 @@ This is necessary but insufficient remediation. By design it retains the old key
 
 This phase requires its own exact operator confirmation and gateway restart. Acceptance must prove:
 
-- exact signed 0.1.29 artifact identity and unchanged non-gateway production boundaries;
+- exact signed 0.1.30 artifact identity and unchanged non-gateway production boundaries;
 - the new credential occurs exactly once and the previous credential remains exactly once;
 - real gateway model traffic with the new credential;
 - a fresh local `codexx cloud` broker generation fetches the new remote client configuration;
@@ -49,7 +49,7 @@ Failure restores the complete pre-rotation config, credential, environment, gate
 
 ### Phase 2: Exact-One Revocation
 
-Revocation is a later, separately confirmed restart boundary and needs a dedicated transaction that does not yet exist. It must:
+Revocation is a later, separately confirmed restart boundary. Source `0.1.30` implements the required dedicated transaction; production use still waits for signed publication, endpoint installation, accepted Phase 1 evidence, and its own restart action. It must:
 
 - bind the current config and private previous/current credential evidence without emitting either value;
 - require the new credential to be active and accepted by fresh broker plus official-Codex canaries;
@@ -63,4 +63,4 @@ The revocation receipt may report only counts, booleans, service identities, pub
 
 ## Decision
 
-No rotation or revocation is authorized by this threat model, repository verification, or the user's general Roadmap instruction. Phase 1 and Phase 2 each change external gateway state and restart an externally owned dependency, so each needs explicit operator approval. Until both pass, the scoped key must be treated as exposed.
+The operator has now approved both separate maintenance actions, but approval does not bypass their ordering or acceptance gates. Phase 1 and Phase 2 each change external gateway state and restart an externally owned dependency; each must still use its exact confirmation, automatic rollback, and independent evidence. Until both pass, the scoped key must be treated as exposed.

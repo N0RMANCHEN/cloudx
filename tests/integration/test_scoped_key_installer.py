@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import os
 import pathlib
+import stat
 import subprocess
 import sys
+import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import ExitStack, nullcontext, redirect_stdout
 from io import StringIO
+from types import SimpleNamespace
 from unittest import mock
 
 
@@ -15,10 +19,12 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from install_scoped_gateway_key import (  # noqa: E402
     CONFIRMATION,
+    api_keys,
     append_api_key,
     environment_document,
     main,
     top_level_value,
+    scoped_key_lock,
     verify_artifact,
 )
 
@@ -33,6 +39,7 @@ class ScopedKeyInstallerTests(unittest.TestCase):
         self.assertIn(b'  - "cloudx-fixture"\n', updated)
         self.assertIn(b"  # retained comment\n", updated)
         self.assertTrue(updated.endswith(b"auth-dir: /var/lib/example\n"))
+        self.assertEqual(api_keys(updated), ["one", "two", "cloudx-fixture"])
 
     def test_inline_api_keys_are_rejected(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "block list"):
@@ -83,6 +90,94 @@ class ScopedKeyInstallerTests(unittest.TestCase):
                 "--gateway-version",
                 "7.2.71",
             ])
+
+    def test_custom_contract_path_is_rejected_before_plan(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "restricted"):
+            main([
+                "--release-version", "0.1.30",
+                "--build-commit", "abcdef0",
+                "--gateway-version", "7.2.71",
+                "--credential", "/tmp/other-credential",
+            ])
+
+    def test_transaction_lock_rejects_an_active_peer_and_closes_descriptor(self) -> None:
+        metadata = SimpleNamespace(st_mode=stat.S_IFREG | 0o600, st_uid=0)
+        closed = mock.Mock()
+        with mock.patch("install_scoped_gateway_key.os.open", return_value=9), mock.patch(
+            "install_scoped_gateway_key.os.fstat", return_value=metadata
+        ), mock.patch(
+            "install_scoped_gateway_key.fcntl.flock", side_effect=OSError("busy")
+        ), mock.patch("install_scoped_gateway_key.os.close", closed):
+            with self.assertRaisesRegex(RuntimeError, "another scoped key transaction"):
+                with scoped_key_lock():
+                    self.fail("lock unexpectedly acquired")
+        closed.assert_called_once_with(9)
+
+    def test_success_writes_secret_free_rotation_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as value:
+            root = pathlib.Path(value)
+            config = root / "config.yaml"
+            credential = root / "client-credential"
+            environment = root / "cloudx-shadow.env"
+            transaction = root / "rotation"
+            transaction.mkdir()
+            config.write_bytes(CONFIG)
+            credential.write_text("one\n", encoding="utf-8")
+            credential.chmod(0o600)
+            environment.write_text("OLD=1\n", encoding="utf-8")
+            environment.chmod(0o640)
+
+            def atomic(path: pathlib.Path, data: bytes, mode: int, uid: int, gid: int) -> None:
+                del uid, gid
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+                path.chmod(mode)
+
+            def atomic_document(path: pathlib.Path, document: dict) -> None:
+                atomic(path, (json.dumps(document) + "\n").encode(), 0o600, 0, 0)
+
+            output = StringIO()
+            patches = [
+                mock.patch("install_scoped_gateway_key.DEFAULT_CONFIG", config),
+                mock.patch("install_scoped_gateway_key.DEFAULT_CREDENTIAL", credential),
+                mock.patch("install_scoped_gateway_key.DEFAULT_ENVIRONMENT", environment),
+                mock.patch("install_scoped_gateway_key.os.geteuid", return_value=0),
+                mock.patch("install_scoped_gateway_key.verify_artifact"),
+                mock.patch("install_scoped_gateway_key.scoped_key_lock", return_value=nullcontext()),
+                mock.patch("install_scoped_gateway_key.pwd.getpwnam", return_value=SimpleNamespace(pw_uid=os.getuid())),
+                mock.patch("install_scoped_gateway_key.grp.getgrnam", return_value=SimpleNamespace(gr_gid=os.getgid())),
+                mock.patch("install_scoped_gateway_key.systemctl", side_effect=lambda *a, **k: "100"),
+                mock.patch("install_scoped_gateway_key.wait_active", return_value=200),
+                mock.patch("install_scoped_gateway_key.probe", return_value=200),
+                mock.patch("install_scoped_gateway_key.inotify_watch_count", return_value=2),
+                mock.patch("install_scoped_gateway_key.secrets.token_urlsafe", return_value="fixture-new"),
+                mock.patch("install_scoped_gateway_key._prepare_rotation_directory", return_value=("20260723T120000Z-1234abcd", transaction)),
+                mock.patch("install_scoped_gateway_key._private_root_directory"),
+                mock.patch("install_scoped_gateway_key.atomic_write", side_effect=atomic),
+                mock.patch("install_scoped_gateway_key.atomic_json", side_effect=atomic_document),
+                mock.patch("install_scoped_gateway_key.time.time", return_value=123456789),
+            ]
+            with ExitStack() as stack:
+                for patcher in patches:
+                    stack.enter_context(patcher)
+                stack.enter_context(redirect_stdout(output))
+                self.assertEqual(main([
+                    "--apply", "--confirm", CONFIRMATION,
+                    "--release-version", "0.1.30",
+                    "--build-commit", "abcdef0",
+                    "--gateway-version", "7.2.71",
+                ]), 0)
+            receipt = json.loads(output.getvalue())
+            document = json.loads((transaction / "manifest.json").read_text())
+            self.assertEqual(document["status"], "rotated")
+            self.assertTrue(document["previousCredentialRetained"])
+            self.assertFalse(document["previousCredentialRevoked"])
+            self.assertEqual(document["gatewayKeyCountBefore"], 2)
+            self.assertEqual(document["gatewayKeyCountAfter"], 3)
+            self.assertEqual(receipt["transactionId"], "20260723T120000Z-1234abcd")
+            for secret in ("one", "cloudx-fixture-new"):
+                self.assertNotIn(secret, output.getvalue())
+                self.assertNotIn(secret, (transaction / "manifest.json").read_text())
 
     @mock.patch("install_scoped_gateway_key.subprocess.run")
     def test_artifact_version_mismatch_is_rejected(self, run: mock.Mock) -> None:

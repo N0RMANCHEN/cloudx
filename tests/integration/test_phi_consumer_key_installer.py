@@ -7,7 +7,7 @@ import stat
 import sys
 import tempfile
 import unittest
-from contextlib import ExitStack, redirect_stdout
+from contextlib import ExitStack, nullcontext, redirect_stdout
 from io import StringIO
 from types import SimpleNamespace
 from unittest import mock
@@ -70,6 +70,7 @@ class PhiConsumerKeyInstallerTests(unittest.TestCase):
         patches = [
             mock.patch.object(installer.os, "geteuid", return_value=0),
             mock.patch.object(installer, "verify_artifact"),
+            mock.patch.object(installer, "scoped_key_lock", return_value=nullcontext()),
             mock.patch.object(installer.grp, "getgrnam", return_value=SimpleNamespace(gr_gid=os.getgid())),
             mock.patch.object(installer, "_validate_credential_directory"),
             mock.patch.object(installer, "atomic_write", side_effect=self._atomic_write),
