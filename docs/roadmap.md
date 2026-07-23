@@ -494,7 +494,7 @@ Status: deferred by the current/N-1 protocol contract and not an M5 blocker. A f
 
 ## M6: Deferred Gateway And Network Work
 
-Status: scoped Cloudx gateway-key remediation is approved; every unrelated gateway/network item remains deferred. The first signed `0.1.30` Phase 1 production invocation safely stopped before mutation when its JSON-only reader encountered two valid plain YAML key scalars. Source `0.1.31` preserves the separately confirmed overlap rotation and exact-one revocation transactions while accepting only bounded double-quoted, strict single-quoted, or restricted plain string forms. Production execution remains split into two rollback-bounded gateway restart actions after immutable publication and endpoint installation.
+Status: scoped Cloudx gateway-key remediation is complete; every unrelated gateway/network item remains deferred. The first signed `0.1.30` Phase 1 production invocation safely stopped before mutation when its JSON-only reader encountered two valid plain YAML key scalars. Signed `0.1.31` completed overlap transaction `20260723T063726Z-485a416b`; signed `0.1.33` restored usable active capacity for the required business canary; the immutable exact-one revoker then removed the previous key with new `200`, old `401`, preserved consumers, rollback evidence, and final real official-Codex acceptance.
 
 - [x] Record the private transcript exposure, production aggregate state, constrained inference-only authority, two-phase rollback boundary, and no-secret output requirements.
 - [x] Add Phase 1 pre-mutation digest binding and Phase 2 exact-one revocation with new-key success, old-key rejection, unrelated-key continuity, automatic rollback, versioned contracts, and focused regressions.
@@ -513,7 +513,7 @@ Status: scoped Cloudx gateway-key remediation is approved; every unrelated gatew
 - [x] Publish/install signed Cloudx `0.1.33` cloud-first then local while preserving CPA/gateway/account state and retaining signed `0.1.32` as N-1.
 - [x] Extract only the immutable `v0.1.33` promotion operator and accept unavailable-baseline transaction `20260723T071131Z-0b669f3c`: active `11 -> 23`, twelve distinct identities, twelve cohort canaries in thirteen attempts, final pool canary, unchanged CPA/archive/failure state, and no raw retention.
 - [x] Complete Phase 1 business-traffic acceptance through a fresh broker/client-config generation and official Codex `gpt-5.6-sol` request returning exact marker `CLOUDX_PHASE1_ACCEPTED_0_1_33_OK`.
-- [ ] Execute the separately approved Phase 2 exact-one revocation, require new-key HTTP `200`, old-key HTTP `401`, unchanged unrelated keys and consumers, fresh formal health, and retained rollback evidence.
+- [x] Execute Phase 2 exact-one revocation for transaction `20260723T063726Z-485a416b`: keys `6 -> 5`, new HTTP `200`, old HTTP `401`, unchanged current/Phi/unrelated keys, fresh health, active count `23`, retained root-private rollback evidence, and official Codex marker `CLOUDX_PHASE2_REVOKED_OK`.
 
 Potential work includes loopback-only gateway binding, removal of direct Tailscale gateway exposure, restricted sudo policy, gateway key rotation, or CLIProxyAPI upgrades. Each item needs its own threat model, separate maintenance action, rollback rehearsal, and approval. None is required for Cloudx `0.1.x`.
 
