@@ -32,7 +32,7 @@
     ]
   },
   "cloudx": {
-    "version": "0.1.32",
+    "version": "0.1.33",
     "protocol": {
       "min": 1,
       "max": 1

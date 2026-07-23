@@ -39,8 +39,9 @@ class CloudAgentIdentityPromotionTests(unittest.TestCase):
     def test_plan_is_non_authorizing_and_exact(self) -> None:
         document = promotion.plan(REQUEST_SHA, 1, 10)
         self.assertEqual(document["status"], "confirmation-required")
-        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.32")
-        self.assertIn("0.1.32", document["confirmation"])
+        self.assertEqual(document["requiredActiveCloudxVersion"], "0.1.33")
+        self.assertIn("0.1.33", document["confirmation"])
+        self.assertEqual(document["baselinePoolStateRequired"], "available")
         self.assertEqual(document["requiredCpaVersion"], "7.2.71-cloudx-policy.8")
         self.assertEqual(
             document["requiredCpaSha256"],
@@ -52,6 +53,24 @@ class CloudAgentIdentityPromotionTests(unittest.TestCase):
         self.assertTrue(document["manualRecoveryPreparedBeforeMutation"])
         self.assertFalse(document["rawCredentialStored"])
         self.assertFalse(document["serviceRestarted"])
+
+    def test_unavailable_baseline_has_distinct_confirmation(self) -> None:
+        document = promotion.plan(REQUEST_SHA, 11, 12, True)
+        self.assertEqual(document["baselinePoolStateRequired"], "unavailable")
+        self.assertIn("RECOVER UNAVAILABLE", document["confirmation"])
+
+    def test_unavailable_baseline_verification_requires_503(self) -> None:
+        rejected = promotion.Rejected(
+            "live_model_failed", "fixture", result={"httpStatus": 503, "policy": "2"}
+        )
+        with mock.patch.object(promotion.base, "live_canary", side_effect=rejected):
+            self.assertTrue(promotion.verify_baseline_behavior("127.0.0.1", 8317, "unavailable", promotion._canaries))
+        wrong = promotion.Rejected(
+            "live_model_failed", "fixture", result={"httpStatus": 401, "policy": "2"}
+        )
+        with mock.patch.object(promotion.base, "live_canary", side_effect=wrong):
+            with self.assertRaisesRegex(promotion.Rejected, "behavior changed"):
+                promotion.verify_baseline_behavior("127.0.0.1", 8317, "unavailable", promotion._canaries)
 
     @mock.patch("promote_cloud_agent_identity_batch._apply")
     def test_wrong_confirmation_reads_no_input(self, apply_call: mock.Mock) -> None:
@@ -141,6 +160,8 @@ class CloudAgentIdentityPromotionTests(unittest.TestCase):
         path = ROOT / "scripts/promote_cloud_agent_identity_batch.py"
         self.assertTrue(stat.S_IMODE(path.stat().st_mode) & stat.S_IXUSR)
         self.assertLessEqual(len(path.read_text(encoding="utf-8").splitlines()), 800)
+        support = ROOT / "scripts/cloud_agent_identity_promotion_support.py"
+        self.assertLessEqual(len(support.read_text(encoding="utf-8").splitlines()), 800)
 
 
 if __name__ == "__main__":

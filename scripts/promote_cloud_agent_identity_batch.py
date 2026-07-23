@@ -13,7 +13,6 @@ import json
 import os
 import pathlib
 import pwd
-import re
 import secrets
 import shutil
 import stat
@@ -23,15 +22,22 @@ from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 import import_active_cloud_cpa_credential as base
+from cloud_agent_identity_promotion_support import (
+    ACTIVE_CLOUDX_VERSION,
+    PLAN_SCHEMA,
+    REQUIRED_CAPABILITY,
+    REQUIRED_CPA_SHA256,
+    REQUIRED_CPA_VERSION,
+    RESULT_SCHEMA,
+    confirmation,
+    plan,
+    pool_observation_state,
+    recovery_confirmation,
+    recovery_plan,
+    verify_baseline_behavior,
+)
 
 
-ACTIVE_CLOUDX_VERSION = "0.1.32"
-REQUIRED_CPA_VERSION = "7.2.71-cloudx-policy.8"
-REQUIRED_CPA_SHA256 = "4dfa561451662ca5deae566f6fcfdc32bec7f42590439fa053000c4b84f915c0"
-REQUIRED_CAPABILITY = "codex-agent-identity-v1"
-PLAN_SCHEMA = "cloudx.active-agent-identity-promotion-plan.v1"
-RESULT_SCHEMA = "cloudx.active-agent-identity-promotion.v1"
-MAX_BATCH = 32
 MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_MANIFEST_BYTES = 64 * 1024
 AUTH_DIR = pathlib.Path("/var/lib/codex-gateway/cliproxy-auth")
@@ -46,74 +52,10 @@ IMPORT_LOCK = AUTH_DIR / ".cloudx-import.lock"
 CPA_SERVICE = "cliproxy.service"
 FAILURE_PATH = "cloudx-cpa-failure.path"
 SWEEP_PATH = "cloudx-cpa-sweep.path"
-SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-TRANSACTION_RE = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$")
 ED25519_PKCS8_PREFIX = bytes.fromhex("302e020100300506032b657004220420")
 
 
 Rejected = base.ActiveImportRejected
-
-
-def confirmation(expected_sha256: str, expected_active: int, expected_new: int) -> str:
-    return "PROMOTE CLOUD AGENT IDENTITY BATCH %s %d+%d %s" % (
-        ACTIVE_CLOUDX_VERSION,
-        expected_active,
-        expected_new,
-        expected_sha256[:16],
-    )
-
-
-def recovery_confirmation(transaction_id: str) -> str:
-    return "ROLL BACK CLOUD AGENT IDENTITY PROMOTION %s" % transaction_id
-
-
-def validate_expectations(expected_sha256: str, expected_active: int, expected_new: int) -> None:
-    if not SHA256_RE.fullmatch(expected_sha256):
-        raise Rejected("invalid_arguments", "expected request SHA-256 is invalid")
-    if expected_active < 1 or expected_active > 128:
-        raise Rejected("invalid_arguments", "expected active count is invalid")
-    if expected_new < 1 or expected_new > MAX_BATCH:
-        raise Rejected("invalid_arguments", "expected batch count is invalid")
-
-
-def plan(expected_sha256: str, expected_active: int, expected_new: int) -> Dict[str, Any]:
-    validate_expectations(expected_sha256, expected_active, expected_new)
-    return {
-        "schema": PLAN_SCHEMA,
-        "status": "confirmation-required",
-        "confirmation": confirmation(expected_sha256, expected_active, expected_new),
-        "requiredActiveCloudxVersion": ACTIVE_CLOUDX_VERSION,
-        "requiredCpaVersion": REQUIRED_CPA_VERSION,
-        "requiredCpaSha256": REQUIRED_CPA_SHA256,
-        "requiredCapability": REQUIRED_CAPABILITY,
-        "requestSha256": expected_sha256,
-        "activeBefore": expected_active,
-        "newCredentials": expected_new,
-        "activeAfter": expected_active + expected_new,
-        "signedImporterDryRun": True,
-        "signedImporterApply": True,
-        "baselineTemporarilyHeldForCohortCanary": True,
-        "cohortCanaryRequests": expected_new,
-        "automaticRollback": True,
-        "manualRecoveryPreparedBeforeMutation": True,
-        "rawCredentialStored": False,
-        "serviceRestarted": False,
-        "automaticAction": False,
-    }
-
-
-def recovery_plan(transaction_id: str) -> Dict[str, Any]:
-    if not TRANSACTION_RE.fullmatch(transaction_id):
-        raise Rejected("invalid_arguments", "transaction ID is invalid")
-    return {
-        "schema": PLAN_SCHEMA,
-        "status": "confirmation-required",
-        "confirmation": recovery_confirmation(transaction_id),
-        "transactionId": transaction_id,
-        "action": "restore-pre-promotion-active-pool",
-        "serviceRestarted": False,
-        "automaticAction": False,
-    }
 
 
 def read_input(stream: Any, expected_sha256: str) -> bytes:
@@ -262,7 +204,7 @@ def _validate_active_files(paths: Sequence[pathlib.Path], uid: int, gid: int) ->
             raise Rejected("active_pool_unsafe", "active CPA credential ownership or mode is invalid")
 
 
-def _preflight(expected_active: int) -> Dict[str, Any]:
+def _preflight(expected_active: int, allow_unavailable_baseline: bool = False) -> Dict[str, Any]:
     if sys.platform != "linux" or os.geteuid() != 0:
         raise Rejected("wrong_host", "active Agent Identity promotion requires root on Linux")
     if base.active_version() != ACTIVE_CLOUDX_VERSION:
@@ -284,7 +226,10 @@ def _preflight(expected_active: int) -> Dict[str, Any]:
     _validate_active_files(active, cliproxy.pw_uid, cliproxy.pw_gid)
     if base.regular_files(FAILURE_DIR):
         raise Rejected("watcher_input_not_empty", "CPA failure input is not empty")
-    base.require_available_pool_observation(SWEEP_DIR)
+    pool_state = pool_observation_state(SWEEP_DIR, _json_file)
+    expected_state = "unavailable" if allow_unavailable_baseline else "available"
+    if pool_state != expected_state:
+        raise Rejected("observation_mismatch", "CPA pool observation does not match the confirmed baseline")
     archive = _archive_entries()
     sidecar, binary = _capability_state(service)
     return {
@@ -299,6 +244,7 @@ def _preflight(expected_active: int) -> Dict[str, Any]:
         "cliproxyGid": cliproxy.pw_gid,
         "sidecar": sidecar,
         "binary": binary,
+        "poolState": pool_state,
     }
 
 
@@ -326,6 +272,7 @@ def _prepare_transaction(
     for source, name, mode in (
         (pathlib.Path(__file__).resolve(strict=True), "promote_cloud_agent_identity_batch.py", 0o700),
         (pathlib.Path(base.__file__).resolve(strict=True), "import_active_cloud_cpa_credential.py", 0o600),
+        (pathlib.Path(__file__).with_name("cloud_agent_identity_promotion_support.py").resolve(strict=True), "cloud_agent_identity_promotion_support.py", 0o600),
     ):
         _copy_private(source, transaction / "tool" / name, mode)
     for source in baseline["active"]:
@@ -345,12 +292,14 @@ def _prepare_transaction(
         "failureMap": baseline["failureMap"],
         "sweepMap": baseline["sweepMap"],
         "service": baseline["service"],
+        "baselinePoolState": baseline["poolState"],
         "cliproxyUid": baseline["cliproxyUid"],
         "cliproxyGid": baseline["cliproxyGid"],
         "promoted": {},
         "rawCredentialStored": False,
         "toolSha256": _sha256(transaction / "tool/promote_cloud_agent_identity_batch.py"),
         "helperSha256": _sha256(transaction / "tool/import_active_cloud_cpa_credential.py"),
+        "supportSha256": _sha256(transaction / "tool/cloud_agent_identity_promotion_support.py"),
     }
     base.atomic_json(transaction / "manifest.json", manifest)
     compile(_safe_bytes(transaction / "tool/promote_cloud_agent_identity_batch.py").decode("utf-8"), "recovery-tool", "exec")
@@ -588,7 +537,8 @@ def _rollback(transaction: pathlib.Path, host: str, port: int, *, verify: bool) 
     _move_promoted_failures(transaction, promoted)
     _remove_transaction_trigger(transaction)
     time.sleep(4.0)
-    canary = _canaries(host, port, 1) if verify else {"requests": 0, "attempts": 0}
+    baseline_state = str(manifest.get("baselinePoolState") or "available")
+    baseline_verified = verify_baseline_behavior(host, port, baseline_state, _canaries) if verify else False
     active = base.regular_json_files(AUTH_DIR)
     service = base.service_state(CPA_SERVICE)
     restored = (
@@ -597,7 +547,8 @@ def _rollback(transaction: pathlib.Path, host: str, port: int, *, verify: bool) 
         and len(_archive_entries()) == int(manifest.get("archiveCount") or -1)
         and _file_map(FAILURE_DIR) == dict(manifest.get("failureMap") or {})
     )
-    base.require_available_pool_observation(SWEEP_DIR)
+    if pool_observation_state(SWEEP_DIR, _json_file) != baseline_state:
+        raise Rejected("recovery_incomplete", "promotion baseline pool state was not restored")
     if not restored:
         raise Rejected("recovery_incomplete", "active Agent Identity promotion baseline was not restored")
     manifest["phase"] = "recovered"
@@ -610,7 +561,8 @@ def _rollback(transaction: pathlib.Path, host: str, port: int, *, verify: bool) 
         "transactionId": transaction.name,
         "activeRestored": len(active),
         "archiveRestored": len(_archive_entries()),
-        "liveCanary": canary["requests"] == 1,
+        "baselineBehaviorVerified": baseline_verified,
+        "baselinePoolState": baseline_state,
         "serviceRestarted": False,
         "rawCredentialStored": False,
     }
@@ -625,9 +577,10 @@ def _apply(
     expected_new: int,
     host: str,
     port: int,
+    allow_unavailable_baseline: bool = False,
 ) -> Dict[str, Any]:
     with _transaction_lock():
-        baseline = _preflight(expected_active)
+        baseline = _preflight(expected_active, allow_unavailable_baseline)
         transaction = _prepare_transaction(baseline, expected_sha256, expected_new)
         attestation: Optional[pathlib.Path] = None
         try:
@@ -690,6 +643,7 @@ def _apply(
                 "skipped": 0,
                 "activeBefore": expected_active,
                 "activeAfter": len(active),
+                "baselinePoolState": baseline["poolState"],
                 "distinctAgentIdentities": len(set(promoted.values())),
                 "cohortCanaryRequests": cohort["requests"],
                 "cohortCanaryAttempts": cohort["attempts"],
@@ -751,6 +705,7 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--port", type=int, default=8317)
     root.add_argument("--recover", default="")
     root.add_argument("--apply", action="store_true")
+    root.add_argument("--allow-unavailable-baseline", action="store_true")
     root.add_argument("--confirm", default="")
     return root
 
@@ -766,7 +721,12 @@ def main(argv: Optional[Sequence[str]] = None, stream: Any = None) -> int:
             raise Rejected("confirmation_mismatch", "promotion recovery confirmation does not match")
         print(json.dumps(_recover_existing(args.recover, args.host, args.port), sort_keys=True))
         return 0
-    document = plan(args.expected_request_sha256, args.expected_active_before, args.expected_new)
+    document = plan(
+        args.expected_request_sha256,
+        args.expected_active_before,
+        args.expected_new,
+        args.allow_unavailable_baseline,
+    )
     if not args.apply:
         print(json.dumps(document, sort_keys=True))
         return 0
@@ -780,6 +740,7 @@ def main(argv: Optional[Sequence[str]] = None, stream: Any = None) -> int:
         args.expected_new,
         args.host,
         args.port,
+        args.allow_unavailable_baseline,
     ), sort_keys=True))
     return 0
 
