@@ -1,0 +1,7 @@
+{
+  "artifactRef": "refs/heads/release-artifacts/v0.1.33",
+  "manifestSha256": "af7ea064355b71e997491d13449c389456bde38fcf3883a927e8fad8d2436be9",
+  "publishedAt": "2026-07-23T07:06:46.339395Z",
+  "schema": "cloudx.release-index.v1",
+  "version": "0.1.33"
+}
