@@ -65,3 +65,5 @@ The revocation receipt may report only counts, booleans, service identities, pub
 ## Decision
 
 The operator has now approved both separate maintenance actions, but approval does not bypass their ordering or acceptance gates. Phase 1 and Phase 2 each change external gateway state and restart an externally owned dependency; each must still use its exact confirmation, automatic rollback, and independent evidence. Until both pass, the scoped key must be treated as exposed.
+
+Phase 1 transaction `20260723T063726Z-485a416b` has now completed the overlap mutation and all key/tunnel/health checks: both old and new keys return HTTP `200`, unrelated and Phi consumer keys are preserved, and fresh broker/client-config routing is authorized. Its official-Codex business request reached the cloud gateway but returned existing capacity-layer `503 auth_unavailable`. That is not a credential `401`, but it does leave the required successful business canary unproven. The previous key therefore remains deliberately active and Phase 2 remains forbidden until a fresh real model request succeeds without any account mutation inferred from this authorization.

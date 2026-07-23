@@ -502,7 +502,8 @@ Status: scoped Cloudx gateway-key remediation is approved; every unrelated gatew
 - [x] Publish signed Cloudx `0.1.31` and verify its immutable tag/artifact/stable identities, seven assets, signatures, both self-checks, and ref/download/offline parity.
 - [x] Install signed Cloudx `0.1.31` on cloud first without restarting CPA/gateway or changing gateway keys and credentials; retain signed cloud `0.1.30` as N-1.
 - [x] Install signed Cloudx `0.1.31` on the current workstation while preserving local CPA, official Codex, native profile, and shell boundaries; retain signed local `0.1.30` as N-1 and pass real fresh-shell traffic.
-- [ ] Execute the separately approved Phase 1 overlap rotation, accept fresh client-config/broker routing, and retain the old key only for the bounded cutover interval.
+- [x] Execute Phase 1 overlap transaction `20260723T063726Z-485a416b`: append/switch to the new key, restart only the gateway with rollback, retain the old key, preserve unrelated/Phi keys, and accept fresh broker/client-config HTTP `200`, signed handshake, watches, and formal health.
+- [ ] Complete Phase 1 business-traffic acceptance after the existing active pool has usable capacity: require a fresh official-Codex-through-cloud model request to succeed. The current attempt truthfully reached the authorized path but returned capacity-layer `503 auth_unavailable`; do not infer key/tunnel failure, mutate accounts, or revoke the old key.
 - [ ] Execute the separately approved Phase 2 exact-one revocation, require new-key HTTP `200`, old-key HTTP `401`, unchanged unrelated keys and consumers, fresh formal health, and retained rollback evidence.
 
 Potential work includes loopback-only gateway binding, removal of direct Tailscale gateway exposure, restricted sudo policy, gateway key rotation, or CLIProxyAPI upgrades. Each item needs its own threat model, separate maintenance action, rollback rehearsal, and approval. None is required for Cloudx `0.1.x`.
