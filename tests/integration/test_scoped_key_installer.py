@@ -23,6 +23,7 @@ from install_scoped_gateway_key import (  # noqa: E402
     append_api_key,
     environment_document,
     main,
+    parse_api_key_scalar,
     top_level_value,
     scoped_key_lock,
     verify_artifact,
@@ -44,6 +45,20 @@ class ScopedKeyInstallerTests(unittest.TestCase):
     def test_inline_api_keys_are_rejected(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "block list"):
             append_api_key(b"api-keys: [one, two]\n", "cloudx-fixture")
+
+    def test_existing_plain_and_single_quoted_yaml_keys_are_accepted(self) -> None:
+        document = b"api-keys:\n  - cloudx-plain_1\n  - 'cloudx-single-2'\n  - 'key''three'\nauth-dir: /tmp/auth\n"
+        self.assertEqual(api_keys(document), ["cloudx-plain_1", "cloudx-single-2", "key'three"])
+        self.assertEqual(parse_api_key_scalar("cloudx-plain_1"), "cloudx-plain_1")
+        self.assertEqual(parse_api_key_scalar("'cloudx-single-2'"), "cloudx-single-2")
+        self.assertEqual(parse_api_key_scalar("'key''three'"), "key'three")
+
+    def test_unsafe_plain_yaml_key_is_rejected(self) -> None:
+        for value in ("plain key", "key # comment", "[key]", "{key: value}"):
+            with self.subTest(value=value), self.assertRaisesRegex(RuntimeError, "supported scalar"):
+                parse_api_key_scalar(value)
+        with self.assertRaisesRegex(RuntimeError, "single-quoted syntax"):
+            parse_api_key_scalar("'key'break'")
 
     def test_top_level_host_and_port_are_read_without_other_values(self) -> None:
         self.assertEqual(top_level_value(CONFIG, "host"), "100.90.97.113")

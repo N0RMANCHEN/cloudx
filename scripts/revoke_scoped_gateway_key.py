@@ -26,6 +26,7 @@ from install_scoped_gateway_key import (
     atomic_json,
     atomic_write,
     inotify_watch_count,
+    parse_api_key_scalar,
     probe,
     restore,
     sha256,
@@ -133,7 +134,7 @@ def remove_api_key_by_digest(original: bytes, digest: str) -> Tuple[bytes, str, 
         if in_keys and stripped and not stripped.startswith("#") and not line[0].isspace():
             in_keys = False
         if in_keys and stripped.startswith("-"):
-            value = json.loads(stripped[1:].strip())
+            value = parse_api_key_scalar(stripped[1:].strip())
             if value == target:
                 removed += 1
                 continue

@@ -16,6 +16,7 @@ The credential authorizes the Cloudx client path to call the gateway inference s
 - `cliproxy.service` remains active as PID `1871934`, restart count `0`.
 - Cloudx remains signed `0.1.29/0.1.28` with current artifact SHA-256 `272ce07da46da5f3d6c9e52dd108a2517bec4eadab3f0547324f6631413e8aa5`.
 - The initial 0.1.29 scoped-key invocation returned only `cloudx.scoped-key-plan.v1`, `status=confirmation-required`, and the exact restart confirmation. It read no production key and changed nothing. Source `0.1.30` now adds the pre-mutation digest manifest and exact-one revocation transaction required below.
+- The first signed 0.1.30 Phase 1 apply then rejected two valid plain YAML key scalars before writing any file or restarting any service. Aggregate verification retained five keys, one credential match, unchanged process/restart state, and zero rotation transactions. Source 0.1.31 adds bounded mixed-scalar compatibility; manual production YAML normalization is not authorized.
 
 ## Existing Rotation Capability
 
@@ -37,7 +38,7 @@ This is necessary but insufficient remediation. By design it retains the old key
 
 This phase requires its own exact operator confirmation and gateway restart. Acceptance must prove:
 
-- exact signed 0.1.30 artifact identity and unchanged non-gateway production boundaries;
+- exact signed 0.1.31 artifact identity and unchanged non-gateway production boundaries;
 - the new credential occurs exactly once and the previous credential remains exactly once;
 - real gateway model traffic with the new credential;
 - a fresh local `codexx cloud` broker generation fetches the new remote client configuration;
@@ -49,7 +50,7 @@ Failure restores the complete pre-rotation config, credential, environment, gate
 
 ### Phase 2: Exact-One Revocation
 
-Revocation is a later, separately confirmed restart boundary. Source `0.1.30` implements the required dedicated transaction; production use still waits for signed publication, endpoint installation, accepted Phase 1 evidence, and its own restart action. It must:
+Revocation is a later, separately confirmed restart boundary. Source `0.1.31` implements the required dedicated transaction with mixed YAML string-scalar compatibility; production use still waits for signed publication, endpoint installation, accepted Phase 1 evidence, and its own restart action. It must:
 
 - bind the current config and private previous/current credential evidence without emitting either value;
 - require the new credential to be active and accepted by fresh broker plus official-Codex canaries;

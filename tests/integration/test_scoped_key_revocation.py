@@ -155,6 +155,14 @@ class ScopedKeyRevocationTests(unittest.TestCase):
         )
         self.assertNotIn(OLD_KEY.encode("utf-8"), updated)
 
+    def test_revocation_accepts_plain_existing_key_and_preserves_scalar_styles(self) -> None:
+        document = CONFIG.replace(json.dumps(OLD_KEY).encode(), OLD_KEY.encode())
+        updated, removed, count = revoker.remove_api_key_by_digest(
+            document, sha256(OLD_KEY.encode("utf-8"))
+        )
+        self.assertEqual((removed, count), (OLD_KEY, 3))
+        self.assertEqual(revoker.api_keys(updated), [OTHER_KEY, NEW_KEY])
+
     def test_duplicate_digest_is_rejected(self) -> None:
         duplicate = CONFIG.replace(
             ("  - %s\n" % json.dumps(NEW_KEY)).encode("utf-8"),

@@ -390,11 +390,13 @@ python3 scripts/install_scoped_gateway_key.py \
 
 The read-only plan derives the cloud artifact path from the exact staged version. The `--apply` path first requires that artifact's self-check to report the same version, then requires the exact printed confirmation. It preserves the existing YAML text, writes a mode-0600 backup, installs the restricted credential and version-matched shadow environment atomically, restarts only the declared gateway unit, verifies a real model-list request and both config/auth inotify watches, and restores all files plus the old service configuration if any check fails.
 
-Source `0.1.30` additionally records a root-only pre-mutation rotation manifest. It contains credential SHA-256 bindings but no raw key and reports the transaction ID required by the distinct revocation plan:
+The first signed `0.1.30` production apply stopped before any mutation because the existing five-entry list contains two valid plain YAML key scalars and the reader required JSON double-quoted strings. Post-failure checks retained the same five keys, unique private credential, `0.1.30/0.1.29` cloud selectors, CPA PID `1871934`, gateway PID `277808`, restart counts `0`, and zero rotation transactions. Do not normalize or manually rewrite the production YAML. Source `0.1.31` accepts bounded JSON double-quoted, strict YAML single-quoted, and restricted plain key scalars while still rejecting comments, collections, whitespace, malformed quoting, and unsupported syntax.
+
+Source `0.1.31` records a root-only pre-mutation rotation manifest. It contains credential SHA-256 bindings but no raw key and reports the transaction ID required by the distinct revocation plan:
 
 ```bash
 python3 scripts/revoke_scoped_gateway_key.py \
-  --release-version 0.1.30 \
+  --release-version 0.1.31 \
   --transaction-id <accepted-rotation-id>
 ```
 

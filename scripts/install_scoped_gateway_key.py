@@ -35,6 +35,7 @@ VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 MAX_CONFIG_BYTES = 2 * 1024 * 1024
 MAX_CREDENTIAL_BYTES = 4096
 TRANSACTION_RE = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$")
+PLAIN_KEY_RE = re.compile(r"^[A-Za-z0-9._~-]{1,512}$")
 
 
 @dataclass(frozen=True)
@@ -146,16 +147,41 @@ def api_keys(original: bytes) -> list[str]:
             continue
         if not stripped.startswith("-"):
             continue
-        try:
-            value = json.loads(stripped[1:].strip())
-        except json.JSONDecodeError as exc:
-            raise RuntimeError("gateway api-key entry is not a JSON string") from exc
-        if not isinstance(value, str) or not value or len(value) > 512:
-            raise RuntimeError("gateway api-key entry is invalid")
-        result.append(value)
+        result.append(parse_api_key_scalar(stripped[1:].strip()))
     if not result:
         raise RuntimeError("gateway api-keys is empty")
     return result
+
+
+def parse_api_key_scalar(value: str) -> str:
+    if value.startswith('"'):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("gateway api-key entry has invalid double-quoted syntax") from exc
+    elif value.startswith("'"):
+        if len(value) < 2 or not value.endswith("'"):
+            raise RuntimeError("gateway api-key entry has invalid single-quoted syntax")
+        inner = value[1:-1]
+        parts: list[str] = []
+        index = 0
+        while index < len(inner):
+            if inner[index] != "'":
+                parts.append(inner[index])
+                index += 1
+                continue
+            if index + 1 >= len(inner) or inner[index + 1] != "'":
+                raise RuntimeError("gateway api-key entry has invalid single-quoted syntax")
+            parts.append("'")
+            index += 2
+        parsed = "".join(parts)
+    elif PLAIN_KEY_RE.fullmatch(value):
+        parsed = value
+    else:
+        raise RuntimeError("gateway api-key entry is not a supported scalar")
+    if not isinstance(parsed, str) or not parsed or len(parsed) > 512:
+        raise RuntimeError("gateway api-key entry is invalid")
+    return parsed
 
 
 def top_level_value(original: bytes, name: str) -> str:
